@@ -49,7 +49,7 @@ export const createWorktree = async (
   }
 
   const updatedRepo =
-    setRepositoryCloneStatus(repo.id, 'cloned', created.path) ?? repo;
+    setRepositoryCloneStatus(repo.id, 'cloned', created.sourcePath) ?? repo;
 
   const db = getDatabase();
   const worktree = db
