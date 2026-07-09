@@ -38,6 +38,9 @@ const ensureDirFor = (filePath: string): void => {
 
 export const ensureClone = async (repo: Repository): Promise<string> => {
   if (repo.localRootPath && existsSync(repo.localRootPath)) {
+    if (repo.githubRepoId < 0) {
+      return repo.localRootPath;
+    }
     const git = simpleGit(repo.localRootPath);
     await git.fetch(['origin', '--prune']);
     return repo.localRootPath;
@@ -52,6 +55,7 @@ export const ensureClone = async (repo: Repository): Promise<string> => {
 };
 
 export interface CreatedWorktree {
+  sourcePath: string;
   path: string;
   branchName: string;
   baseBranchName: string | null;
@@ -67,20 +71,23 @@ export const createWorktreeFromBranch = async (
   const sourcePath = await ensureClone(repo);
   const git: SimpleGit = simpleGit(sourcePath);
 
-  await git.raw(['fetch', 'origin', baseBranch]);
-
   const worktreeRoot = getWorktreeRootPath(repo);
   const worktreePath = path.join(worktreeRoot, sanitizeBranchName(worktreeName));
   ensureDirFor(worktreePath);
 
-  await git.raw([
-    'worktree',
-    'add',
-    '-b',
-    newBranchName,
-    worktreePath,
-    `origin/${baseBranch}`,
-  ]);
+  if (repo.githubRepoId < 0) {
+    await git.raw(['worktree', 'add', '-b', newBranchName, worktreePath, baseBranch]);
+  } else {
+    await git.raw(['fetch', 'origin', baseBranch]);
+    await git.raw([
+      'worktree',
+      'add',
+      '-b',
+      newBranchName,
+      worktreePath,
+      `origin/${baseBranch}`,
+    ]);
+  }
 
   let headCommitSha: string | null = null;
   try {
@@ -90,6 +97,7 @@ export const createWorktreeFromBranch = async (
   }
 
   return {
+    sourcePath,
     path: worktreePath,
     branchName: newBranchName,
     baseBranchName: baseBranch,

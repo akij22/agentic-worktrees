@@ -1,4 +1,10 @@
-import { ipcMain, IpcMainInvokeEvent } from 'electron';
+import {
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  IpcMainInvokeEvent,
+  type OpenDialogOptions,
+} from 'electron';
 import { IPC_CHANNELS } from '../../shared/ipc/channels';
 import {
   githubListBranchesRequestSchema,
@@ -8,15 +14,18 @@ import {
 } from '../../shared/ipc/schemas';
 import { listRemoteRepositories } from '../github/repos';
 import { listBranches } from '../github/branches';
+import { listLocalBranches } from '../git/local-branches';
 import {
   createWorktree,
   listWorktreesForRepository,
 } from '../worktrees/worktree-service';
 import {
   getRepositoryById,
+  isLocalRepository,
   listRepositories,
   upsertRepositoriesFromRemote,
 } from '../repositories/repository-service';
+import { importLocalRepository } from '../repositories/local-repository-service';
 
 const handleGithubListRepos = async (
   _event: IpcMainInvokeEvent,
@@ -25,7 +34,8 @@ const handleGithubListRepos = async (
   const request = githubListReposRequestSchema.parse(rawRequest ?? {});
   if (request.refresh) {
     const remote = await listRemoteRepositories();
-    return upsertRepositoriesFromRemote(remote);
+    upsertRepositoriesFromRemote(remote);
+    return listRepositories(false);
   }
   return listRepositories(false);
 };
@@ -39,8 +49,32 @@ const handleGithubListBranches = async (
   if (!repo) {
     throw new Error(`Repository not found: ${request.repositoryId}`);
   }
+  if (isLocalRepository(repo)) {
+    if (!repo.localRootPath) {
+      throw new Error(`Local repository path not found: ${repo.id}`);
+    }
+    return listLocalBranches(repo.localRootPath);
+  }
+
   const [owner, repoName] = repo.fullName.split('/');
   return listBranches(owner, repoName);
+};
+
+const handleRepositoryImportLocal = async () => {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  const dialogOptions: OpenDialogOptions = {
+    title: 'Select a local Git repository',
+    properties: ['openDirectory'],
+  };
+  const result = focusedWindow
+    ? await dialog.showOpenDialog(focusedWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return importLocalRepository(result.filePaths[0]);
 };
 
 const handleWorktreeCreate = async (
@@ -67,6 +101,10 @@ const handleWorktreeList = async (
 export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_REPOS, handleGithubListRepos);
   ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_BRANCHES, handleGithubListBranches);
+  ipcMain.handle(
+    IPC_CHANNELS.REPOSITORY_IMPORT_LOCAL,
+    handleRepositoryImportLocal,
+  );
   ipcMain.handle(IPC_CHANNELS.WORKTREE_CREATE, handleWorktreeCreate);
   ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST, handleWorktreeList);
 };

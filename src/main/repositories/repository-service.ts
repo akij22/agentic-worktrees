@@ -1,10 +1,29 @@
-import { eq } from 'drizzle-orm';
+import path from 'node:path';
+import { eq, or } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { getDatabase } from '../database/client';
 import { repositories, type Repository } from '../../shared/db/schema';
 import type { RemoteRepository } from '../github/repos';
 
 export type LocalCloneStatus = 'none' | 'cloning' | 'cloned' | 'failed';
+
+const getStableLocalGithubRepoId = (localRootPath: string): number => {
+  let hash = 0;
+  for (const char of localRootPath) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return -(hash + 1);
+};
+
+const getLocalRepositoryFullName = (
+  ownerLogin: string,
+  name: string,
+  localRootPath: string,
+): string => `${ownerLogin}/${name} (${localRootPath})`;
+
+export const isLocalRepository = (
+  repository: Pick<Repository, 'githubRepoId'>,
+): boolean => repository.githubRepoId < 0;
 
 export const upsertRepositoriesFromRemote = (
   remoteRepos: RemoteRepository[],
@@ -87,6 +106,79 @@ export const getRepositoryById = (id: string): Repository | undefined =>
     .from(repositories)
     .where(eq(repositories.id, id))
     .get();
+
+export const upsertLocalRepository = ({
+  localRootPath,
+  defaultBranch,
+}: {
+  localRootPath: string;
+  defaultBranch: string | null;
+}): Repository => {
+  const db = getDatabase();
+  const now = new Date();
+  const normalizedPath = path.resolve(localRootPath);
+  const name = path.basename(normalizedPath);
+  const ownerLogin = path.basename(path.dirname(normalizedPath)) || 'local';
+  const githubRepoId = getStableLocalGithubRepoId(normalizedPath);
+  const fullName = getLocalRepositoryFullName(ownerLogin, name, normalizedPath);
+  const existing = db
+    .select()
+    .from(repositories)
+    .where(
+      or(
+        eq(repositories.localRootPath, normalizedPath),
+        eq(repositories.githubRepoId, githubRepoId),
+      ),
+    )
+    .get();
+
+  if (existing) {
+    return db
+      .update(repositories)
+      .set({
+        ownerLogin,
+        name,
+        fullName,
+        defaultBranch,
+        isPrivate: false,
+        isArchived: false,
+        cloneUrl: `file://${normalizedPath}`,
+        sshUrl: null,
+        htmlUrl: '',
+        localRootPath: normalizedPath,
+        localCloneStatus: 'cloned',
+        lastLocalScanAt: now,
+        updatedAt: now,
+      })
+      .where(eq(repositories.id, existing.id))
+      .returning()
+      .get();
+  }
+
+  return db
+    .insert(repositories)
+    .values({
+      id: nanoid(),
+      githubRepoId,
+      ownerLogin,
+      name,
+      fullName,
+      defaultBranch,
+      isPrivate: false,
+      isArchived: false,
+      cloneUrl: `file://${normalizedPath}`,
+      sshUrl: null,
+      htmlUrl: '',
+      localRootPath: normalizedPath,
+      localCloneStatus: 'cloned',
+      lastLocalScanAt: now,
+      createdAt: now,
+      updatedAt: now,
+      lastSyncedAt: now,
+    })
+    .returning()
+    .get();
+};
 
 export const setRepositoryCloneStatus = (
   id: string,

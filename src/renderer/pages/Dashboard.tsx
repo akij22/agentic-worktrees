@@ -29,6 +29,14 @@ type LoadState =
   | { status: 'error'; message: string }
   | { status: 'success'; repos: Repository[] };
 
+type AddRepositoryState =
+  | { status: 'closed' }
+  | {
+      status: 'open';
+      mode: 'idle' | 'local' | 'remote';
+      error?: string;
+    };
+
 type DialogState =
   | { status: 'closed' }
   | {
@@ -55,8 +63,13 @@ const initialOpenDialog = (repo: Repository): DialogState => ({
   submitting: false,
 });
 
+const isLocalRepository = (repo: Repository): boolean => repo.githubRepoId < 0;
+
 export const Dashboard = () => {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'idle' });
+  const [addRepository, setAddRepository] = useState<AddRepositoryState>({
+    status: 'closed',
+  });
   const [dialog, setDialog] = useState<DialogState>({ status: 'closed' });
   const [createdWorktrees, setCreatedWorktrees] = useState<
     Record<string, Worktree[]>
@@ -67,16 +80,78 @@ export const Dashboard = () => {
     try {
       const repos = await window.api.github.listRepos({ refresh });
       setLoadState({ status: 'success', repos });
+      return repos;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       setLoadState({
         status: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message,
       });
+      throw new Error(message);
     }
   }, []);
 
   useEffect(() => {
-    void loadRepos(true);
+    void loadRepos(false);
+  }, [loadRepos]);
+
+  const openAddRepositoryDialog = useCallback(() => {
+    setAddRepository({ status: 'open', mode: 'idle' });
+  }, []);
+
+  const closeAddRepositoryDialog = useCallback(() => {
+    setAddRepository({ status: 'closed' });
+  }, []);
+
+  const importLocalRepository = useCallback(async () => {
+    setAddRepository((prev) =>
+      prev.status === 'open'
+        ? { ...prev, mode: 'local', error: undefined }
+        : prev,
+    );
+
+    try {
+      const repository = await window.api.repositories.importLocal();
+      if (repository) {
+        await loadRepos(false);
+        setAddRepository({ status: 'closed' });
+        return;
+      }
+      setAddRepository({ status: 'open', mode: 'idle' });
+    } catch (error) {
+      setAddRepository((prev) =>
+        prev.status === 'open'
+          ? {
+              ...prev,
+              mode: 'idle',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          : prev,
+      );
+    }
+  }, [loadRepos]);
+
+  const importRemoteRepositories = useCallback(async () => {
+    setAddRepository((prev) =>
+      prev.status === 'open'
+        ? { ...prev, mode: 'remote', error: undefined }
+        : prev,
+    );
+
+    try {
+      await loadRepos(true);
+      setAddRepository({ status: 'closed' });
+    } catch (error) {
+      setAddRepository((prev) =>
+        prev.status === 'open'
+          ? {
+              ...prev,
+              mode: 'idle',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          : prev,
+      );
+    }
   }, [loadRepos]);
 
   const openCreateDialog = useCallback((repo: Repository) => {
@@ -160,17 +235,27 @@ export const Dashboard = () => {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Repositories</h2>
           <p className="text-sm text-muted-foreground">
-            Remote GitHub repositories available to your installation.
+            Load repositories from a local folder or sync them from GitHub.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void loadRepos(true)}
-          disabled={loadState.status === 'loading'}
-        >
-          {loadState.status === 'loading' ? 'Syncing…' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openAddRepositoryDialog}
+            disabled={loadState.status === 'loading'}
+          >
+            +
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void loadRepos(false)}
+            disabled={loadState.status === 'loading'}
+          >
+            {loadState.status === 'loading' ? 'Loading…' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {loadState.status === 'loading' && (
@@ -200,8 +285,8 @@ export const Dashboard = () => {
           <CardHeader>
             <CardTitle>No repositories</CardTitle>
             <CardDescription>
-              Your GitHub App installation has no repositories. Grant access to at
-              least one repository and click Refresh.
+              Add a local repository or import all repositories available from
+              GitHub with the `+` button.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -216,9 +301,12 @@ export const Dashboard = () => {
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="truncate text-base">
-                      {repo.fullName}
+                      {isLocalRepository(repo) ? repo.name : repo.fullName}
                     </CardTitle>
                     <div className="flex shrink-0 gap-1.5">
+                      <Badge variant="outline">
+                        {isLocalRepository(repo) ? 'Local' : 'Remote'}
+                      </Badge>
                       {repo.isPrivate && (
                         <Badge variant="secondary">Private</Badge>
                       )}
@@ -228,7 +316,9 @@ export const Dashboard = () => {
                     </div>
                   </div>
                   <CardDescription className="truncate">
-                    default: {repo.defaultBranch ?? '—'}
+                    {isLocalRepository(repo)
+                      ? repo.localRootPath ?? 'Local path unavailable'
+                      : `default: ${repo.defaultBranch ?? '—'}`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1">
@@ -381,6 +471,60 @@ export const Dashboard = () => {
               }
             >
               {dialog.submitting ? 'Creating…' : 'Create worktree'}
+            </Button>
+          </DialogFooter>
+        </Dialog>
+      )}
+
+      {addRepository.status === 'open' && (
+        <Dialog open onOpenChange={(open) => !open && closeAddRepositoryDialog()}>
+          <DialogHeader>
+            <DialogTitle>Add repository</DialogTitle>
+            <DialogDescription>
+              Choose whether to connect a repository from a local folder or load
+              every repository currently available from GitHub.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 grid gap-3">
+            <button
+              type="button"
+              className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
+              onClick={() => void importLocalRepository()}
+              disabled={addRepository.mode !== 'idle'}
+            >
+              <div className="text-sm font-semibold">Local path</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Select a folder on this computer. The app checks for a valid
+                `.git` repository before adding it.
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
+              onClick={() => void importRemoteRepositories()}
+              disabled={addRepository.mode !== 'idle'}
+            >
+              <div className="text-sm font-semibold">GitHub remote</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Load all repositories currently available from the connected
+                GitHub profile.
+              </div>
+            </button>
+
+            {addRepository.error && (
+              <p className="text-sm text-destructive">{addRepository.error}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closeAddRepositoryDialog}
+              disabled={addRepository.mode !== 'idle'}
+            >
+              Cancel
             </Button>
           </DialogFooter>
         </Dialog>

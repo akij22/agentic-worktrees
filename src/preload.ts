@@ -9,6 +9,9 @@ const api: Api = {
     listBranches: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_BRANCHES, request),
   },
+  repositories: {
+    importLocal: () => ipcRenderer.invoke(IPC_CHANNELS.REPOSITORY_IMPORT_LOCAL),
+  },
   worktrees: {
     create: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKTREE_CREATE, request),

@@ -23,6 +23,8 @@ export type BranchDto = z.infer<typeof branchSchema>;
 
 export const githubListBranchesResponseSchema = z.array(branchSchema);
 
+export const repositoryImportLocalResponseSchema = z.custom<Repository>().nullable();
+
 export const worktreeCreateRequestSchema = z.object({
   repositoryId: z.string().min(1),
   baseBranch: z.string().min(1),

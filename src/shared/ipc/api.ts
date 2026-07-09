@@ -8,6 +8,9 @@ export interface Api {
       repositoryId: string;
     }) => Promise<BranchDto[]>;
   };
+  repositories: {
+    importLocal: () => Promise<Repository | null>;
+  };
   worktrees: {
     create: (request: {
       repositoryId: string;
