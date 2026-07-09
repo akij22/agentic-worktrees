@@ -2,7 +2,41 @@ import { mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { simpleGit, type SimpleGit } from 'simple-git';
 import { getEnvConfig } from '../config/env';
+import { getInstallationAccessToken } from '../github/octokit';
 import type { Repository } from '../../shared/db/schema';
+
+const GIT_COMMAND_TIMEOUT_MS = 120_000;
+
+const createGitClient = (
+  baseDir?: string,
+  installationToken?: string,
+): SimpleGit => {
+  const basicAuth = installationToken
+    ? Buffer.from(`x-access-token:${installationToken}`).toString('base64')
+    : null;
+  const git = simpleGit({
+    ...(baseDir ? { baseDir } : {}),
+    timeout: { block: GIT_COMMAND_TIMEOUT_MS },
+    // The config value is generated internally and carries the GitHub App
+    // token without putting it in the command-line arguments.
+    ...(basicAuth ? { unsafe: { allowUnsafeConfigEnvCount: true } } : {}),
+  });
+
+  // Electron has no terminal to display a credential prompt. Failing instead
+  // of prompting prevents an IPC request from remaining pending indefinitely.
+  // Keep the access token out of command arguments and therefore out of Git
+  // error messages that are returned across the IPC boundary.
+  return git.env({
+    GIT_TERMINAL_PROMPT: '0',
+    ...(basicAuth
+      ? {
+          GIT_CONFIG_COUNT: '1',
+          GIT_CONFIG_KEY_0: 'http.extraHeader',
+          GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basicAuth}`,
+        }
+      : {}),
+  });
+};
 
 export const sanitizeBranchName = (name: string): string =>
   name
@@ -37,11 +71,14 @@ const ensureDirFor = (filePath: string): void => {
 };
 
 export const ensureClone = async (repo: Repository): Promise<string> => {
+  const installationToken =
+    repo.githubRepoId < 0 ? undefined : await getInstallationAccessToken();
+
   if (repo.localRootPath && existsSync(repo.localRootPath)) {
     if (repo.githubRepoId < 0) {
       return repo.localRootPath;
     }
-    const git = simpleGit(repo.localRootPath);
+    const git = createGitClient(repo.localRootPath, installationToken);
     await git.fetch(['origin', '--prune']);
     return repo.localRootPath;
   }
@@ -49,7 +86,22 @@ export const ensureClone = async (repo: Repository): Promise<string> => {
   const targetPath = getRepoSourcePath(repo);
   ensureDirFor(targetPath);
 
-  await simpleGit().clone(repo.cloneUrl, targetPath, ['--bare']);
+  if (existsSync(targetPath)) {
+    const git = createGitClient(targetPath, installationToken);
+    const isBareRepository =
+      (await git.raw(['rev-parse', '--is-bare-repository'])).trim() === 'true';
+    if (!isBareRepository) {
+      throw new Error(`Existing clone is not a bare Git repository: ${targetPath}`);
+    }
+    await git.fetch(['origin', '--prune']);
+    return targetPath;
+  }
+
+  await createGitClient(undefined, installationToken).clone(
+    repo.cloneUrl,
+    targetPath,
+    ['--bare'],
+  );
 
   return targetPath;
 };
@@ -69,7 +121,9 @@ export const createWorktreeFromBranch = async (
   worktreeName: string,
 ): Promise<CreatedWorktree> => {
   const sourcePath = await ensureClone(repo);
-  const git: SimpleGit = simpleGit(sourcePath);
+  const installationToken =
+    repo.githubRepoId < 0 ? undefined : await getInstallationAccessToken();
+  const git = createGitClient(sourcePath, installationToken);
 
   const worktreeRoot = getWorktreeRootPath(repo);
   const worktreePath = path.join(worktreeRoot, sanitizeBranchName(worktreeName));
@@ -78,14 +132,20 @@ export const createWorktreeFromBranch = async (
   if (repo.githubRepoId < 0) {
     await git.raw(['worktree', 'add', '-b', newBranchName, worktreePath, baseBranch]);
   } else {
-    await git.raw(['fetch', 'origin', baseBranch]);
+    // Bare clones store branches in refs/heads rather than origin/<branch>.
+    // Fetch the selected branch into that local ref before adding the worktree.
+    await git.raw([
+      'fetch',
+      'origin',
+      `+refs/heads/${baseBranch}:refs/heads/${baseBranch}`,
+    ]);
     await git.raw([
       'worktree',
       'add',
       '-b',
       newBranchName,
       worktreePath,
-      `origin/${baseBranch}`,
+      baseBranch,
     ]);
   }
 
