@@ -73,3 +73,24 @@
 * Prefer extending existing services over introducing new abstractions.
 * Create new services, entities, IPC channels, or UI flows only when the existing architecture cannot reasonably accommodate the requested feature.
 * Before completing a task, describe every modified file and summarize the purpose of each change.
+
+## Commit Messages
+
+* Write every commit message in English.
+* Explain in detail the changes made for each modified file, describing what changed and why.
+
+## DO NOT
+
+* Do not use the renderer process for business logic, Git operations, filesystem access, database access, or GitHub API calls.
+* Do not read environment variables throughout the codebase; keep environment configuration centralized.
+* Do not create new services, entities, IPC channels, or UI flows when the existing architecture can reasonably accommodate the feature.
+* Do not manually modify generated migration artifacts, except when repairing a known generation issue.
+* Do not infer new UI from backend entities, database tables, services, APIs, IPC handlers, workflows, queues, execution models, or other implementation details.
+* Do not introduce dashboards, statistics, administration pages, or management views unless they are explicitly part of the requested scope.
+* Do not commit `.env`, GitHub private keys, local workspace clones, logs, database files, build artifacts, or generated coverage.
+* Do not expose secrets, tokens, or private keys to the renderer process.
+* Do not execute destructive Git or filesystem operations unless explicitly requested.
+* Do not silently ignore errors.
+* Do not use `any` unless interacting with genuinely untyped external boundaries.
+* Do not write commit messages in languages other than English.
+* Do not use package managers other than `npm` for project commands.
