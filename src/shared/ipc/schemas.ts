@@ -1,0 +1,60 @@
+import { z } from 'zod';
+import type { Repository, Worktree } from '../db/schema';
+
+export const githubListReposRequestSchema = z.object({
+  refresh: z.boolean().optional().default(false),
+});
+
+export const githubListReposResponseSchema = z.array(
+  z.custom<Repository>(),
+);
+
+export const githubListBranchesRequestSchema = z.object({
+  repositoryId: z.string().min(1),
+});
+
+export const branchSchema = z.object({
+  name: z.string(),
+  protected: z.boolean(),
+  headCommitSha: z.string().nullable(),
+});
+
+export type BranchDto = z.infer<typeof branchSchema>;
+
+export const githubListBranchesResponseSchema = z.array(branchSchema);
+
+export const worktreeCreateRequestSchema = z.object({
+  repositoryId: z.string().min(1),
+  baseBranch: z.string().min(1),
+  newBranchName: z
+    .string()
+    .min(1)
+    .regex(
+      /^[a-zA-Z0-9._/-]+$/,
+      'Branch name may only contain letters, numbers, ".", "/", and "-"',
+    ),
+  worktreeName: z.string().min(1),
+});
+
+export const worktreeCreateResponseSchema = z.object({
+  worktree: z.custom<Worktree>(),
+  repository: z.custom<Repository>(),
+});
+
+export const worktreeListRequestSchema = z.object({
+  repositoryId: z.string().min(1),
+});
+
+export const worktreeListResponseSchema = z.array(z.custom<Worktree>());
+
+export type GithubListReposRequest = z.infer<
+  typeof githubListReposRequestSchema
+>;
+export type GithubListBranchesRequest = z.infer<
+  typeof githubListBranchesRequestSchema
+>;
+export type WorktreeCreateRequest = z.infer<typeof worktreeCreateRequestSchema>;
+export type WorktreeCreateResponse = z.infer<
+  typeof worktreeCreateResponseSchema
+>;
+export type WorktreeListRequest = z.infer<typeof worktreeListRequestSchema>;

@@ -2,6 +2,8 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { initDatabase } from './main/database';
+import './main/config/env';
+import { registerIpcHandlers } from './main/ipc';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -11,8 +13,10 @@ if (started) {
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1280,
+    height: 820,
+    minWidth: 960,
+    minHeight: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },
@@ -36,6 +40,7 @@ const createWindow = () => {
 // Some APIs can only be used after this event occurs.
 app.on('ready', () => {
   initDatabase();
+  registerIpcHandlers();
   createWindow();
 });
 
