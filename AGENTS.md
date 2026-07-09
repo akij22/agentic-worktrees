@@ -58,6 +58,13 @@
 * Never expose secrets, tokens, or private keys to the renderer process.
 * Do not execute destructive Git or filesystem operations unless explicitly requested.
 
+## Error Handling
+
+- Never silently ignore errors.
+- Return meaningful errors across IPC boundaries.
+- Preserve original error context in backend logs.
+- Show user-friendly messages in the renderer.
+
 ## Change Discipline
 
 * Preserve strict TypeScript settings.
