@@ -6,11 +6,15 @@ const api: Api = {
   github: {
     listRepos: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_REPOS, request ?? {}),
+    listRemoteRepos: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_REMOTE_REPOS),
     listBranches: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_BRANCHES, request),
   },
   repositories: {
     importLocal: () => ipcRenderer.invoke(IPC_CHANNELS.REPOSITORY_IMPORT_LOCAL),
+    importRemote: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.REPOSITORY_IMPORT_REMOTE, request),
   },
   worktrees: {
     create: (request) =>

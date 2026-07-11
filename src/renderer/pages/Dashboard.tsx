@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Repository, Worktree } from '../../shared/db/schema';
-import type { BranchDto } from '../../shared/ipc/schemas';
+import type { BranchDto, RemoteRepositoryDto } from '../../shared/ipc/schemas';
 import {
   Card,
   CardContent,
@@ -33,7 +33,9 @@ type AddRepositoryState =
   | { status: 'closed' }
   | {
       status: 'open';
-      mode: 'idle' | 'local' | 'remote';
+      mode: 'idle' | 'local' | 'remote-loading' | 'remote-selecting' | 'remote-importing';
+      remoteCandidates: RemoteRepositoryDto[];
+      selectedRemoteIds: number[];
       error?: string;
     };
 
@@ -96,7 +98,12 @@ export const Dashboard = () => {
   }, [loadRepos]);
 
   const openAddRepositoryDialog = useCallback(() => {
-    setAddRepository({ status: 'open', mode: 'idle' });
+    setAddRepository({
+      status: 'open',
+      mode: 'idle',
+      remoteCandidates: [],
+      selectedRemoteIds: [],
+    });
   }, []);
 
   const closeAddRepositoryDialog = useCallback(() => {
@@ -117,7 +124,12 @@ export const Dashboard = () => {
         setAddRepository({ status: 'closed' });
         return;
       }
-      setAddRepository({ status: 'open', mode: 'idle' });
+      setAddRepository({
+        status: 'open',
+        mode: 'idle',
+        remoteCandidates: [],
+        selectedRemoteIds: [],
+      });
     } catch (error) {
       setAddRepository((prev) =>
         prev.status === 'open'
@@ -134,25 +146,82 @@ export const Dashboard = () => {
   const importRemoteRepositories = useCallback(async () => {
     setAddRepository((prev) =>
       prev.status === 'open'
-        ? { ...prev, mode: 'remote', error: undefined }
+        ? { ...prev, mode: 'remote-loading', error: undefined }
         : prev,
     );
 
     try {
-      await loadRepos(true);
-      setAddRepository({ status: 'closed' });
+      const remoteCandidates = await window.api.github.listRemoteRepos();
+      setAddRepository((prev) =>
+        prev.status === 'open'
+          ? {
+              ...prev,
+              mode: 'remote-selecting',
+              remoteCandidates,
+              selectedRemoteIds: [],
+            }
+          : prev,
+      );
     } catch (error) {
       setAddRepository((prev) =>
         prev.status === 'open'
           ? {
               ...prev,
               mode: 'idle',
+              remoteCandidates: [],
+              selectedRemoteIds: [],
               error: error instanceof Error ? error.message : String(error),
             }
           : prev,
       );
     }
-  }, [loadRepos]);
+  }, []);
+
+  const toggleRemoteRepository = useCallback((repositoryId: number) => {
+    setAddRepository((prev) => {
+      if (prev.status !== 'open' || prev.mode !== 'remote-selecting') {
+        return prev;
+      }
+      const selectedRemoteIds = prev.selectedRemoteIds.includes(repositoryId)
+        ? prev.selectedRemoteIds.filter((id) => id !== repositoryId)
+        : [...prev.selectedRemoteIds, repositoryId];
+      return { ...prev, selectedRemoteIds, error: undefined };
+    });
+  }, []);
+
+  const confirmRemoteRepositories = useCallback(async () => {
+    if (addRepository.status !== 'open') return;
+    if (addRepository.selectedRemoteIds.length === 0) {
+      setAddRepository((prev) =>
+        prev.status === 'open'
+          ? { ...prev, error: 'Select at least one repository.' }
+          : prev,
+      );
+      return;
+    }
+
+    const repositoryIds = addRepository.selectedRemoteIds;
+    setAddRepository((prev) =>
+      prev.status === 'open'
+        ? { ...prev, mode: 'remote-importing', error: undefined }
+        : prev,
+    );
+    try {
+      await window.api.repositories.importRemote({ repositoryIds });
+      await loadRepos(false);
+      setAddRepository({ status: 'closed' });
+    } catch (error) {
+      setAddRepository((prev) =>
+        prev.status === 'open'
+          ? {
+              ...prev,
+              mode: 'remote-selecting',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          : prev,
+      );
+    }
+  }, [addRepository, loadRepos]);
 
   const openCreateDialog = useCallback((repo: Repository) => {
     setDialog(initialOpenDialog(repo));
@@ -481,8 +550,8 @@ export const Dashboard = () => {
           <DialogHeader>
             <DialogTitle>Add repository</DialogTitle>
             <DialogDescription>
-              Choose whether to connect a repository from a local folder or load
-              every repository currently available from GitHub.
+              Choose a local repository or select one or more repositories from
+              the connected GitHub account.
             </DialogDescription>
           </DialogHeader>
 
@@ -500,6 +569,112 @@ export const Dashboard = () => {
               </div>
             </button>
 
+            {addRepository.mode === 'remote-loading' && (
+              <p className="rounded-md border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+                Loading repositories from GitHub…
+              </p>
+            )}
+
+            {(addRepository.mode === 'remote-selecting' ||
+              addRepository.mode === 'remote-importing') && (
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">Select repositories</div>
+                    <div className="text-xs text-muted-foreground">
+                      {addRepository.remoteCandidates.length} available ·{' '}
+                      {addRepository.selectedRemoteIds.length} selected
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setAddRepository((prev) =>
+                        prev.status === 'open'
+                          ? {
+                              ...prev,
+                              selectedRemoteIds:
+                                prev.selectedRemoteIds.length ===
+                                prev.remoteCandidates.length
+                                  ? []
+                                  : prev.remoteCandidates.map(
+                                      (repository) => repository.githubRepoId,
+                                    ),
+                              error: undefined,
+                            }
+                          : prev,
+                      )
+                    }
+                    disabled={
+                      addRepository.mode === 'remote-importing' ||
+                      addRepository.remoteCandidates.length === 0
+                    }
+                  >
+                    {addRepository.remoteCandidates.length > 0 &&
+                    addRepository.selectedRemoteIds.length ===
+                    addRepository.remoteCandidates.length
+                      ? 'Clear all'
+                      : 'Select all'}
+                  </Button>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto rounded-md border border-border bg-background">
+                  {addRepository.remoteCandidates.length === 0 ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">
+                      No repositories are available from this GitHub account.
+                    </p>
+                  ) : (
+                    addRepository.remoteCandidates.map((repository) => {
+                      const selected = addRepository.selectedRemoteIds.includes(
+                        repository.githubRepoId,
+                      );
+                      return (
+                        <label
+                          key={repository.githubRepoId}
+                          className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-muted/50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() =>
+                              toggleRemoteRepository(repository.githubRepoId)
+                            }
+                            disabled={addRepository.mode === 'remote-importing'}
+                            className="mt-1 size-4 accent-primary"
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">
+                              {repository.fullName}
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {repository.isPrivate ? 'Private' : 'Public'} · default:{' '}
+                              {repository.defaultBranch ?? '—'}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+
+                <Button
+                  type="button"
+                  className="mt-3 w-full"
+                  onClick={() => void confirmRemoteRepositories()}
+                  disabled={
+                    addRepository.mode === 'remote-importing' ||
+                    addRepository.selectedRemoteIds.length === 0
+                  }
+                >
+                  {addRepository.mode === 'remote-importing'
+                    ? 'Adding repositories…'
+                    : `Add selected (${addRepository.selectedRemoteIds.length})`}
+                </Button>
+              </div>
+            )}
+
             <button
               type="button"
               className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
@@ -508,8 +683,8 @@ export const Dashboard = () => {
             >
               <div className="text-sm font-semibold">GitHub remote</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                Load all repositories currently available from the connected
-                GitHub profile.
+                Browse the repositories available from the connected GitHub
+                profile and choose which ones to add.
               </div>
             </button>
 
@@ -522,7 +697,11 @@ export const Dashboard = () => {
             <Button
               variant="outline"
               onClick={closeAddRepositoryDialog}
-              disabled={addRepository.mode !== 'idle'}
+              disabled={
+                addRepository.mode === 'local' ||
+                addRepository.mode === 'remote-loading' ||
+                addRepository.mode === 'remote-importing'
+              }
             >
               Cancel
             </Button>
