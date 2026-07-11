@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type {
   CodingAgentDiffDto,
@@ -382,10 +389,16 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
   const [permission, setPermission] = useState<PendingPermission>();
   const [activity, setActivity] = useState<string>();
   const [selectedFile, setSelectedFile] = useState<string>();
+  const refreshSequence = useRef(0);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const [diffPanelWidth, setDiffPanelWidth] = useState(368);
+  const [isResizing, setIsResizing] = useState(false);
 
   const load = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
     try {
       const next = await window.api.codingAgent.getSession({ runId });
+      if (sequence !== refreshSequence.current) return;
       setSnapshot(next);
       setSelectedFile((current) =>
         current && next.diff.some((file) => file.file === current)
@@ -394,10 +407,13 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
       );
       setError(undefined);
     } catch (cause) {
+      if (sequence !== refreshSequence.current) return;
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
-      setSending(false);
+      if (sequence === refreshSequence.current) {
+        setLoading(false);
+        setSending(false);
+      }
     }
   }, [runId]);
 
@@ -447,6 +463,26 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
     return () => window.clearInterval(timer);
   }, [load, snapshot]);
 
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const bounds = splitRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      const maxWidth = Math.max(280, Math.min(720, bounds.width - 420));
+      const nextWidth = bounds.right - event.clientX;
+      setDiffPanelWidth(Math.min(maxWidth, Math.max(280, nextWidth)));
+    };
+    const stopResizing = () => setIsResizing(false);
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResizing);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResizing);
+    };
+  }, [isResizing]);
+
   const send = async () => {
     const content = draft.trim();
     if (!content) return;
@@ -478,7 +514,7 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
     }
   };
 
-  if (loading) return <Skeleton className="h-[calc(100vh-7rem)] w-full" />;
+  if (loading) return <Skeleton className="h-full w-full" />;
   if (!snapshot) {
     return <p className="text-sm text-destructive">{error ?? 'Session unavailable.'}</p>;
   }
@@ -496,8 +532,8 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
     Boolean(permission);
 
   return (
-    <div className="flex h-full min-h-[42rem] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <section className="shrink-0 border-b border-border bg-gradient-to-r from-card via-card to-muted/40 px-5 py-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <section className="shrink-0 border-b border-border bg-gradient-to-r from-card via-card to-muted/30 px-6 py-4">
         <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
           <div className="min-w-0">
             <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -523,8 +559,14 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
         </div>
       </section>
 
-      <div className="grid min-h-0 flex-1 xl:grid-cols-[minmax(0,1fr)_23rem]">
-        <section className="flex min-h-0 flex-col border-b border-border xl:border-b-0 xl:border-r">
+      <div
+        ref={splitRef}
+        style={{
+          '--inspection-panel-width': `${diffPanelWidth}px`,
+        } as CSSProperties}
+        className="grid min-h-0 flex-1 grid-cols-1 xl:[grid-template-columns:minmax(0,1fr)_0.5rem_var(--inspection-panel-width)]"
+      >
+        <section className="flex min-h-0 flex-col border-b border-border xl:border-b-0">
           <div className="flex items-center justify-between border-b border-border px-5 py-3">
             <span className="truncate text-xs font-medium">{session.title}</span>
             {busy ? (
@@ -626,8 +668,37 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
           </div>
         </section>
 
-        <aside className="min-h-0 bg-muted/20 xl:overflow-y-auto">
-          <div className="border-b border-border px-5 py-4">
+        <div
+          role="separator"
+          aria-label="Resize chat and diff panels"
+          aria-orientation="vertical"
+          aria-valuemin={280}
+          aria-valuemax={720}
+          aria-valuenow={diffPanelWidth}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault();
+              setDiffPanelWidth((width) => Math.min(720, width + 24));
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault();
+              setDiffPanelWidth((width) => Math.max(280, width - 24));
+            }
+          }}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            setIsResizing(true);
+          }}
+          className={`group relative hidden touch-none cursor-col-resize items-center justify-center border-x border-border/60 bg-transparent transition-colors xl:flex ${isResizing ? 'bg-primary/10' : 'hover:bg-primary/5'}`}
+        >
+          <span
+            className={`h-8 w-px rounded-full transition-all ${isResizing ? 'h-12 bg-primary' : 'bg-border group-hover:h-12 group-hover:bg-primary/70'}`}
+          />
+        </div>
+
+        <aside className="flex min-h-0 flex-col bg-muted/20 xl:overflow-hidden">
+          <div className="shrink-0 border-b border-border px-5 py-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-semibold">Inspection</h3>
@@ -638,12 +709,12 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
           </div>
 
           {diff.length === 0 ? (
-            <div className="px-6 py-14 text-center text-sm text-muted-foreground">
+            <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-muted-foreground">
               No changes to inspect yet.
             </div>
           ) : (
-            <div>
-              <div className="border-b border-border p-3">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="shrink-0 border-b border-border p-3">
                 {diff.map((file) => (
                   <button
                     key={file.file}
@@ -670,25 +741,138 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
   );
 };
 
-const DiffPreview = ({ diff }: { diff: CodingAgentDiffDto }) => (
-  <div className="p-3">
-    <div className="mb-2 truncate font-mono text-xs font-medium">{diff.file}</div>
-    <div className="grid gap-2">
-      <div>
-        <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Before</div>
-        <pre className="max-h-56 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[10px] leading-4 text-muted-foreground">
-          {diff.before || '∅'}
-        </pre>
+type DiffLine = {
+  type: 'context' | 'addition' | 'deletion';
+  content: string;
+  oldLine: number | null;
+  newLine: number | null;
+};
+
+const splitDiffLines = (content: string): string[] => {
+  if (!content) return [];
+  const lines = content.replaceAll('\r\n', '\n').split('\n');
+  return lines.at(-1) === '' ? lines.slice(0, -1) : lines;
+};
+
+const createDiffLines = (before: string, after: string): DiffLine[] => {
+  const oldLines = splitDiffLines(before);
+  const newLines = splitDiffLines(after);
+  const table = Array.from({ length: oldLines.length + 1 }, () =>
+    new Uint32Array(newLines.length + 1),
+  );
+
+  for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex -= 1) {
+    for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex -= 1) {
+      table[oldIndex][newIndex] =
+        oldLines[oldIndex] === newLines[newIndex]
+          ? table[oldIndex + 1][newIndex + 1] + 1
+          : Math.max(table[oldIndex + 1][newIndex], table[oldIndex][newIndex + 1]);
+    }
+  }
+
+  const lines: DiffLine[] = [];
+  let oldIndex = 0;
+  let newIndex = 0;
+  let oldLine = 1;
+  let newLine = 1;
+  while (oldIndex < oldLines.length || newIndex < newLines.length) {
+    if (
+      oldIndex < oldLines.length &&
+      newIndex < newLines.length &&
+      oldLines[oldIndex] === newLines[newIndex]
+    ) {
+      lines.push({
+        type: 'context',
+        content: oldLines[oldIndex],
+        oldLine,
+        newLine,
+      });
+      oldIndex += 1;
+      newIndex += 1;
+      oldLine += 1;
+      newLine += 1;
+    } else if (
+      newIndex >= newLines.length ||
+      (oldIndex < oldLines.length &&
+        table[oldIndex + 1][newIndex] >= table[oldIndex][newIndex + 1])
+    ) {
+      lines.push({
+        type: 'deletion',
+        content: oldLines[oldIndex],
+        oldLine,
+        newLine: null,
+      });
+      oldIndex += 1;
+      oldLine += 1;
+    } else {
+      lines.push({
+        type: 'addition',
+        content: newLines[newIndex],
+        oldLine: null,
+        newLine,
+      });
+      newIndex += 1;
+      newLine += 1;
+    }
+  }
+
+  return lines;
+};
+
+const DiffPreview = ({ diff }: { diff: CodingAgentDiffDto }) => {
+  const lines = useMemo(() => createDiffLines(diff.before, diff.after), [diff.before, diff.after]);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col p-3">
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+        <div className="min-w-0 truncate font-mono text-xs font-medium text-foreground">
+          {diff.file}
+        </div>
+        <div className="flex shrink-0 items-center gap-2 font-mono text-[10px] font-semibold">
+          <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-400">
+            +{diff.additions}
+          </span>
+          <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-400">
+            −{diff.deletions}
+          </span>
+        </div>
       </div>
-      <div>
-        <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">After</div>
-        <pre className="max-h-56 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[10px] leading-4">
-          {diff.after || '∅'}
-        </pre>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-inner">
+        <div className="min-h-0 flex-1 overflow-auto py-1 font-mono text-[11px] leading-5">
+          {lines.length === 0 ? (
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+              No line changes to display.
+            </div>
+          ) : (
+            lines.map((line, index) => {
+              const tone =
+                line.type === 'addition'
+                  ? 'border-l-2 border-emerald-400 bg-emerald-500/10 text-emerald-100'
+                  : line.type === 'deletion'
+                    ? 'border-l-2 border-rose-400 bg-rose-500/10 text-rose-100'
+                    : 'border-l-2 border-transparent text-muted-foreground hover:bg-muted/30';
+              const marker = line.type === 'addition' ? '+' : line.type === 'deletion' ? '−' : ' ';
+              return (
+                <div key={`${line.type}-${line.oldLine ?? 'new'}-${line.newLine ?? 'old'}-${index}`} className={`flex min-w-max ${tone}`}>
+                  <span className="w-10 shrink-0 select-none px-2 text-right text-muted-foreground/50">
+                    {line.oldLine ?? ''}
+                  </span>
+                  <span className="w-10 shrink-0 select-none px-1 text-right text-muted-foreground/50">
+                    {line.newLine ?? ''}
+                  </span>
+                  <span className="w-5 shrink-0 select-none text-center font-semibold opacity-80">
+                    {marker}
+                  </span>
+                  <span className="whitespace-pre px-2">{line.content || ' '}</span>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const CodingAgent = () => {
   const { runId } = useParams();

@@ -76,6 +76,76 @@ const listeners = new Set<(event: AgentUiEvent) => void>();
 const reconcileTimers = new Map<string, NodeJS.Timeout>();
 const reasoningByRun = new Map<string, Map<string, string>>();
 
+const splitNullDelimited = (output: string): string[] =>
+  output.split('\0').filter(Boolean);
+
+const countLines = (content: string): number => {
+  if (!content) return 0;
+  return content.split('\n').length - (content.endsWith('\n') ? 1 : 0);
+};
+
+const getWorktreeDiff = async (directory: string): Promise<CodingAgentDiff[]> => {
+  const git = async (args: string[]): Promise<string> =>
+    (
+      await execFileAsync('git', args, {
+        cwd: directory,
+        maxBuffer: 10 * 1024 * 1024,
+      })
+    ).stdout;
+  const readHeadFile = async (file: string): Promise<string> => {
+    try {
+      return await git(['show', `HEAD:${file}`]);
+    } catch {
+      // New files are not present in HEAD and therefore have no "before" text.
+      return '';
+    }
+  };
+  const readWorktreeFile = async (file: string): Promise<string> => {
+    try {
+      return await fs.readFile(path.resolve(directory, file), 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
+      throw error;
+    }
+  };
+
+  const [changedOutput, untrackedOutput, numstatOutput] = await Promise.all([
+    git(['diff', '--name-only', '-z', 'HEAD', '--']),
+    git(['ls-files', '--others', '--exclude-standard', '-z']),
+    git(['diff', '--numstat', '-z', 'HEAD', '--']),
+  ]);
+  const changedFiles = [...new Set([
+    ...splitNullDelimited(changedOutput),
+    ...splitNullDelimited(untrackedOutput),
+  ])];
+  const numstat = new Map(
+    splitNullDelimited(numstatOutput).flatMap((entry) => {
+      const [additions, deletions, file] = entry.split('\t');
+      return file ? [[file, { additions, deletions }] as const] : [];
+    }),
+  );
+
+  return Promise.all(
+    changedFiles.map(async (file) => {
+      const [before, after] = await Promise.all([
+        readHeadFile(file),
+        readWorktreeFile(file),
+      ]);
+      const stats = numstat.get(file);
+      return {
+        file,
+        before,
+        after,
+        additions:
+          stats?.additions === '-'
+            ? 0
+            : Number(stats?.additions ?? countLines(after)),
+        deletions: stats?.deletions === '-' ? 0 : Number(stats?.deletions ?? 0),
+      };
+    }),
+  );
+};
+
 const getInstallation = () =>
   getDatabase()
     .select()
@@ -439,10 +509,7 @@ export const getAgentSessionSnapshot = async (
       createdAt: message.createdAt.getTime(),
       completedAt: message.completedAt?.getTime() ?? null,
     }));
-  const diff = await adapter.getDiff(
-    context.worktree.path,
-    row.agent.externalSessionId,
-  );
+  const diff = await getWorktreeDiff(context.worktree.path);
   return {
     session: toSummary(row),
     context,
