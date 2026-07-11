@@ -21,6 +21,12 @@ export const listWorktreesForRepository = (
     .where(eq(worktrees.repositoryId, repositoryId))
     .all();
 
+export const listAllWorktrees = (): Worktree[] =>
+  getDatabase().select().from(worktrees).all();
+
+export const getWorktreeById = (id: string): Worktree | undefined =>
+  getDatabase().select().from(worktrees).where(eq(worktrees.id, id)).get();
+
 export const createWorktree = async (
   repositoryId: string,
   baseBranch: string,

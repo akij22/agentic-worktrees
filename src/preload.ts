@@ -20,6 +20,34 @@ const api: Api = {
     create: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKTREE_CREATE, request),
     list: (request) => ipcRenderer.invoke(IPC_CHANNELS.WORKTREE_LIST, request),
+    listAll: () => ipcRenderer.invoke(IPC_CHANNELS.WORKTREE_LIST_ALL),
+  },
+  codingAgent: {
+    selectExecutable: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE),
+    getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_STATUS),
+    listModels: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_MODELS, request),
+    listWorktrees: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_WORKTREES),
+    listSessions: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_LIST, request ?? {}),
+    createSession: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_CREATE, request),
+    getSession: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
+    sendMessage: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_SEND, request),
+    abortSession: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_ABORT, request),
+    respondPermission: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND, request),
+    onEvent: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+        listener(payload as Parameters<typeof listener>[0]);
+      ipcRenderer.on(IPC_CHANNELS.CODING_AGENT_EVENT, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.CODING_AGENT_EVENT, handler);
+    },
   },
 };
 

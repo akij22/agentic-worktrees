@@ -1,5 +1,14 @@
 import type { Repository, Worktree } from '../db/schema';
-import type { BranchDto, RemoteRepositoryDto } from './schemas';
+import type {
+  BranchDto,
+  CodingAgentModelDto,
+  CodingAgentSessionDto,
+  CodingAgentSessionSnapshotDto,
+  CodingAgentStatusDto,
+  CodingAgentUiEventDto,
+  CodingAgentWorktreeContextDto,
+  RemoteRepositoryDto,
+} from './schemas';
 
 export interface Api {
   github: {
@@ -21,5 +30,34 @@ export interface Api {
       worktreeName: string;
     }) => Promise<{ worktree: Worktree; repository: Repository }>;
     list: (request: { repositoryId: string }) => Promise<Worktree[]>;
+    listAll: () => Promise<Worktree[]>;
+  };
+  codingAgent: {
+    selectExecutable: () => Promise<CodingAgentStatusDto | null>;
+    getStatus: () => Promise<CodingAgentStatusDto>;
+    listModels: (request: {
+      worktreeId: string;
+    }) => Promise<CodingAgentModelDto[]>;
+    listWorktrees: () => Promise<CodingAgentWorktreeContextDto[]>;
+    listSessions: (request?: {
+      worktreeId?: string;
+    }) => Promise<CodingAgentSessionDto[]>;
+    createSession: (request: {
+      worktreeId: string;
+      title: string;
+      providerId: string;
+      modelId: string;
+    }) => Promise<CodingAgentSessionDto>;
+    getSession: (request: {
+      runId: string;
+    }) => Promise<CodingAgentSessionSnapshotDto>;
+    sendMessage: (request: { runId: string; content: string }) => Promise<void>;
+    abortSession: (request: { runId: string }) => Promise<void>;
+    respondPermission: (request: {
+      runId: string;
+      permissionId: string;
+      response: 'once' | 'always' | 'reject';
+    }) => Promise<void>;
+    onEvent: (listener: (event: CodingAgentUiEventDto) => void) => () => void;
   };
 }

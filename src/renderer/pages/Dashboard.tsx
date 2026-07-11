@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Repository, Worktree } from '../../shared/db/schema';
 import type { BranchDto, RemoteRepositoryDto } from '../../shared/ipc/schemas';
 import {
@@ -68,6 +69,7 @@ const initialOpenDialog = (repo: Repository): DialogState => ({
 const isLocalRepository = (repo: Repository): boolean => repo.githubRepoId < 0;
 
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'idle' });
   const [addRepository, setAddRepository] = useState<AddRepositoryState>({
     status: 'closed',
@@ -81,6 +83,16 @@ export const Dashboard = () => {
     setLoadState({ status: 'loading' });
     try {
       const repos = await window.api.github.listRepos({ refresh });
+      const persistedWorktrees = await window.api.worktrees.listAll();
+      setCreatedWorktrees(
+        persistedWorktrees.reduce<Record<string, Worktree[]>>((grouped, worktree) => {
+          grouped[worktree.repositoryId] = [
+            ...(grouped[worktree.repositoryId] ?? []),
+            worktree,
+          ];
+          return grouped;
+        }, {}),
+      );
       setLoadState({ status: 'success', repos });
       return repos;
     } catch (error) {
@@ -414,6 +426,21 @@ export const Dashboard = () => {
                               {wt.baseBranchName ?? '—'}
                             </span>
                           </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="mt-2 w-full"
+                            onClick={() =>
+                              navigate(
+                                wt.activeRunId
+                                  ? `/coding-agent/${wt.id}/${wt.activeRunId}`
+                                  : `/coding-agent?worktreeId=${encodeURIComponent(wt.id)}&new=1`,
+                              )
+                            }
+                          >
+                            Open Coding Agent
+                          </Button>
                         </div>
                       ))}
                     </div>
