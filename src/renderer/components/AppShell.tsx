@@ -10,6 +10,9 @@ const navItems = [
 export const AppShell = () => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const isCodingAgentSession = /^\/coding-agent\/[^/]+\/[^/]+$/.test(
+    location.pathname,
+  );
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -57,7 +60,13 @@ export const AppShell = () => {
             {theme === 'dark' ? '\u2600\uFE0F' : '\u{1F319}'}
           </button>
         </header>
-        <div className="flex-1 overflow-auto p-6">
+        <div
+          className={
+            isCodingAgentSession
+              ? 'min-h-0 flex-1 overflow-hidden'
+              : 'flex-1 overflow-auto p-6'
+          }
+        >
           <Outlet />
         </div>
       </main>
