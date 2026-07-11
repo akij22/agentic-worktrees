@@ -55,6 +55,18 @@ export const getRepoSourcePath = (repo: Repository): string => {
 };
 
 const getWorktreeRootPath = (repo: Repository): string => {
+  if (repo.githubRepoId < 0) {
+    if (!repo.localRootPath) {
+      throw new Error(`Local repository path not found: ${repo.id}`);
+    }
+
+    const localRepositoryPath = path.resolve(repo.localRootPath);
+    return path.join(
+      path.dirname(localRepositoryPath),
+      `${path.basename(localRepositoryPath)}.worktrees`,
+    );
+  }
+
   const config = getEnvConfig();
   return path.join(
     config.workspaceRoot,

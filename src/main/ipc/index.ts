@@ -9,6 +9,7 @@ import { IPC_CHANNELS } from '../../shared/ipc/channels';
 import {
   githubListBranchesRequestSchema,
   githubListReposRequestSchema,
+  repositoryImportRemoteRequestSchema,
   worktreeCreateRequestSchema,
   worktreeListRequestSchema,
 } from '../../shared/ipc/schemas';
@@ -60,6 +61,8 @@ const handleGithubListBranches = async (
   return listBranches(owner, repoName);
 };
 
+const handleGithubListRemoteRepos = async () => listRemoteRepositories();
+
 const handleRepositoryImportLocal = async () => {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   const dialogOptions: OpenDialogOptions = {
@@ -75,6 +78,24 @@ const handleRepositoryImportLocal = async () => {
   }
 
   return importLocalRepository(result.filePaths[0]);
+};
+
+const handleRepositoryImportRemote = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = repositoryImportRemoteRequestSchema.parse(rawRequest);
+  const remoteRepositories = await listRemoteRepositories();
+  const selectedIds = new Set(request.repositoryIds);
+  const selectedRepositories = remoteRepositories.filter((repository) =>
+    selectedIds.has(repository.githubRepoId),
+  );
+
+  if (selectedRepositories.length !== request.repositoryIds.length) {
+    throw new Error('One or more selected GitHub repositories are unavailable.');
+  }
+
+  return upsertRepositoriesFromRemote(selectedRepositories);
 };
 
 const handleWorktreeCreate = async (
@@ -100,10 +121,18 @@ const handleWorktreeList = async (
 
 export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_REPOS, handleGithubListRepos);
+  ipcMain.handle(
+    IPC_CHANNELS.GITHUB_LIST_REMOTE_REPOS,
+    handleGithubListRemoteRepos,
+  );
   ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_BRANCHES, handleGithubListBranches);
   ipcMain.handle(
     IPC_CHANNELS.REPOSITORY_IMPORT_LOCAL,
     handleRepositoryImportLocal,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.REPOSITORY_IMPORT_REMOTE,
+    handleRepositoryImportRemote,
   );
   ipcMain.handle(IPC_CHANNELS.WORKTREE_CREATE, handleWorktreeCreate);
   ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST, handleWorktreeList);

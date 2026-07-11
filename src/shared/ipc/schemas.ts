@@ -9,6 +9,29 @@ export const githubListReposResponseSchema = z.array(
   z.custom<Repository>(),
 );
 
+export const remoteRepositorySchema = z.object({
+  githubRepoId: z.number().int(),
+  ownerLogin: z.string(),
+  name: z.string(),
+  fullName: z.string(),
+  defaultBranch: z.string().nullable(),
+  isPrivate: z.boolean(),
+  isArchived: z.boolean(),
+  cloneUrl: z.string(),
+  sshUrl: z.string().nullable(),
+  htmlUrl: z.string(),
+});
+
+export type RemoteRepositoryDto = z.infer<typeof remoteRepositorySchema>;
+
+export const githubListRemoteReposResponseSchema = z.array(
+  remoteRepositorySchema,
+);
+
+export const repositoryImportRemoteRequestSchema = z.object({
+  repositoryIds: z.array(z.number().int()).min(1),
+});
+
 export const githubListBranchesRequestSchema = z.object({
   repositoryId: z.string().min(1),
 });
@@ -51,6 +74,9 @@ export const worktreeListResponseSchema = z.array(z.custom<Worktree>());
 
 export type GithubListReposRequest = z.infer<
   typeof githubListReposRequestSchema
+>;
+export type RepositoryImportRemoteRequest = z.infer<
+  typeof repositoryImportRemoteRequestSchema
 >;
 export type GithubListBranchesRequest = z.infer<
   typeof githubListBranchesRequestSchema
