@@ -17,6 +17,7 @@ import {
 } from '../../shared/db/schema';
 import { OpenCodeAdapter } from './opencode-adapter';
 import {
+  findOpenCodeInSystem,
   parseOpenCodeVersion,
   readOpenCodeSessionId,
 } from './opencode-utils';
@@ -73,6 +74,7 @@ export interface AgentUiEvent {
 const adapter = new OpenCodeAdapter();
 const listeners = new Set<(event: AgentUiEvent) => void>();
 const reconcileTimers = new Map<string, NodeJS.Timeout>();
+const reasoningByRun = new Map<string, Map<string, string>>();
 
 const getInstallation = () =>
   getDatabase()
@@ -191,9 +193,20 @@ const replaceProjectedMessages = (
   messages: CodingAgentMessage[],
 ): void => {
   const db = getDatabase();
+  reasoningByRun.set(
+    runId,
+    new Map(
+      messages
+        .filter((message) => message.reasoning.trim().length > 0)
+        .map((message) => [message.id, message.reasoning]),
+    ),
+  );
   db.transaction((tx) => {
     tx.delete(runMessages).where(eq(runMessages.runId, runId)).run();
-    const visible = messages.filter((message) => message.content.trim().length > 0);
+    const visible = messages.filter(
+      (message) =>
+        message.content.trim().length > 0 || message.reasoning.trim().length > 0,
+    );
     visible.forEach((message, index) => {
       tx.insert(runMessages)
         .values({
@@ -281,6 +294,12 @@ export const configureOpenCode = async (executablePath: string) => {
     })
     .run();
   return getAgentInstallationStatus();
+};
+
+export const autoDiscoverOpenCode = async (): Promise<AgentInstallationStatus | null> => {
+  const candidate = await findOpenCodeInSystem();
+  if (!candidate) return null;
+  return configureOpenCode(candidate);
 };
 
 export const getAgentInstallationStatus = (): AgentInstallationStatus => {
@@ -416,6 +435,7 @@ export const getAgentSessionSnapshot = async (
       id: message.id,
       role: message.role === 'user' ? ('user' as const) : ('assistant' as const),
       content: message.content,
+      reasoning: reasoningByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ?? '',
       createdAt: message.createdAt.getTime(),
       completedAt: message.completedAt?.getTime() ?? null,
     }));
@@ -452,6 +472,10 @@ export const sendAgentMessage = async (
       providerId: row.agent.providerId,
       modelId: row.agent.modelId,
     });
+    // prompt_async returns before OpenCode finishes processing. Reconcile
+    // shortly after submission so the user's message is projected immediately
+    // even when the corresponding SSE event is delayed or missed.
+    scheduleReconcile(runId);
   } catch (error) {
     setRunStatus(
       runId,

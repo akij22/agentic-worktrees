@@ -118,6 +118,7 @@ export const codingAgentMessageSchema = z.object({
   id: z.string(),
   role: z.enum(['user', 'assistant']),
   content: z.string(),
+  reasoning: z.string(),
   createdAt: z.number(),
   completedAt: z.number().nullable(),
 });

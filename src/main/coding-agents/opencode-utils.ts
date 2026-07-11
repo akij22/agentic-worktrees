@@ -1,7 +1,47 @@
+import { execFile as execFileCb } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFileCb);
 
 export const parseOpenCodeVersion = (output: string): string | null =>
   output.match(/\b\d+\.\d+\.\d+(?:[-+][\w.-]+)?\b/)?.[0] ?? null;
+
+const COMMON_PATHS = [
+  path.join(os.homedir(), '.local', 'bin', 'opencode'),
+  path.join(os.homedir(), '.cargo', 'bin', 'opencode'),
+  '/usr/local/bin/opencode',
+  '/opt/homebrew/bin/opencode',
+  '/usr/bin/opencode',
+];
+
+export const findOpenCodeInSystem = async (): Promise<string | null> => {
+  try {
+    const { stdout } = await execFileAsync('command', ['-v', 'opencode'], {
+      timeout: 5_000,
+      windowsHide: true,
+    });
+    const trimmed = stdout.trim();
+    if (trimmed && existsSync(trimmed)) return trimmed;
+  } catch {
+    // not found in PATH
+  }
+
+  for (const candidate of COMMON_PATHS) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local');
+    const windowsCandidate = path.join(localAppData, 'Programs', 'opencode', 'opencode.exe');
+    if (existsSync(windowsCandidate)) return windowsCandidate;
+  }
+
+  return null;
+};
 
 export const reserveLocalPort = async (): Promise<number> =>
   new Promise((resolve, reject) => {

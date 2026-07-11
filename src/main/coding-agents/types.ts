@@ -18,6 +18,7 @@ export interface CodingAgentMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  reasoning: string;
   createdAt: number;
   completedAt: number | null;
 }

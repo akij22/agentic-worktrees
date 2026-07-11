@@ -17,17 +17,33 @@ import { reserveLocalPort } from './opencode-utils';
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
+const INTERNAL_DONE_MESSAGE = "*Done. I'll confirm to the user.*";
 
 const delay = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const removeInternalDoneMessage = (content: string): string =>
+  content.replaceAll(INTERNAL_DONE_MESSAGE, '').trim();
+
 const toMessage = (info: Message, parts: Part[]): CodingAgentMessage => ({
   id: info.id,
   role: info.role,
-  content: parts
-    .filter((part): part is Extract<Part, { type: 'text' }> => part.type === 'text')
-    .map((part) => part.text)
-    .join(''),
+  content: removeInternalDoneMessage(
+    parts
+      .filter(
+        (part): part is Extract<Part, { type: 'text' }> => part.type === 'text',
+      )
+      .map((part) => part.text)
+      .join(''),
+  ),
+  reasoning: removeInternalDoneMessage(
+    parts
+      .filter(
+        (part): part is Extract<Part, { type: 'reasoning' }> =>
+          part.type === 'reasoning',
+      )
+      .at(-1)?.text ?? '',
+  ),
   createdAt: info.time.created,
   completedAt: info.role === 'assistant' ? info.time.completed ?? null : null,
 });

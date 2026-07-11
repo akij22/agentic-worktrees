@@ -66,6 +66,20 @@ const readToolActivity = (event: CodingAgentUiEventDto): string | null => {
   if (!payload || typeof payload !== 'object' || !('part' in payload)) return null;
   const part = payload.part;
   if (!part || typeof part !== 'object' || !('type' in part) || part.type !== 'tool') {
+    if (
+      part &&
+      typeof part === 'object' &&
+      'type' in part &&
+      part.type === 'reasoning'
+    ) {
+      const delta =
+        'delta' in payload && typeof payload.delta === 'string'
+          ? payload.delta
+          : 'text' in part && typeof part.text === 'string'
+            ? part.text
+            : '';
+      return delta ? `Thinking… ${delta}` : 'Thinking…';
+    }
     return null;
   }
   const tool = 'tool' in part && typeof part.tool === 'string' ? part.tool : 'tool';
@@ -423,6 +437,16 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
     });
   }, [load, runId]);
 
+  useEffect(() => {
+    if (!snapshot || !['busy', 'creating'].includes(snapshot.session.status)) {
+      return;
+    }
+    // SSE is the primary update path; this bounded reconciliation closes the
+    // gap when an event is lost and keeps streamed assistant messages visible.
+    const timer = window.setInterval(() => void load(), 750);
+    return () => window.clearInterval(timer);
+  }, [load, snapshot]);
+
   const send = async () => {
     const content = draft.trim();
     if (!content) return;
@@ -462,6 +486,14 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
   const { session, context, messages, diff } = snapshot;
   const currentDiff = diff.find((file) => file.file === selectedFile);
   const busy = ['busy', 'creating', 'aborting'].includes(session.status);
+  // OpenCode's busy state describes the current turn, but it must not make
+  // the conversation one-shot when an idle SSE event is delayed or missed.
+  const composerLocked =
+    sending ||
+    session.status === 'creating' ||
+    session.status === 'aborting' ||
+    session.status === 'waiting_permission' ||
+    Boolean(permission);
 
   return (
     <div className="flex h-full min-h-[42rem] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -520,15 +552,22 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
                 <div className="mb-1.5 text-xs font-semibold">
                   {message.role === 'user' ? 'You' : 'OpenCode'}
                 </div>
-                <div
-                  className={
-                    message.role === 'user'
-                      ? 'whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6'
-                      : 'whitespace-pre-wrap border-l-2 border-primary/70 bg-muted/35 px-4 py-3 text-sm leading-6'
-                  }
-                >
-                  {message.content}
-                </div>
+                {message.content.trim() ? (
+                  <div
+                    className={
+                      message.role === 'user'
+                        ? 'whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6'
+                        : 'whitespace-pre-wrap border-l-2 border-primary/70 bg-muted/35 px-4 py-3 text-sm leading-6'
+                    }
+                  >
+                    {message.content}
+                  </div>
+                ) : null}
+                {message.role === 'assistant' && message.reasoning ? (
+                  <div className="whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs italic leading-5 text-muted-foreground/75">
+                    {message.reasoning}
+                  </div>
+                ) : null}
               </article>
             ))}
 
@@ -574,12 +613,12 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
                 }}
                 placeholder="Describe the change you want OpenCode to make…"
                 rows={3}
-                disabled={busy || Boolean(permission)}
+                disabled={composerLocked}
                 className="block w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
               />
               <div className="flex items-center justify-between px-1 pt-2">
                 <span className="text-xs text-muted-foreground">Enter to send · Shift + Enter for newline</span>
-                <Button size="sm" onClick={() => void send()} disabled={!draft.trim() || busy || sending || Boolean(permission)}>
+                <Button size="sm" onClick={() => void send()} disabled={!draft.trim() || composerLocked}>
                   Send ↗
                 </Button>
               </div>

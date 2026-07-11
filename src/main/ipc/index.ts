@@ -37,6 +37,7 @@ import {
 import { importLocalRepository } from '../repositories/local-repository-service';
 import {
   abortAgentSession,
+  autoDiscoverOpenCode,
   configureOpenCode,
   createAgentSession,
   getAgentInstallationStatus,
@@ -141,6 +142,9 @@ const handleWorktreeList = async (
 };
 
 const handleCodingAgentSelectExecutable = async () => {
+  const discovered = await autoDiscoverOpenCode();
+  if (discovered) return discovered;
+
   const focusedWindow = BrowserWindow.getFocusedWindow();
   const options: OpenDialogOptions = {
     title: 'Select the OpenCode executable',
