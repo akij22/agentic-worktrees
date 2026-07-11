@@ -3,6 +3,8 @@ import { useTheme } from '../lib/use-theme';
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/coding-agent', label: 'Coding Agent', end: false },
+  { to: '/settings', label: 'Settings', end: false },
 ];
 
 export const AppShell = () => {
@@ -41,7 +43,9 @@ export const AppShell = () => {
       <main className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
           <h1 className="text-base font-semibold tracking-tight">
-            {navItems.find((i) => i.to === location.pathname)?.label ?? 'Dashboard'}
+            {navItems.find((i) =>
+              i.end ? i.to === location.pathname : location.pathname.startsWith(i.to),
+            )?.label ?? 'Dashboard'}
           </h1>
           <button
             type="button"

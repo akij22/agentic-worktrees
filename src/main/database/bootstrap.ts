@@ -133,6 +133,44 @@ const bootstrapStatements = [
     CREATE INDEX IF NOT EXISTS run_messages_run_sequence_idx
     ON run_messages (run_id, sequence)
   `,
+  `
+    CREATE TABLE IF NOT EXISTS coding_agent_installations (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL,
+      name TEXT NOT NULL,
+      executable_path TEXT NOT NULL,
+      version TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_verified_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS coding_agent_installations_kind_unique
+    ON coding_agent_installations (kind)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS coding_agent_sessions (
+      run_id TEXT PRIMARY KEY NOT NULL,
+      installation_id TEXT NOT NULL,
+      external_session_id TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (installation_id) REFERENCES coding_agent_installations(id) ON DELETE RESTRICT
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS coding_agent_sessions_external_session_id_unique
+    ON coding_agent_sessions (external_session_id)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS coding_agent_sessions_installation_id_idx
+    ON coding_agent_sessions (installation_id)
+  `,
 ] as const;
 
 export const bootstrapSchemaSql = bootstrapStatements.join(';\n');

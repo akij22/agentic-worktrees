@@ -6,6 +6,18 @@ export const IPC_CHANNELS = {
   REPOSITORY_IMPORT_REMOTE: 'repository:import-remote',
   WORKTREE_CREATE: 'worktree:create',
   WORKTREE_LIST: 'worktree:list',
+  WORKTREE_LIST_ALL: 'worktree:list-all',
+  CODING_AGENT_SELECT_EXECUTABLE: 'coding-agent:select-executable',
+  CODING_AGENT_STATUS: 'coding-agent:status',
+  CODING_AGENT_MODELS: 'coding-agent:models',
+  CODING_AGENT_WORKTREES: 'coding-agent:worktrees',
+  CODING_AGENT_SESSION_LIST: 'coding-agent:session-list',
+  CODING_AGENT_SESSION_CREATE: 'coding-agent:session-create',
+  CODING_AGENT_SESSION_GET: 'coding-agent:session-get',
+  CODING_AGENT_SESSION_SEND: 'coding-agent:session-send',
+  CODING_AGENT_SESSION_ABORT: 'coding-agent:session-abort',
+  CODING_AGENT_PERMISSION_RESPOND: 'coding-agent:permission-respond',
+  CODING_AGENT_EVENT: 'coding-agent:event',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

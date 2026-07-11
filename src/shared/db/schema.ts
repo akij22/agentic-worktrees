@@ -149,8 +149,56 @@ export const runMessages = sqliteTable(
   }),
 );
 
+export const codingAgentInstallations = sqliteTable(
+  'coding_agent_installations',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    name: text('name').notNull(),
+    executablePath: text('executable_path').notNull(),
+    version: text('version').notNull(),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    lastVerifiedAt: integer('last_verified_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => ({
+    kindUnique: uniqueIndex('coding_agent_installations_kind_unique').on(
+      table.kind,
+    ),
+  }),
+);
+
+export const codingAgentSessions = sqliteTable(
+  'coding_agent_sessions',
+  {
+    runId: text('run_id')
+      .primaryKey()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    installationId: text('installation_id')
+      .notNull()
+      .references(() => codingAgentInstallations.id, { onDelete: 'restrict' }),
+    externalSessionId: text('external_session_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    modelId: text('model_id').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => ({
+    externalSessionIdUnique: uniqueIndex(
+      'coding_agent_sessions_external_session_id_unique',
+    ).on(table.externalSessionId),
+    installationIdIdx: index('coding_agent_sessions_installation_id_idx').on(
+      table.installationId,
+    ),
+  }),
+);
+
 export type Repository = typeof repositories.$inferSelect;
 export type Worktree = typeof worktrees.$inferSelect;
 export type Run = typeof runs.$inferSelect;
 export type RunOutputEvent = typeof runOutputEvents.$inferSelect;
 export type RunMessage = typeof runMessages.$inferSelect;
+export type CodingAgentInstallation =
+  typeof codingAgentInstallations.$inferSelect;
+export type CodingAgentSession = typeof codingAgentSessions.$inferSelect;

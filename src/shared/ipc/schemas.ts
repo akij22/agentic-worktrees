@@ -72,6 +72,123 @@ export const worktreeListRequestSchema = z.object({
 
 export const worktreeListResponseSchema = z.array(z.custom<Worktree>());
 
+export const codingAgentWorktreeContextSchema = z.object({
+  worktree: z.custom<Worktree>(),
+  repository: z.custom<Repository>(),
+});
+
+export type CodingAgentWorktreeContextDto = z.infer<
+  typeof codingAgentWorktreeContextSchema
+>;
+
+export const codingAgentStatusSchema = z.object({
+  configured: z.boolean(),
+  executablePath: z.string().nullable(),
+  version: z.string().nullable(),
+  running: z.boolean(),
+  error: z.string().nullable(),
+});
+
+export type CodingAgentStatusDto = z.infer<typeof codingAgentStatusSchema>;
+
+export const codingAgentModelSchema = z.object({
+  providerId: z.string(),
+  providerName: z.string(),
+  modelId: z.string(),
+  modelName: z.string(),
+});
+
+export type CodingAgentModelDto = z.infer<typeof codingAgentModelSchema>;
+
+export const codingAgentSessionSchema = z.object({
+  id: z.string(),
+  worktreeId: z.string(),
+  repositoryId: z.string(),
+  title: z.string(),
+  status: z.string(),
+  providerId: z.string(),
+  modelId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type CodingAgentSessionDto = z.infer<typeof codingAgentSessionSchema>;
+
+export const codingAgentMessageSchema = z.object({
+  id: z.string(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  reasoning: z.string(),
+  createdAt: z.number(),
+  completedAt: z.number().nullable(),
+});
+
+export type CodingAgentMessageDto = z.infer<typeof codingAgentMessageSchema>;
+
+export const codingAgentDiffSchema = z.object({
+  file: z.string(),
+  before: z.string(),
+  after: z.string(),
+  additions: z.number(),
+  deletions: z.number(),
+});
+
+export type CodingAgentDiffDto = z.infer<typeof codingAgentDiffSchema>;
+
+export const codingAgentSessionSnapshotSchema = z.object({
+  session: codingAgentSessionSchema,
+  context: codingAgentWorktreeContextSchema,
+  messages: z.array(codingAgentMessageSchema),
+  diff: z.array(codingAgentDiffSchema),
+});
+
+export type CodingAgentSessionSnapshotDto = z.infer<
+  typeof codingAgentSessionSnapshotSchema
+>;
+
+export const codingAgentModelsRequestSchema = z.object({
+  worktreeId: z.string().min(1),
+});
+
+export const codingAgentSessionListRequestSchema = z
+  .object({ worktreeId: z.string().min(1).optional() })
+  .optional()
+  .default({});
+
+export const codingAgentSessionCreateRequestSchema = z.object({
+  worktreeId: z.string().min(1),
+  title: z.string().trim().min(1).max(160),
+  providerId: z.string().min(1),
+  modelId: z.string().min(1),
+});
+
+export const codingAgentSessionGetRequestSchema = z.object({
+  runId: z.string().min(1),
+});
+
+export const codingAgentSessionSendRequestSchema = z.object({
+  runId: z.string().min(1),
+  content: z.string().trim().min(1).max(100_000),
+});
+
+export const codingAgentSessionAbortRequestSchema = z.object({
+  runId: z.string().min(1),
+});
+
+export const codingAgentPermissionResponseSchema = z.object({
+  runId: z.string().min(1),
+  permissionId: z.string().min(1),
+  response: z.enum(['once', 'always', 'reject']),
+});
+
+export const codingAgentUiEventSchema = z.object({
+  runId: z.string().nullable(),
+  type: z.string(),
+  payload: z.unknown(),
+});
+
+export type CodingAgentUiEventDto = z.infer<typeof codingAgentUiEventSchema>;
+
 export type GithubListReposRequest = z.infer<
   typeof githubListReposRequestSchema
 >;

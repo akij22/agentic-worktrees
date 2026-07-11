@@ -4,6 +4,11 @@ import started from 'electron-squirrel-startup';
 import { initDatabase } from './main/database';
 import './main/config/env';
 import { registerIpcHandlers } from './main/ipc';
+import {
+  autoDiscoverOpenCode,
+  getAgentInstallationStatus,
+  stopCodingAgent,
+} from './main/coding-agents/coding-agent-service';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -41,6 +46,12 @@ const createWindow = () => {
 app.on('ready', () => {
   initDatabase();
   registerIpcHandlers();
+  void (async () => {
+    const status = getAgentInstallationStatus();
+    if (!status.configured) {
+      await autoDiscoverOpenCode();
+    }
+  })();
   createWindow();
 });
 
@@ -51,6 +62,14 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+let codingAgentStopped = false;
+app.on('before-quit', (event) => {
+  if (codingAgentStopped) return;
+  event.preventDefault();
+  codingAgentStopped = true;
+  void stopCodingAgent().finally(() => app.quit());
 });
 
 app.on('activate', () => {

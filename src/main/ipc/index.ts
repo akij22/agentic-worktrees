@@ -7,6 +7,13 @@ import {
 } from 'electron';
 import { IPC_CHANNELS } from '../../shared/ipc/channels';
 import {
+  codingAgentModelsRequestSchema,
+  codingAgentPermissionResponseSchema,
+  codingAgentSessionAbortRequestSchema,
+  codingAgentSessionCreateRequestSchema,
+  codingAgentSessionGetRequestSchema,
+  codingAgentSessionListRequestSchema,
+  codingAgentSessionSendRequestSchema,
   githubListBranchesRequestSchema,
   githubListReposRequestSchema,
   repositoryImportRemoteRequestSchema,
@@ -18,6 +25,7 @@ import { listBranches } from '../github/branches';
 import { listLocalBranches } from '../git/local-branches';
 import {
   createWorktree,
+  listAllWorktrees,
   listWorktreesForRepository,
 } from '../worktrees/worktree-service';
 import {
@@ -27,6 +35,20 @@ import {
   upsertRepositoriesFromRemote,
 } from '../repositories/repository-service';
 import { importLocalRepository } from '../repositories/local-repository-service';
+import {
+  abortAgentSession,
+  autoDiscoverOpenCode,
+  configureOpenCode,
+  createAgentSession,
+  getAgentInstallationStatus,
+  getAgentSessionSnapshot,
+  listAgentModels,
+  listAgentSessions,
+  listAgentWorktrees,
+  respondToAgentPermission,
+  sendAgentMessage,
+  subscribeToAgentEvents,
+} from '../coding-agents/coding-agent-service';
 
 const handleGithubListRepos = async (
   _event: IpcMainInvokeEvent,
@@ -119,6 +141,79 @@ const handleWorktreeList = async (
   return listWorktreesForRepository(request.repositoryId);
 };
 
+const handleCodingAgentSelectExecutable = async () => {
+  const discovered = await autoDiscoverOpenCode();
+  if (discovered) return discovered;
+
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  const options: OpenDialogOptions = {
+    title: 'Select the OpenCode executable',
+    properties: ['openFile'],
+  };
+  const result = focusedWindow
+    ? await dialog.showOpenDialog(focusedWindow, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return configureOpenCode(result.filePaths[0]);
+};
+
+const handleCodingAgentModels = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentModelsRequestSchema.parse(rawRequest);
+  return listAgentModels(request.worktreeId);
+};
+
+const handleCodingAgentSessionList = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSessionListRequestSchema.parse(rawRequest ?? {});
+  return listAgentSessions(request.worktreeId);
+};
+
+const handleCodingAgentSessionCreate = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => createAgentSession(codingAgentSessionCreateRequestSchema.parse(rawRequest));
+
+const handleCodingAgentSessionGet = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSessionGetRequestSchema.parse(rawRequest);
+  return getAgentSessionSnapshot(request.runId);
+};
+
+const handleCodingAgentSessionSend = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSessionSendRequestSchema.parse(rawRequest);
+  await sendAgentMessage(request.runId, request.content);
+};
+
+const handleCodingAgentSessionAbort = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSessionAbortRequestSchema.parse(rawRequest);
+  await abortAgentSession(request.runId);
+};
+
+const handleCodingAgentPermissionRespond = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentPermissionResponseSchema.parse(rawRequest);
+  await respondToAgentPermission(
+    request.runId,
+    request.permissionId,
+    request.response,
+  );
+};
+
 export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_REPOS, handleGithubListRepos);
   ipcMain.handle(
@@ -136,4 +231,45 @@ export const registerIpcHandlers = (): void => {
   );
   ipcMain.handle(IPC_CHANNELS.WORKTREE_CREATE, handleWorktreeCreate);
   ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST, handleWorktreeList);
+  ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST_ALL, () => listAllWorktrees());
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE,
+    handleCodingAgentSelectExecutable,
+  );
+  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_STATUS, () =>
+    getAgentInstallationStatus(),
+  );
+  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_MODELS, handleCodingAgentModels);
+  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_WORKTREES, () =>
+    listAgentWorktrees(),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_LIST,
+    handleCodingAgentSessionList,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_CREATE,
+    handleCodingAgentSessionCreate,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_GET,
+    handleCodingAgentSessionGet,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_SEND,
+    handleCodingAgentSessionSend,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,
+    handleCodingAgentSessionAbort,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND,
+    handleCodingAgentPermissionRespond,
+  );
+  subscribeToAgentEvents((event) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(IPC_CHANNELS.CODING_AGENT_EVENT, event);
+    }
+  });
 };
