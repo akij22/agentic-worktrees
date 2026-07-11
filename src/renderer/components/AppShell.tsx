@@ -3,6 +3,7 @@ import { useTheme } from '../lib/use-theme';
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/coding-agent', label: 'Coding Agent', end: false },
 ];
 
 export const AppShell = () => {
