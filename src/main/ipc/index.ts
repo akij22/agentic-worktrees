@@ -14,6 +14,7 @@ import {
   codingAgentSessionGetRequestSchema,
   codingAgentSessionListRequestSchema,
   codingAgentSessionSendRequestSchema,
+  codingAgentSessionModelUpdateSchema,
   githubListBranchesRequestSchema,
   githubListReposRequestSchema,
   repositoryImportRemoteRequestSchema,
@@ -47,6 +48,7 @@ import {
   listAgentWorktrees,
   respondToAgentPermission,
   sendAgentMessage,
+  setAgentSessionModel,
   subscribeToAgentEvents,
 } from '../coding-agents/coding-agent-service';
 
@@ -178,6 +180,11 @@ const handleCodingAgentSessionCreate = async (
   rawRequest: unknown,
 ) => createAgentSession(codingAgentSessionCreateRequestSchema.parse(rawRequest));
 
+const handleCodingAgentSessionModelUpdate = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => setAgentSessionModel(codingAgentSessionModelUpdateSchema.parse(rawRequest));
+
 const handleCodingAgentSessionGet = async (
   _event: IpcMainInvokeEvent,
   rawRequest: unknown,
@@ -191,7 +198,7 @@ const handleCodingAgentSessionSend = async (
   rawRequest: unknown,
 ) => {
   const request = codingAgentSessionSendRequestSchema.parse(rawRequest);
-  await sendAgentMessage(request.runId, request.content);
+  await sendAgentMessage(request.runId, request.content, request.reasoningVariant);
 };
 
 const handleCodingAgentSessionAbort = async (
@@ -250,6 +257,10 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_CREATE,
     handleCodingAgentSessionCreate,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE,
+    handleCodingAgentSessionModelUpdate,
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_GET,

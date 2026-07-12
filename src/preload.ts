@@ -34,6 +34,8 @@ const api: Api = {
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_LIST, request ?? {}),
     createSession: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_CREATE, request),
+    setSessionModel: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE, request),
     getSession: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
     sendMessage: (request) =>

@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   CODING_AGENT_WORKTREES: 'coding-agent:worktrees',
   CODING_AGENT_SESSION_LIST: 'coding-agent:session-list',
   CODING_AGENT_SESSION_CREATE: 'coding-agent:session-create',
+  CODING_AGENT_SESSION_MODEL_UPDATE: 'coding-agent:session-model-update',
   CODING_AGENT_SESSION_GET: 'coding-agent:session-get',
   CODING_AGENT_SESSION_SEND: 'coding-agent:session-send',
   CODING_AGENT_SESSION_ABORT: 'coding-agent:session-abort',

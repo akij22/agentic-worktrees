@@ -414,22 +414,14 @@ export const listAgentSessions = (worktreeId?: string): AgentSessionSummary[] =>
 export const createAgentSession = async (input: {
   worktreeId: string;
   title: string;
-  providerId: string;
-  modelId: string;
 }): Promise<AgentSessionSummary> => {
   const context = getContext(input.worktreeId);
   const installation = getInstallation();
   if (!installation) throw new Error('OpenCode is not configured.');
   await ensureStarted();
   const availableModels = await adapter.listModels(context.worktree.path);
-  if (
-    !availableModels.some(
-      (model) =>
-        model.providerId === input.providerId && model.modelId === input.modelId,
-    )
-  ) {
-    throw new Error('Selected OpenCode model is not available.');
-  }
+  const defaultModel = availableModels[0];
+  if (!defaultModel) throw new Error('No OpenCode models are available.');
 
   const external = await adapter.createSession(context.worktree.path, input.title);
   const now = new Date();
@@ -454,8 +446,8 @@ export const createAgentSession = async (input: {
         runId,
         installationId: installation.id,
         externalSessionId: external.id,
-        providerId: input.providerId,
-        modelId: input.modelId,
+        providerId: defaultModel.providerId,
+        modelId: defaultModel.modelId,
         createdAt: now,
         updatedAt: now,
       })
@@ -466,6 +458,36 @@ export const createAgentSession = async (input: {
       .run();
   });
   return toSummary(getSessionRecord(runId));
+};
+
+export const setAgentSessionModel = async (input: {
+  runId: string;
+  providerId: string;
+  modelId: string;
+}): Promise<AgentSessionSummary> => {
+  const row = getSessionRecord(input.runId);
+  const context = getContext(row.run.worktreeId);
+  await ensureStarted();
+  const availableModels = await adapter.listModels(context.worktree.path);
+  if (
+    !availableModels.some(
+      (model) =>
+        model.providerId === input.providerId && model.modelId === input.modelId,
+    )
+  ) {
+    throw new Error('Selected OpenCode model is not available.');
+  }
+
+  getDatabase()
+    .update(codingAgentSessions)
+    .set({
+      providerId: input.providerId,
+      modelId: input.modelId,
+      updatedAt: new Date(),
+    })
+    .where(eq(codingAgentSessions.runId, input.runId))
+    .run();
+  return toSummary(getSessionRecord(input.runId));
 };
 
 export const reconcileAgentSession = async (runId: string): Promise<void> => {
@@ -521,10 +543,20 @@ export const getAgentSessionSnapshot = async (
 export const sendAgentMessage = async (
   runId: string,
   content: string,
+  reasoningVariant?: string,
 ): Promise<void> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
   await ensureStarted();
+  if (reasoningVariant) {
+    const selectedModel = (await adapter.listModels(context.worktree.path)).find(
+      (model) =>
+        model.providerId === row.agent.providerId && model.modelId === row.agent.modelId,
+    );
+    if (!selectedModel?.reasoningVariants.includes(reasoningVariant)) {
+      throw new Error('Selected reasoning level is not available for this model.');
+    }
+  }
   if (!row.run.prompt) {
     getDatabase()
       .update(runs)
@@ -538,6 +570,7 @@ export const sendAgentMessage = async (
       content,
       providerId: row.agent.providerId,
       modelId: row.agent.modelId,
+      reasoningVariant,
     });
     // prompt_async returns before OpenCode finishes processing. Reconcile
     // shortly after submission so the user's message is projected immediately

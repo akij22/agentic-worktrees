@@ -18,6 +18,31 @@ import { reserveLocalPort } from './opencode-utils';
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
 const INTERNAL_DONE_MESSAGE = "*Done. I'll confirm to the user.*";
+const REASONING_VARIANT_IDS = new Set([
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]);
+
+const readReasoningVariants = (model: unknown): string[] => {
+  if (!model || typeof model !== 'object' || !('variants' in model)) return [];
+  const variants = model.variants;
+  if (!variants || typeof variants !== 'object') return [];
+  return Object.entries(variants)
+    .filter(
+      ([id, configuration]) =>
+        REASONING_VARIANT_IDS.has(id) &&
+        (!configuration ||
+          typeof configuration !== 'object' ||
+          !('disabled' in configuration) ||
+          configuration.disabled !== true),
+    )
+    .map(([id]) => id);
+};
 
 const delay = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -201,6 +226,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           providerName: provider.name,
           modelId: model.id,
           modelName: model.name,
+          reasoningVariants: readReasoningVariants(model),
         })),
       )
       .sort((a, b) =>
@@ -256,6 +282,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       content: string;
       providerId: string;
       modelId: string;
+      reasoningVariant?: string;
     },
   ): Promise<void> {
     await this.requireClient().session.promptAsync({
@@ -263,7 +290,11 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       query: { directory },
       body: {
         agent: 'build',
-        model: { providerID: input.providerId, modelID: input.modelId },
+        model: {
+          providerID: input.providerId,
+          modelID: input.modelId,
+          ...(input.reasoningVariant ? { variant: input.reasoningVariant } : {}),
+        } as { providerID: string; modelID: string },
         parts: [{ type: 'text', text: input.content }],
       },
       throwOnError: true,
