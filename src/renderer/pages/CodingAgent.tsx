@@ -198,9 +198,6 @@ const NewSessionDialog = ({
   const navigate = useNavigate();
   const [worktreeId, setWorktreeId] = useState(initialWorktreeId ?? '');
   const [title, setTitle] = useState('New coding session');
-  const [models, setModels] = useState<CodingAgentModelDto[]>([]);
-  const [modelKey, setModelKey] = useState('');
-  const [loadingModels, setLoadingModels] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -208,42 +205,16 @@ const NewSessionDialog = ({
     if (open) setWorktreeId(initialWorktreeId ?? contexts[0]?.worktree.id ?? '');
   }, [contexts, initialWorktreeId, open]);
 
-  useEffect(() => {
-    if (!open || !worktreeId) {
-      setModels([]);
-      setModelKey('');
-      return;
-    }
-    setLoadingModels(true);
-    setError(undefined);
-    void window.api.codingAgent
-      .listModels({ worktreeId })
-      .then((nextModels) => {
-        setModels(nextModels);
-        const first = nextModels[0];
-        setModelKey(first ? `${first.providerId}::${first.modelId}` : '');
-      })
-      .catch((cause) =>
-        setError(cause instanceof Error ? cause.message : String(cause)),
-      )
-      .finally(() => setLoadingModels(false));
-  }, [open, worktreeId]);
-
   if (!open) return null;
 
   const create = async () => {
-    const model = models.find(
-      (candidate) => `${candidate.providerId}::${candidate.modelId}` === modelKey,
-    );
-    if (!model || !worktreeId || !title.trim()) return;
+    if (!worktreeId || !title.trim()) return;
     setCreating(true);
     setError(undefined);
     try {
       const session = await window.api.codingAgent.createSession({
         worktreeId,
         title: title.trim(),
-        providerId: model.providerId,
-        modelId: model.modelId,
       });
       navigate(`/coding-agent/${worktreeId}/${session.id}`);
     } catch (cause) {
@@ -257,7 +228,7 @@ const NewSessionDialog = ({
       <DialogHeader>
         <DialogTitle>New coding session</DialogTitle>
         <DialogDescription>
-          Select the worktree and one of the models connected in OpenCode.
+          Select a worktree. You can choose the AI model directly from the chat.
         </DialogDescription>
       </DialogHeader>
       <div className="mt-5 space-y-4">
@@ -271,28 +242,6 @@ const NewSessionDialog = ({
             {contexts.map(({ worktree, repository }) => (
               <option key={worktree.id} value={worktree.id}>
                 {repository.fullName} · {worktree.name} ({worktree.branchName})
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-model">Model</Label>
-          <Select
-            id="agent-model"
-            value={modelKey}
-            onChange={(event) => setModelKey(event.target.value)}
-            disabled={loadingModels || models.length === 0}
-          >
-            {loadingModels ? <option>Loading models…</option> : null}
-            {!loadingModels && models.length === 0 ? (
-              <option value="">No connected models</option>
-            ) : null}
-            {models.map((model) => (
-              <option
-                key={`${model.providerId}:${model.modelId}`}
-                value={`${model.providerId}::${model.modelId}`}
-              >
-                {model.providerName} · {model.modelName}
               </option>
             ))}
           </Select>
@@ -313,7 +262,7 @@ const NewSessionDialog = ({
         </Button>
         <Button
           onClick={() => void create()}
-          disabled={creating || !worktreeId || !modelKey || !title.trim()}
+          disabled={creating || !worktreeId || !title.trim()}
         >
           {creating ? 'Creating…' : 'Create chat'}
         </Button>
@@ -566,6 +515,11 @@ const CodingAgentLanding = () => {
 
 const CodingAgentSession = ({ runId }: { runId: string }) => {
   const [snapshot, setSnapshot] = useState<CodingAgentSessionSnapshotDto>();
+  const [models, setModels] = useState<CodingAgentModelDto[]>([]);
+  const [modelKey, setModelKey] = useState('');
+  const [reasoningVariant, setReasoningVariant] = useState('');
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [changingModel, setChangingModel] = useState(false);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -638,6 +592,35 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
   }, [load, runId]);
 
   useEffect(() => {
+    if (!snapshot) return;
+    let cancelled = false;
+    const currentModelKey = `${snapshot.session.providerId}::${snapshot.session.modelId}`;
+    setLoadingModels(true);
+    void window.api.codingAgent
+      .listModels({ worktreeId: snapshot.context.worktree.id })
+      .then((nextModels) => {
+        if (cancelled) return;
+        setModels(nextModels);
+        setModelKey(currentModelKey);
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingModels(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    snapshot?.context.worktree.id,
+    snapshot?.session.modelId,
+    snapshot?.session.providerId,
+  ]);
+
+  useEffect(() => {
     if (!snapshot || !['busy', 'creating'].includes(snapshot.session.status)) {
       return;
     }
@@ -673,7 +656,11 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
     setSending(true);
     setDraft('');
     try {
-      await window.api.codingAgent.sendMessage({ runId, content });
+      await window.api.codingAgent.sendMessage({
+        runId,
+        content,
+        reasoningVariant: reasoningVariant || undefined,
+      });
       setActivity('OpenCode is working…');
       await load();
     } catch (cause) {
@@ -715,6 +702,34 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
     session.status === 'waiting_permission' ||
     Boolean(permission);
 
+  const changeModel = async (nextModelKey: string) => {
+    const model = models.find(
+      (candidate) => `${candidate.providerId}::${candidate.modelId}` === nextModelKey,
+    );
+    if (!model || nextModelKey === modelKey) return;
+    setChangingModel(true);
+    setError(undefined);
+    try {
+      await window.api.codingAgent.setSessionModel({
+        runId,
+        providerId: model.providerId,
+        modelId: model.modelId,
+      });
+      setModelKey(nextModelKey);
+      setReasoningVariant('');
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setChangingModel(false);
+    }
+  };
+
+  const selectedModel = models.find(
+    (model) => `${model.providerId}::${model.modelId}` === modelKey,
+  );
+  const reasoningVariants = selectedModel?.reasoningVariants ?? [];
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <section className="shrink-0 border-b border-border bg-gradient-to-r from-card via-card to-muted/30 px-6 py-4">
@@ -732,12 +747,6 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
               <Badge variant="outline" className="font-mono text-[11px]">
                 {context.repository.fullName}
               </Badge>
-            </div>
-          </div>
-          <div className="rounded-lg border border-border bg-background/70 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Model</div>
-            <div className="mt-0.5 font-mono text-xs font-medium">
-              {session.providerId}/{session.modelId}
             </div>
           </div>
         </div>
@@ -843,7 +852,51 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
                 className="block w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
               />
               <div className="flex items-center justify-between px-1 pt-2">
-                <span className="text-xs text-muted-foreground">Enter to send · Shift + Enter for newline</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Select
+                    aria-label="AI model"
+                    value={modelKey}
+                    onChange={(event) => void changeModel(event.target.value)}
+                    disabled={
+                      loadingModels || changingModel || busy || models.length === 0
+                    }
+                    className="h-7 w-44 border-border bg-muted/40 px-2 font-mono text-[11px] shadow-none"
+                  >
+                    {loadingModels ? <option>Loading models…</option> : null}
+                    {!loadingModels && models.length === 0 ? (
+                      <option value={`${session.providerId}::${session.modelId}`}>
+                        {session.providerId}/{session.modelId}
+                      </option>
+                    ) : null}
+                    {models.map((model) => (
+                      <option
+                        key={`${model.providerId}:${model.modelId}`}
+                        value={`${model.providerId}::${model.modelId}`}
+                      >
+                        {model.providerName} · {model.modelName}
+                      </option>
+                    ))}
+                  </Select>
+                  {reasoningVariants.length > 0 ? (
+                    <Select
+                      aria-label="Reasoning level"
+                      value={reasoningVariant}
+                      onChange={(event) => setReasoningVariant(event.target.value)}
+                      disabled={composerLocked}
+                      className="h-7 w-32 border-border bg-muted/40 px-2 font-mono text-[11px] capitalize shadow-none"
+                    >
+                      <option value="">Reasoning · default</option>
+                      {reasoningVariants.map((variant) => (
+                        <option key={variant} value={variant} className="capitalize">
+                          Reasoning · {variant}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : null}
+                  <span className="hidden text-xs text-muted-foreground 2xl:inline">
+                    Enter to send · Shift + Enter for newline
+                  </span>
+                </div>
                 <Button size="sm" onClick={() => void send()} disabled={!draft.trim() || composerLocked}>
                   Send ↗
                 </Button>

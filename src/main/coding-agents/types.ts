@@ -12,6 +12,7 @@ export interface CodingAgentModel {
   providerName: string;
   modelId: string;
   modelName: string;
+  reasoningVariants: string[];
 }
 
 export interface CodingAgentMessage {
@@ -68,6 +69,7 @@ export interface CodingAgentAdapter {
       content: string;
       providerId: string;
       modelId: string;
+      reasoningVariant?: string;
     },
   ): Promise<void>;
   abort(directory: string, sessionId: string): Promise<void>;

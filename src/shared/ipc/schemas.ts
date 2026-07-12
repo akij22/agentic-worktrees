@@ -96,6 +96,7 @@ export const codingAgentModelSchema = z.object({
   providerName: z.string(),
   modelId: z.string(),
   modelName: z.string(),
+  reasoningVariants: z.array(z.string()),
 });
 
 export type CodingAgentModelDto = z.infer<typeof codingAgentModelSchema>;
@@ -158,6 +159,10 @@ export const codingAgentSessionListRequestSchema = z
 export const codingAgentSessionCreateRequestSchema = z.object({
   worktreeId: z.string().min(1),
   title: z.string().trim().min(1).max(160),
+});
+
+export const codingAgentSessionModelUpdateSchema = z.object({
+  runId: z.string().min(1),
   providerId: z.string().min(1),
   modelId: z.string().min(1),
 });
@@ -169,6 +174,7 @@ export const codingAgentSessionGetRequestSchema = z.object({
 export const codingAgentSessionSendRequestSchema = z.object({
   runId: z.string().min(1),
   content: z.string().trim().min(1).max(100_000),
+  reasoningVariant: z.string().trim().min(1).max(80).optional(),
 });
 
 export const codingAgentSessionAbortRequestSchema = z.object({

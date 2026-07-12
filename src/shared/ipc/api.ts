@@ -45,13 +45,20 @@ export interface Api {
     createSession: (request: {
       worktreeId: string;
       title: string;
+    }) => Promise<CodingAgentSessionDto>;
+    setSessionModel: (request: {
+      runId: string;
       providerId: string;
       modelId: string;
     }) => Promise<CodingAgentSessionDto>;
     getSession: (request: {
       runId: string;
     }) => Promise<CodingAgentSessionSnapshotDto>;
-    sendMessage: (request: { runId: string; content: string }) => Promise<void>;
+    sendMessage: (request: {
+      runId: string;
+      content: string;
+      reasoningVariant?: string;
+    }) => Promise<void>;
     abortSession: (request: { runId: string }) => Promise<void>;
     respondPermission: (request: {
       runId: string;
