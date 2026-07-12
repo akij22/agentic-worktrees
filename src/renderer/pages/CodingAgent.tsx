@@ -37,6 +37,19 @@ type PendingPermission = {
   metadata: Record<string, unknown>;
 };
 
+type SessionGridDetail = {
+  lastActivity: string | undefined;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+};
+
+type SessionStatusTone = {
+  label: string;
+  badgeClassName: string;
+  indicatorClassName: string;
+};
+
 const formatDate = (value: Date) =>
   new Intl.DateTimeFormat(undefined, {
     month: 'short',
@@ -44,6 +57,79 @@ const formatDate = (value: Date) =>
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+
+const formatElapsedTime = (value: Date) => {
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(value).getTime()) / 60_000),
+  );
+  if (elapsedMinutes < 1) return 'just started';
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m elapsed`;
+  const hours = Math.floor(elapsedMinutes / 60);
+  const minutes = elapsedMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m elapsed` : `${hours}h elapsed`;
+};
+
+const getSessionStatusTone = (status: string): SessionStatusTone => {
+  switch (status) {
+    case 'busy':
+    case 'creating':
+      return {
+        label: 'Running',
+        badgeClassName: 'border-chart-3/35 bg-chart-3/10 text-chart-3',
+        indicatorClassName: 'animate-pulse bg-chart-3',
+      };
+    case 'waiting_permission':
+      return {
+        label: 'Awaiting input',
+        badgeClassName: 'border-chart-4/35 bg-chart-4/10 text-chart-4',
+        indicatorClassName: 'bg-chart-4',
+      };
+    case 'error':
+      return {
+        label: 'Failed',
+        badgeClassName: 'border-destructive/35 bg-destructive/10 text-destructive',
+        indicatorClassName: 'bg-destructive',
+      };
+    case 'idle':
+    default:
+      return {
+        label: status.replaceAll('_', ' '),
+        badgeClassName: 'border-primary/30 bg-primary/10 text-primary',
+        indicatorClassName: 'bg-primary',
+      };
+  }
+};
+
+const compactActivity = (content: string | undefined) => {
+  if (!content?.trim()) return 'Session is ready for the next instruction.';
+  return content.replaceAll(/\s+/g, ' ').trim();
+};
+
+const GridIcon = ({ name }: { name: 'branch' | 'bot' | 'clock' | 'files' | 'arrow' }) => {
+  const paths = {
+    branch: <><circle cx="6" cy="5" r="2" /><circle cx="18" cy="19" r="2" /><path d="M6 7v4a4 4 0 0 0 4 4h6" /><path d="M18 7v4" /></>,
+    bot: <><rect x="4" y="7" width="16" height="12" rx="3" /><path d="M12 3v4M8 12h.01M16 12h.01M9 16h6" /></>,
+    clock: <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></>,
+    files: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></>,
+    arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+  };
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-4"
+    >
+      {paths[name]}
+    </svg>
+  );
+};
 
 const readPermission = (payload: unknown): PendingPermission | null => {
   if (!payload || typeof payload !== 'object') return null;
@@ -242,6 +328,9 @@ const CodingAgentLanding = () => {
   const [status, setStatus] = useState<CodingAgentStatusDto>();
   const [contexts, setContexts] = useState<CodingAgentWorktreeContextDto[]>([]);
   const [sessions, setSessions] = useState<CodingAgentSessionDto[]>([]);
+  const [sessionDetails, setSessionDetails] = useState<Map<string, SessionGridDetail>>(
+    () => new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const requestedWorktreeId = searchParams.get('worktreeId') ?? undefined;
@@ -258,7 +347,45 @@ const CodingAgentLanding = () => {
       setStatus(nextStatus);
       setContexts(nextContexts);
       setSessions(nextSessions);
-      setError(undefined);
+      const detailResults = await Promise.all(
+        nextSessions.map(async (session) => {
+          try {
+            const snapshot = await window.api.codingAgent.getSession({ runId: session.id });
+            return {
+              id: session.id,
+              detail: {
+                lastActivity: snapshot.messages.at(-1)?.content,
+                additions: snapshot.diff.reduce((total, file) => total + file.additions, 0),
+                deletions: snapshot.diff.reduce((total, file) => total + file.deletions, 0),
+                changedFiles: snapshot.diff.length,
+              },
+              error: undefined,
+            };
+          } catch (cause) {
+            return {
+              id: session.id,
+              detail: {
+                lastActivity: undefined,
+                additions: 0,
+                deletions: 0,
+                changedFiles: 0,
+              },
+              error: cause instanceof Error ? cause.message : String(cause),
+            };
+          }
+        }),
+      );
+      setSessionDetails(
+        new Map(
+          detailResults.map(({ id, detail }) => [id, detail]),
+        ),
+      );
+      const detailFailures = detailResults.filter((result) => result.error);
+      setError(
+        detailFailures.length > 0
+          ? `Could not load details for ${detailFailures.length} session${detailFailures.length === 1 ? '' : 's'}. Open a session to retry.`
+          : undefined,
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -299,16 +426,22 @@ const CodingAgentLanding = () => {
     );
   }
 
+  const activeSessionCount = sessions.filter((session) =>
+    ['busy', 'creating', 'waiting_permission'].includes(session.status),
+  ).length;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-end justify-between gap-4 border-b border-border pb-5">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
             OpenCode · {status.version}
           </p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight">Coding sessions</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Persistent conversations, each isolated to one Git worktree.
+            {sessions.length === 0
+              ? 'Persistent conversations, each isolated to one Git worktree.'
+              : `Monitoring ${sessions.length} session${sessions.length === 1 ? '' : 's'} across isolated worktrees${activeSessionCount > 0 ? ` · ${activeSessionCount} active` : ''}.`}
           </p>
         </div>
         <Button
@@ -333,9 +466,11 @@ const CodingAgentLanding = () => {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
           {sessions.map((session) => {
             const context = contextByWorktree.get(session.worktreeId);
+            const detail = sessionDetails.get(session.id);
+            const tone = getSessionStatusTone(session.status);
             return (
               <button
                 key={session.id}
@@ -343,23 +478,72 @@ const CodingAgentLanding = () => {
                 onClick={() =>
                   navigate(`/coding-agent/${session.worktreeId}/${session.id}`)
                 }
-                className="group rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                className="group flex min-h-72 flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate text-sm font-semibold">{session.title}</h3>
-                    <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                      {context?.repository.fullName ?? 'Unavailable repository'} ·{' '}
-                      {context?.worktree.branchName ?? 'missing worktree'}
-                    </p>
+                <div className="flex items-start justify-between gap-4 border-b border-border bg-muted/30 px-4 py-3.5">
+                  <div className="min-w-0 space-y-1.5">
+                    <h3 className="truncate text-base font-semibold tracking-tight">
+                      {session.title}
+                    </h3>
+                    <div className="flex items-center gap-1.5 font-mono text-xs text-primary">
+                      <GridIcon name="branch" />
+                      <span className="truncate">
+                        {context?.worktree.branchName ?? 'missing worktree'}
+                      </span>
+                    </div>
                   </div>
-                  <Badge variant="outline" className="capitalize">
-                    {session.status.replace('_', ' ')}
+                  <Badge
+                    variant="outline"
+                    className={`shrink-0 gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] ${tone.badgeClassName}`}
+                  >
+                    <span className={`size-1.5 rounded-full ${tone.indicatorClassName}`} />
+                    {tone.label}
                   </Badge>
                 </div>
-                <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-mono">{session.providerId}/{session.modelId}</span>
-                  <span>{formatDate(session.updatedAt)}</span>
+
+                <div className="flex flex-1 flex-col gap-4 px-4 py-4">
+                  <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+                    <span className="flex min-w-0 items-center gap-1.5 font-mono">
+                      <GridIcon name="bot" />
+                      <span className="truncate">{session.providerId}/{session.modelId}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5 font-mono">
+                      <GridIcon name="clock" />
+                      {formatElapsedTime(session.createdAt)}
+                    </span>
+                  </div>
+
+                  <div className="min-h-16 rounded-lg border border-border bg-background/70 px-3 py-2.5 font-mono text-xs leading-5 text-muted-foreground shadow-inner">
+                    <span className="mr-2 text-primary">&gt;</span>
+                    <span className="line-clamp-2">{compactActivity(detail?.lastActivity)}</span>
+                  </div>
+
+                  <div className="mt-auto flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                      <GridIcon name="files" />
+                      {detail?.changedFiles ?? 0} file{(detail?.changedFiles ?? 0) === 1 ? '' : 's'}
+                    </span>
+                    {(detail?.additions ?? 0) > 0 || (detail?.deletions ?? 0) > 0 ? (
+                      <span className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                        <span className="text-chart-3">+{detail?.additions ?? 0}</span>{' '}
+                        <span className="text-destructive">−{detail?.deletions ?? 0}</span>
+                      </span>
+                    ) : null}
+                    <span className="ml-auto font-mono text-[11px] text-muted-foreground">
+                      updated {formatDate(session.updatedAt)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-px w-full bg-primary" aria-hidden="true" />
+                <div className="flex items-center justify-between border-t border-border bg-muted/20 px-4 py-2.5">
+                  <span className="truncate font-mono text-[11px] text-muted-foreground">
+                    {context?.worktree.name ?? 'Unavailable worktree'}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary transition-transform group-hover:translate-x-0.5">
+                    Open session
+                    <GridIcon name="arrow" />
+                  </span>
                 </div>
               </button>
             );
