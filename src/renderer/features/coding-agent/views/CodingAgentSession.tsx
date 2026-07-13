@@ -1,10 +1,17 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { Badge } from "../../../components/ui/badge";
+import { DropdownMenu } from "../../../components/ui/dropdown-menu";
 import { Skeleton } from "../../../components/ui/skeleton";
+import type { AvailableEditorDto } from "../../../../shared/ipc/schemas";
 import { InspectionPanel } from "../components/InspectionPanel";
 import { SessionComposer } from "../components/SessionComposer";
 import { SessionMessages } from "../components/SessionMessages";
 import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
+
+type EditorError = {
+  source: "discovery" | "open";
+  message: string;
+};
 
 export const CodingAgentSession = ({ runId }: { runId: string }) => {
   const sessionState = useCodingAgentSession(runId);
@@ -12,6 +19,8 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
   const splitRef = useRef<HTMLDivElement>(null);
   const [diffPanelWidth, setDiffPanelWidth] = useState(368);
   const [isResizing, setIsResizing] = useState(false);
+  const [editors, setEditors] = useState<AvailableEditorDto[]>([]);
+  const [editorError, setEditorError] = useState<EditorError>();
   useEffect(() => {
     if (!isResizing) return;
     const handlePointerMove = (event: PointerEvent) => {
@@ -30,6 +39,34 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
       window.removeEventListener("pointerup", stopResizing);
     };
   }, [isResizing]);
+  useEffect(() => {
+    if (!sessionState.snapshot) return;
+    let cancelled = false;
+    void window.api.editors
+      .listAvailable()
+      .then((availableEditors) => {
+        if (cancelled) return;
+        setEditors(availableEditors);
+        setEditorError((current) =>
+          current?.source === "discovery" ? undefined : current,
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEditors([]);
+        setEditorError((current) =>
+          current?.source === "open"
+            ? current
+            : {
+                source: "discovery",
+                message: "Could not load available editors. Please try again.",
+              },
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionState.snapshot?.context.worktree.id]);
   if (sessionState.loading) return <Skeleton className="h-full w-full" />;
   if (!sessionState.snapshot)
     return (
@@ -66,6 +103,20 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
     setDraft("");
     void sessionState.send(content);
   };
+  const openInEditor = async (editor: AvailableEditorDto) => {
+    setEditorError(undefined);
+    try {
+      await window.api.editors.open({
+        editorId: editor.id,
+        worktreeId: context.worktree.id,
+      });
+    } catch {
+      setEditorError({
+        source: "open",
+        message: `Could not open ${editor.name}. Please try again.`,
+      });
+    }
+  };
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <section className="shrink-0 border-b border-border bg-gradient-to-r from-card via-card to-muted/30 px-6 py-4">
@@ -81,7 +132,25 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
               <Badge variant="outline" className="font-mono text-[11px]">
                 {context.repository.fullName}
               </Badge>
+              <DropdownMenu
+                label="Open in editor"
+                items={editors.map((editor) => ({
+                  id: editor.id,
+                  label: editor.name,
+                }))}
+                onSelect={(editorId) => {
+                  const editor = editors.find(
+                    (candidate) => candidate.id === editorId,
+                  );
+                  if (editor) void openInEditor(editor);
+                }}
+              />
             </div>
+            {editorError && (
+              <p className="mt-2 text-sm text-destructive" role="alert">
+                {editorError.message}
+              </p>
+            )}
           </div>
         </div>
       </section>

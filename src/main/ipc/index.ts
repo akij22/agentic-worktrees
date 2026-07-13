@@ -5,6 +5,7 @@ import {
   IpcMainInvokeEvent,
   type OpenDialogOptions,
 } from 'electron';
+import { realpathSync, statSync } from 'node:fs';
 import { IPC_CHANNELS } from '../../shared/ipc/channels';
 import {
   codingAgentModelsRequestSchema,
@@ -15,17 +16,20 @@ import {
   codingAgentSessionListRequestSchema,
   codingAgentSessionSendRequestSchema,
   codingAgentSessionModelUpdateSchema,
+  editorOpenRequestSchema,
   githubListBranchesRequestSchema,
   githubListReposRequestSchema,
   repositoryImportRemoteRequestSchema,
   worktreeCreateRequestSchema,
   worktreeListRequestSchema,
 } from '../../shared/ipc/schemas';
+import { listAvailableEditors, openEditor } from '../editors/editor-service';
 import { listRemoteRepositories } from '../github/repos';
 import { listBranches } from '../github/branches';
 import { listLocalBranches } from '../git/local-branches';
 import {
   createWorktree,
+  getWorktreeById,
   listAllWorktrees,
   listWorktreesForRepository,
 } from '../worktrees/worktree-service';
@@ -143,6 +147,24 @@ const handleWorktreeList = async (
   return listWorktreesForRepository(request.repositoryId);
 };
 
+const handleEditorOpen = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = editorOpenRequestSchema.parse(rawRequest);
+  const worktree = getWorktreeById(request.worktreeId);
+  if (!worktree) {
+    throw new Error(`Worktree not found: ${request.worktreeId}`);
+  }
+
+  const worktreePath = realpathSync(worktree.path);
+  if (!statSync(worktreePath).isDirectory()) {
+    throw new Error(`Worktree path is not a directory: ${worktree.id}`);
+  }
+
+  await openEditor(request.editorId, worktreePath);
+};
+
 const handleCodingAgentSelectExecutable = async () => {
   const discovered = await autoDiscoverOpenCode();
   if (discovered) return discovered;
@@ -239,6 +261,8 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.WORKTREE_CREATE, handleWorktreeCreate);
   ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST, handleWorktreeList);
   ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST_ALL, () => listAllWorktrees());
+  ipcMain.handle(IPC_CHANNELS.EDITOR_LIST_AVAILABLE, () => listAvailableEditors());
+  ipcMain.handle(IPC_CHANNELS.EDITOR_OPEN, handleEditorOpen);
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE,
     handleCodingAgentSelectExecutable,

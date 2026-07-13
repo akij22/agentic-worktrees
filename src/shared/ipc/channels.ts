@@ -7,6 +7,8 @@ export const IPC_CHANNELS = {
   WORKTREE_CREATE: 'worktree:create',
   WORKTREE_LIST: 'worktree:list',
   WORKTREE_LIST_ALL: 'worktree:list-all',
+  EDITOR_LIST_AVAILABLE: 'editor:list-available',
+  EDITOR_OPEN: 'editor:open',
   CODING_AGENT_SELECT_EXECUTABLE: 'coding-agent:select-executable',
   CODING_AGENT_STATUS: 'coding-agent:status',
   CODING_AGENT_MODELS: 'coding-agent:models',

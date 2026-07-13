@@ -22,6 +22,10 @@ const api: Api = {
     list: (request) => ipcRenderer.invoke(IPC_CHANNELS.WORKTREE_LIST, request),
     listAll: () => ipcRenderer.invoke(IPC_CHANNELS.WORKTREE_LIST_ALL),
   },
+  editors: {
+    listAvailable: () => ipcRenderer.invoke(IPC_CHANNELS.EDITOR_LIST_AVAILABLE),
+    open: (request) => ipcRenderer.invoke(IPC_CHANNELS.EDITOR_OPEN, request),
+  },
   codingAgent: {
     selectExecutable: () =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE),
