@@ -21,6 +21,7 @@ type Props = {
   onModelChange: (key: string) => void;
   onReasoningChange: (variant: string) => void;
   onSend: () => void;
+  onStop: () => void;
 };
 
 export const SessionComposer = ({
@@ -38,6 +39,7 @@ export const SessionComposer = ({
   onModelChange,
   onReasoningChange,
   onSend,
+  onStop,
 }: Props) => {
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -65,9 +67,7 @@ export const SessionComposer = ({
               aria-label="AI model"
               value={modelKey}
               onChange={onModelSelect}
-              disabled={
-                loadingModels || changingModel || busy || models.length === 0
-              }
+              disabled={loadingModels || changingModel || models.length === 0}
               className="h-7 w-44 border-border bg-muted/40 px-2 font-mono text-[11px] shadow-none"
             >
               {loadingModels ? <option>Loading models…</option> : null}
@@ -105,9 +105,30 @@ export const SessionComposer = ({
               Enter to send · Shift + Enter for newline
             </span>
           </div>
-          <Button size="sm" onClick={onSend} disabled={!draft.trim() || locked}>
-            Send ↗
-          </Button>
+          {busy ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="destructive"
+              aria-label="Stop OpenCode"
+              title="Stop OpenCode"
+              onClick={onStop}
+            >
+              <span
+                aria-hidden="true"
+                className="size-3 rounded-[1px] bg-current"
+              />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              onClick={onSend}
+              disabled={!draft.trim() || locked}
+            >
+              Send ↗
+            </Button>
+          )}
         </div>
       </div>
     </div>

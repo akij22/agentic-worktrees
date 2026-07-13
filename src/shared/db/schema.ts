@@ -194,6 +194,29 @@ export const codingAgentSessions = sqliteTable(
   }),
 );
 
+export const codingAgentSessionDiffs = sqliteTable(
+  'coding_agent_session_diffs',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    file: text('file').notNull(),
+    before: text('before').notNull(),
+    after: text('after').notNull(),
+    additions: integer('additions').notNull(),
+    deletions: integer('deletions').notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => ({
+    runIdIdx: index('coding_agent_session_diffs_run_id_idx').on(table.runId),
+    runFileUnique: uniqueIndex('coding_agent_session_diffs_run_file_unique').on(
+      table.runId,
+      table.file,
+    ),
+  }),
+);
+
 export type Repository = typeof repositories.$inferSelect;
 export type Worktree = typeof worktrees.$inferSelect;
 export type Run = typeof runs.$inferSelect;
@@ -202,3 +225,4 @@ export type RunMessage = typeof runMessages.$inferSelect;
 export type CodingAgentInstallation =
   typeof codingAgentInstallations.$inferSelect;
 export type CodingAgentSession = typeof codingAgentSessions.$inferSelect;
+export type CodingAgentSessionDiff = typeof codingAgentSessionDiffs.$inferSelect;

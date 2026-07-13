@@ -8,6 +8,7 @@ import { nanoid } from 'nanoid';
 import { getDatabase } from '../database/client';
 import {
   codingAgentInstallations,
+  codingAgentSessionDiffs,
   codingAgentSessions,
   repositories,
   runMessages,
@@ -78,75 +79,103 @@ const listeners = new Set<(event: AgentUiEvent) => void>();
 const reconcileTimers = new Map<string, NodeJS.Timeout>();
 const reasoningByRun = new Map<string, Map<string, string>>();
 
-const splitNullDelimited = (output: string): string[] =>
-  output.split('\0').filter(Boolean);
-
-const countLines = (content: string): number => {
-  if (!content) return 0;
-  return content.split('\n').length - (content.endsWith('\n') ? 1 : 0);
+const persistSessionDiffs = (
+  runId: string,
+  diffs: CodingAgentDiff[],
+): void => {
+  if (diffs.length === 0) return;
+  const db = getDatabase();
+  const updatedAt = new Date();
+  db.transaction((tx) => {
+    diffs.forEach((diff) => {
+      const id = `${runId}:${diff.file}`;
+      tx.insert(codingAgentSessionDiffs)
+        .values({
+          id,
+          runId,
+          file: diff.file,
+          before: diff.before,
+          after: diff.after,
+          additions: diff.additions,
+          deletions: diff.deletions,
+          updatedAt,
+        })
+        .onConflictDoUpdate({
+          target: codingAgentSessionDiffs.id,
+          set: {
+            before: diff.before,
+            after: diff.after,
+            additions: diff.additions,
+            deletions: diff.deletions,
+            updatedAt,
+          },
+        })
+        .run();
+    });
+  });
 };
 
-const getWorktreeDiff = async (directory: string): Promise<CodingAgentDiff[]> => {
-  const git = async (args: string[]): Promise<string> =>
-    (
-      await execFileAsync('git', args, {
+const getPersistedSessionDiffs = (runId: string): CodingAgentDiff[] =>
+  getDatabase()
+    .select({
+      file: codingAgentSessionDiffs.file,
+      before: codingAgentSessionDiffs.before,
+      after: codingAgentSessionDiffs.after,
+      additions: codingAgentSessionDiffs.additions,
+      deletions: codingAgentSessionDiffs.deletions,
+    })
+    .from(codingAgentSessionDiffs)
+    .where(eq(codingAgentSessionDiffs.runId, runId))
+    .all();
+
+const readHeadFile = async (directory: string, file: string): Promise<string> => {
+  try {
+    return (
+      await execFileAsync('git', ['show', `HEAD:${file}`], {
         cwd: directory,
         maxBuffer: 10 * 1024 * 1024,
       })
     ).stdout;
-  const readHeadFile = async (file: string): Promise<string> => {
-    try {
-      return await git(['show', `HEAD:${file}`]);
-    } catch {
-      // New files are not present in HEAD and therefore have no "before" text.
-      return '';
-    }
-  };
-  const readWorktreeFile = async (file: string): Promise<string> => {
-    try {
-      return await fs.readFile(path.resolve(directory, file), 'utf8');
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
-      throw error;
-    }
-  };
-
-  const [changedOutput, untrackedOutput, numstatOutput] = await Promise.all([
-    git(['diff', '--name-only', '-z', 'HEAD', '--']),
-    git(['ls-files', '--others', '--exclude-standard', '-z']),
-    git(['diff', '--numstat', '-z', 'HEAD', '--']),
-  ]);
-  const changedFiles = [...new Set([
-    ...splitNullDelimited(changedOutput),
-    ...splitNullDelimited(untrackedOutput),
-  ])];
-  const numstat = new Map(
-    splitNullDelimited(numstatOutput).flatMap((entry) => {
-      const [additions, deletions, file] = entry.split('\t');
-      return file ? [[file, { additions, deletions }] as const] : [];
-    }),
-  );
-
-  return Promise.all(
-    changedFiles.map(async (file) => {
-      const [before, after] = await Promise.all([
-        readHeadFile(file),
-        readWorktreeFile(file),
-      ]);
-      const stats = numstat.get(file);
-      return {
-        file,
-        before,
-        after,
-        additions:
-          stats?.additions === '-'
-            ? 0
-            : Number(stats?.additions ?? countLines(after)),
-        deletions: stats?.deletions === '-' ? 0 : Number(stats?.deletions ?? 0),
-      };
-    }),
-  );
+  } catch {
+    // Files added during the session do not exist in HEAD.
+    return '';
+  }
 };
+
+const readWorktreeFile = async (
+  directory: string,
+  file: string,
+): Promise<string> => {
+  const resolvedDirectory = path.resolve(directory);
+  const resolvedFile = path.resolve(resolvedDirectory, file);
+  if (
+    resolvedFile !== resolvedDirectory &&
+    !resolvedFile.startsWith(`${resolvedDirectory}${path.sep}`)
+  ) {
+    throw new Error(`OpenCode returned a diff outside the worktree: ${file}`);
+  }
+  try {
+    return await fs.readFile(resolvedFile, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
+    throw error;
+  }
+};
+
+const hydrateDiffContent = async (
+  directory: string,
+  diffs: CodingAgentDiff[],
+): Promise<CodingAgentDiff[]> =>
+  Promise.all(
+    diffs.map(async (diff) => {
+      if (diff.before || diff.after) return diff;
+      const [before, after] = await Promise.all([
+        readHeadFile(directory, diff.file),
+        readWorktreeFile(directory, diff.file),
+      ]);
+      return { ...diff, before, after };
+    }),
+  );
 
 const getInstallation = () =>
   getDatabase()
@@ -550,7 +579,31 @@ export const getAgentSessionSnapshot = async (
       createdAt: message.createdAt.getTime(),
       completedAt: message.completedAt?.getTime() ?? null,
     }));
-  const diff = await getWorktreeDiff(context.worktree.path);
+  const lastUserMessage = [...storedMessages]
+    .reverse()
+    .find((message) => message.role === 'user');
+  const persistedDiff = getPersistedSessionDiffs(runId);
+  const sessionDiff =
+    persistedDiff.length === 0
+      ? await adapter.getDiff(context.worktree.path, row.agent.externalSessionId)
+      : [];
+  const currentDiff = lastUserMessage
+    ? await adapter.getDiff(
+        context.worktree.path,
+        row.agent.externalSessionId,
+        lastUserMessage.id.slice(runId.length + 1),
+      )
+    : [];
+  const hydratedDiff = await hydrateDiffContent(context.worktree.path, [
+    ...sessionDiff,
+    ...currentDiff,
+  ]);
+  persistSessionDiffs(runId, hydratedDiff);
+  const diff = await hydrateDiffContent(
+    context.worktree.path,
+    getPersistedSessionDiffs(runId),
+  );
+  persistSessionDiffs(runId, diff);
   return {
     session: toSummary(row),
     context,

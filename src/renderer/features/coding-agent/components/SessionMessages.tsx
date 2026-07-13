@@ -1,4 +1,5 @@
 import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
+import { useEffect, useRef } from "react";
 import { Button } from "../../../components/ui/button";
 import type { PendingPermission } from "../types";
 
@@ -18,8 +19,38 @@ export const SessionMessages = ({
   permission,
   error,
   onRespondPermission,
-}: Props) => (
-  <div className="flex-1 space-y-6 overflow-y-auto px-5 py-6">
+}: Props) => {
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const hasMountedRef = useRef(false);
+  const lastMessageIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container) return;
+
+    const lastMessage = messages.at(-1);
+    const lastMessageChanged =
+      lastMessage?.id !== undefined &&
+      lastMessage.id !== lastMessageIdRef.current;
+    const shouldShowNewUserMessage =
+      lastMessageChanged && lastMessage?.role === "user";
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isNearBottom = distanceFromBottom <= 48;
+
+    if (!hasMountedRef.current || isNearBottom || shouldShowNewUserMessage) {
+      container.scrollTop = container.scrollHeight;
+    }
+
+    hasMountedRef.current = true;
+    lastMessageIdRef.current = lastMessage?.id;
+  }, [activity, error, messages, permission]);
+
+  return (
+  <div
+    ref={messagesRef}
+    className="flex-1 space-y-6 overflow-y-auto px-5 py-6"
+  >
     {messages.length === 0 ? (
       <div className="py-16 text-center text-sm text-muted-foreground">
         Ask OpenCode to make a change in this worktree.
@@ -93,4 +124,5 @@ export const SessionMessages = ({
     ) : null}
     {error ? <p className="text-sm text-destructive">{error}</p> : null}
   </div>
-);
+  );
+};

@@ -50,6 +50,69 @@ const delay = (milliseconds: number): Promise<void> =>
 const removeInternalDoneMessage = (content: string): string =>
   content.replaceAll(INTERNAL_DONE_MESSAGE, '').trim();
 
+type OpenCodeDiffPayload = {
+  file?: unknown;
+  path?: unknown;
+  before?: unknown;
+  after?: unknown;
+  patch?: unknown;
+  additions?: unknown;
+  deletions?: unknown;
+};
+
+const readPatchContent = (patch: string): { before: string; after: string } => {
+  const before: string[] = [];
+  const after: string[] = [];
+
+  for (const line of patch.replaceAll('\r\n', '\n').split('\n')) {
+    if (
+      line.startsWith('+++') ||
+      line.startsWith('---') ||
+      line.startsWith('@@') ||
+      line.startsWith('\\ No newline at end of file')
+    ) {
+      continue;
+    }
+    if (line.startsWith('+')) {
+      after.push(line.slice(1));
+    } else if (line.startsWith('-')) {
+      before.push(line.slice(1));
+    } else if (line.startsWith(' ')) {
+      const content = line.slice(1);
+      before.push(content);
+      after.push(content);
+    }
+  }
+
+  return { before: before.join('\n'), after: after.join('\n') };
+};
+
+const normalizeDiff = (value: unknown): CodingAgentDiff => {
+  if (!value || typeof value !== 'object') {
+    throw new Error('OpenCode returned an invalid session diff.');
+  }
+  const diff = value as OpenCodeDiffPayload;
+  const file =
+    typeof diff.file === 'string'
+      ? diff.file
+      : typeof diff.path === 'string'
+        ? diff.path
+        : null;
+  if (!file) throw new Error('OpenCode returned a session diff without a file path.');
+
+  const patchContent =
+    typeof diff.patch === 'string'
+      ? readPatchContent(diff.patch)
+      : { before: '', after: '' };
+  return {
+    file,
+    before: typeof diff.before === 'string' ? diff.before : patchContent.before,
+    after: typeof diff.after === 'string' ? diff.after : patchContent.after,
+    additions: typeof diff.additions === 'number' ? diff.additions : 0,
+    deletions: typeof diff.deletions === 'number' ? diff.deletions : 0,
+  };
+};
+
 const toMessage = (info: Message, parts: Part[]): CodingAgentMessage => ({
   id: info.id,
   role: info.role,
@@ -266,13 +329,17 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     return result.data.map(({ info, parts }) => toMessage(info, parts));
   }
 
-  async getDiff(directory: string, sessionId: string): Promise<CodingAgentDiff[]> {
+  async getDiff(
+    directory: string,
+    sessionId: string,
+    messageId?: string,
+  ): Promise<CodingAgentDiff[]> {
     const result = await this.requireClient().session.diff({
       path: { id: sessionId },
-      query: { directory },
+      query: { directory, ...(messageId ? { messageID: messageId } : {}) },
       throwOnError: true,
     });
-    return result.data;
+    return (result.data as unknown[]).map(normalizeDiff);
   }
 
   async sendPrompt(

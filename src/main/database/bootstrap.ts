@@ -171,6 +171,27 @@ const bootstrapStatements = [
     CREATE INDEX IF NOT EXISTS coding_agent_sessions_installation_id_idx
     ON coding_agent_sessions (installation_id)
   `,
+  `
+    CREATE TABLE IF NOT EXISTS coding_agent_session_diffs (
+      id TEXT PRIMARY KEY NOT NULL,
+      run_id TEXT NOT NULL,
+      file TEXT NOT NULL,
+      before TEXT NOT NULL,
+      after TEXT NOT NULL,
+      additions INTEGER NOT NULL,
+      deletions INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS coding_agent_session_diffs_run_id_idx
+    ON coding_agent_session_diffs (run_id)
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS coding_agent_session_diffs_run_file_unique
+    ON coding_agent_session_diffs (run_id, file)
+  `,
 ] as const;
 
 export const bootstrapSchemaSql = bootstrapStatements.join(';\n');
