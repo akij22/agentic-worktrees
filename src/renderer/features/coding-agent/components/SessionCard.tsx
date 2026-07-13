@@ -2,13 +2,11 @@ import type {
   CodingAgentSessionDto,
   CodingAgentWorktreeContextDto,
 } from "../../../../shared/ipc/schemas";
-import { Badge } from "../../../components/ui/badge";
 import {
   compactActivity,
   formatDate,
   formatElapsedTime,
 } from "../lib/formatters";
-import { getSessionStatusTone } from "../lib/status";
 import type { SessionGridDetail } from "../types";
 import { GridIcon } from "./GridIcon";
 
@@ -20,7 +18,6 @@ type Props = {
 };
 
 export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
-  const tone = getSessionStatusTone(session.status);
   return (
     <button
       type="button"
@@ -39,22 +36,7 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
             </span>
           </div>
         </div>
-        <Badge
-          variant="outline"
-          className={`shrink-0 gap-1.5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em] ${tone.badgeClassName}`}
-        >
-          <span
-            className={`size-1.5 rounded-full ${tone.indicatorClassName}`}
-          />
-          {tone.label}
-        </Badge>
       </div>
-      {session.status === "unavailable" ? (
-        <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 font-mono text-[11px] leading-4 text-destructive">
-          <span className="font-semibold">debug error: </span>
-          {session.errorMessage ?? "No error message was stored."}
-        </div>
-      ) : null}
       <div className="flex flex-1 flex-col gap-4 px-4 py-4">
         <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
           <span className="flex min-w-0 items-center gap-1.5 font-mono">

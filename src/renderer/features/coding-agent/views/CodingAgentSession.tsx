@@ -1,6 +1,5 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
 import { Skeleton } from "../../../components/ui/skeleton";
 import { InspectionPanel } from "../components/InspectionPanel";
 import { SessionComposer } from "../components/SessionComposer";
@@ -40,6 +39,16 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
     );
   const { session, context, messages, diff } = sessionState.snapshot;
   const busy = ["busy", "creating", "aborting"].includes(session.status);
+  const lastFinalAssistantMessageIndex = messages.length - 1;
+  const lastMessage = messages[lastFinalAssistantMessageIndex];
+  const agentFinished =
+    lastMessage?.role === "assistant" && lastMessage.completedAt !== null;
+  const agentRunning = busy && !agentFinished;
+  const visibleMessages = messages.map((message, index) =>
+    agentFinished && index === lastFinalAssistantMessageIndex
+      ? { ...message, reasoning: "" }
+      : message,
+  );
   const composerLocked =
     sessionState.sending ||
     session.status === "creating" ||
@@ -62,18 +71,6 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
       <section className="shrink-0 border-b border-border bg-gradient-to-r from-card via-card to-muted/30 px-6 py-4">
         <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
           <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              <span
-                className={`size-2 rounded-full ${busy ? "animate-pulse bg-chart-4" : "bg-chart-3"}`}
-              />
-              {session.status.replace("_", " ")}
-            </div>
-            {session.status === "unavailable" ? (
-              <p className="mb-3 max-w-3xl rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 font-mono text-xs leading-5 text-destructive">
-                <span className="font-semibold">debug error: </span>
-                {session.errorMessage ?? "No error message was stored."}
-              </p>
-            ) : null}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h2 className="font-mono text-base font-semibold">
                 {context.worktree.name}
@@ -100,22 +97,11 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
             <span className="truncate text-xs font-medium">
               {session.title}
             </span>
-            {busy ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  void window.api.codingAgent.abortSession({ runId })
-                }
-              >
-                Stop
-              </Button>
-            ) : null}
           </div>
           <SessionMessages
-            messages={messages}
-            busy={busy}
-            activity={sessionState.activity}
+            messages={visibleMessages}
+            busy={agentRunning}
+            activity={busy && !agentFinished ? sessionState.activity : undefined}
             permission={sessionState.permission}
             error={sessionState.error}
             onRespondPermission={(response) =>
@@ -131,12 +117,13 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
             reasoningVariants={reasoningVariants}
             loadingModels={sessionState.loadingModels}
             changingModel={sessionState.changingModel}
-            busy={busy}
+            busy={agentRunning}
             locked={composerLocked}
             onDraftChange={setDraft}
             onModelChange={(key) => void sessionState.changeModel(key)}
             onReasoningChange={sessionState.setReasoningVariant}
             onSend={send}
+            onStop={() => void window.api.codingAgent.abortSession({ runId })}
           />
         </section>
         <div

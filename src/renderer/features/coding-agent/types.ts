@@ -12,12 +12,6 @@ export type SessionGridDetail = {
   changedFiles: number;
 };
 
-export type SessionStatusTone = {
-  label: string;
-  badgeClassName: string;
-  indicatorClassName: string;
-};
-
 export type DiffLine = {
   type: "context" | "addition" | "deletion";
   content: string;

@@ -6,6 +6,9 @@ import type {
 import { readPermission, readToolActivity } from "../lib/agent-events";
 import type { PendingPermission } from "../types";
 
+const isSessionBusy = (status: string): boolean =>
+  ["busy", "creating", "aborting"].includes(status);
+
 export const useCodingAgentSession = (runId: string) => {
   const [snapshot, setSnapshot] = useState<CodingAgentSessionSnapshotDto>();
   const [models, setModels] = useState<CodingAgentModelDto[]>([]);
@@ -26,6 +29,7 @@ export const useCodingAgentSession = (runId: string) => {
       const next = await window.api.codingAgent.getSession({ runId });
       if (sequence !== refreshSequence.current) return;
       setSnapshot(next);
+      if (!isSessionBusy(next.session.status)) setActivity(undefined);
       setSelectedFile((current) =>
         current && next.diff.some((file) => file.file === current)
           ? current
@@ -58,6 +62,9 @@ export const useCodingAgentSession = (runId: string) => {
         return;
       }
       if (event.runId !== runId) return;
+      if (["session.idle", "session.error"].includes(event.type)) {
+        setActivity(undefined);
+      }
       const nextActivity = readToolActivity(event);
       if (nextActivity) setActivity(nextActivity);
       if (event.type === "permission.updated") {

@@ -61,7 +61,11 @@ export interface CodingAgentAdapter {
     directory: string,
     sessionId: string,
   ): Promise<CodingAgentMessage[]>;
-  getDiff(directory: string, sessionId: string): Promise<CodingAgentDiff[]>;
+  getDiff(
+    directory: string,
+    sessionId: string,
+    messageId?: string,
+  ): Promise<CodingAgentDiff[]>;
   sendPrompt(
     directory: string,
     sessionId: string,

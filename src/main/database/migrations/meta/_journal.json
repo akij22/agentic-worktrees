@@ -15,6 +15,13 @@
       "when": 1783773272994,
       "tag": "0001_shiny_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783944860022,
+      "tag": "0002_melted_pestilence",
+      "breakpoints": true
     }
   ]
 }
