@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# Superpowers planning artifacts
+docs/superpowers/
