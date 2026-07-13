@@ -4,6 +4,7 @@ import { cn } from "../../lib/utils";
 export interface DropdownMenuItem<T extends string> {
   id: T;
   label: string;
+  iconSrc?: string;
 }
 
 interface DropdownMenuProps<T extends string> {
@@ -99,6 +100,16 @@ export const DropdownMenu = <T extends string>({
               }}
               className="flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
             >
+              {item.iconSrc && (
+                <span
+                  aria-hidden="true"
+                  className="mr-2 h-4 w-4 shrink-0 bg-current [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain]"
+                  style={{
+                    maskImage: `url(${item.iconSrc})`,
+                    WebkitMaskImage: `url(${item.iconSrc})`,
+                  }}
+                />
+              )}
               {item.label}
             </button>
           ))}

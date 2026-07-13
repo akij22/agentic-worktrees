@@ -2,7 +2,10 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { Badge } from "../../../components/ui/badge";
 import { DropdownMenu } from "../../../components/ui/dropdown-menu";
 import { Skeleton } from "../../../components/ui/skeleton";
-import type { AvailableEditorDto } from "../../../../shared/ipc/schemas";
+import type {
+  AvailableEditorDto,
+  EditorId,
+} from "../../../../shared/ipc/schemas";
 import { InspectionPanel } from "../components/InspectionPanel";
 import { SessionComposer } from "../components/SessionComposer";
 import { SessionMessages } from "../components/SessionMessages";
@@ -11,6 +14,26 @@ import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
 type EditorError = {
   source: "discovery" | "open";
   message: string;
+};
+
+const editorIconSources: Record<EditorId, string> = {
+  vscode: new URL("../../../assets/editors/vscode.svg", import.meta.url).href,
+  cursor: new URL("../../../assets/editors/cursor.svg", import.meta.url).href,
+  zed: new URL("../../../assets/editors/zed.svg", import.meta.url).href,
+  webstorm: new URL("../../../assets/editors/webstorm.svg", import.meta.url)
+    .href,
+  "intellij-idea": new URL(
+    "../../../assets/editors/intellij-idea.svg",
+    import.meta.url,
+  ).href,
+  "sublime-text": new URL(
+    "../../../assets/editors/sublime-text.svg",
+    import.meta.url,
+  ).href,
+  "android-studio": new URL(
+    "../../../assets/editors/android-studio.svg",
+    import.meta.url,
+  ).href,
 };
 
 export const CodingAgentSession = ({ runId }: { runId: string }) => {
@@ -137,6 +160,7 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
                 items={editors.map((editor) => ({
                   id: editor.id,
                   label: editor.name,
+                  iconSrc: editorIconSources[editor.id],
                 }))}
                 onSelect={(editorId) => {
                   const editor = editors.find(
