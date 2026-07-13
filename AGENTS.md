@@ -78,7 +78,7 @@
 ## Commit Messages
 
 * Write every commit message in English.
-* Explain in detail the changes made for each modified file, describing what changed and why.
+* Explain in detail the changes made for each modified file, describing what changed and why and use Markdown formatting for doing it.
 
 ## DO NOT
 
