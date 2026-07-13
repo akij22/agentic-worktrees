@@ -43,6 +43,7 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
   const lastMessage = messages[lastFinalAssistantMessageIndex];
   const agentFinished =
     lastMessage?.role === "assistant" && lastMessage.completedAt !== null;
+  const agentRunning = busy && !agentFinished;
   const visibleMessages = messages.map((message, index) =>
     agentFinished && index === lastFinalAssistantMessageIndex
       ? { ...message, reasoning: "" }
@@ -99,7 +100,7 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
           </div>
           <SessionMessages
             messages={visibleMessages}
-            busy={busy}
+            busy={agentRunning}
             activity={busy && !agentFinished ? sessionState.activity : undefined}
             permission={sessionState.permission}
             error={sessionState.error}
@@ -116,7 +117,7 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
             reasoningVariants={reasoningVariants}
             loadingModels={sessionState.loadingModels}
             changingModel={sessionState.changingModel}
-            busy={busy}
+            busy={agentRunning}
             locked={composerLocked}
             onDraftChange={setDraft}
             onModelChange={(key) => void sessionState.changeModel(key)}

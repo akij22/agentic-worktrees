@@ -133,7 +133,10 @@ const toMessage = (info: Message, parts: Part[]): CodingAgentMessage => ({
       .at(-1)?.text ?? '',
   ),
   createdAt: info.time.created,
-  completedAt: info.role === 'assistant' ? info.time.completed ?? null : null,
+  completedAt:
+    info.role === 'assistant'
+      ? info.time.completed ?? (info.finish ? info.time.created : null)
+      : null,
 });
 
 export class OpenCodeAdapter implements CodingAgentAdapter {
