@@ -7,6 +7,8 @@ import type {
   CodingAgentStatusDto,
   CodingAgentUiEventDto,
   CodingAgentWorktreeContextDto,
+  AvailableEditorDto,
+  EditorId,
   RemoteRepositoryDto,
 } from './schemas';
 
@@ -31,6 +33,13 @@ export interface Api {
     }) => Promise<{ worktree: Worktree; repository: Repository }>;
     list: (request: { repositoryId: string }) => Promise<Worktree[]>;
     listAll: () => Promise<Worktree[]>;
+  };
+  editors: {
+    listAvailable: () => Promise<AvailableEditorDto[]>;
+    open: (request: {
+      editorId: EditorId;
+      worktreeId: string;
+    }) => Promise<void>;
   };
   codingAgent: {
     selectExecutable: () => Promise<CodingAgentStatusDto | null>;

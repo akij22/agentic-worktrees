@@ -72,6 +72,32 @@ export const worktreeListRequestSchema = z.object({
 
 export const worktreeListResponseSchema = z.array(z.custom<Worktree>());
 
+export const editorIdSchema = z.enum([
+  'vscode',
+  'cursor',
+  'zed',
+  'webstorm',
+  'intellij-idea',
+  'sublime-text',
+  'android-studio',
+]);
+
+export type EditorId = z.infer<typeof editorIdSchema>;
+
+export const availableEditorSchema = z.object({
+  id: editorIdSchema,
+  name: z.string(),
+});
+
+export type AvailableEditorDto = z.infer<typeof availableEditorSchema>;
+
+export const editorOpenRequestSchema = z.object({
+  editorId: editorIdSchema,
+  worktreeId: z.string().trim().min(1),
+});
+
+export type EditorOpenRequest = z.infer<typeof editorOpenRequestSchema>;
+
 export const codingAgentWorktreeContextSchema = z.object({
   worktree: z.custom<Worktree>(),
   repository: z.custom<Repository>(),
