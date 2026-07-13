@@ -11,6 +11,9 @@
     "jsx": "react-jsx",
     "sourceMap": true,
     "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/renderer/*"]
+    },
     "outDir": "dist",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
