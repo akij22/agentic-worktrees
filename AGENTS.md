@@ -20,6 +20,7 @@
 * Do not perform Git operations, filesystem access, database access, or GitHub API calls directly from the renderer.
 * Communicate with the main process exclusively through well-defined IPC interfaces.
 * Keep presentation logic separate from business logic.
+* Split components by responsibility; avoid long files that mix many unrelated concerns.
 * Reuse existing UI components before introducing new ones.
 * Keep the interface dense and operational; avoid decorative redesigns unless explicitly requested.
 

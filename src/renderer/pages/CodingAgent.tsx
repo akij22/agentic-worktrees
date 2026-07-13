@@ -302,6 +302,7 @@ const CodingAgentLanding = () => {
             const snapshot = await window.api.codingAgent.getSession({ runId: session.id });
             return {
               id: session.id,
+              session: snapshot.session,
               detail: {
                 lastActivity: snapshot.messages.at(-1)?.content,
                 additions: snapshot.diff.reduce((total, file) => total + file.additions, 0),
@@ -313,6 +314,7 @@ const CodingAgentLanding = () => {
           } catch (cause) {
             return {
               id: session.id,
+              session,
               detail: {
                 lastActivity: undefined,
                 additions: 0,
@@ -324,6 +326,7 @@ const CodingAgentLanding = () => {
           }
         }),
       );
+      setSessions(detailResults.map(({ session }) => session));
       setSessionDetails(
         new Map(
           detailResults.map(({ id, detail }) => [id, detail]),
@@ -449,6 +452,13 @@ const CodingAgentLanding = () => {
                     {tone.label}
                   </Badge>
                 </div>
+
+                {session.status === 'unavailable' ? (
+                  <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 font-mono text-[11px] leading-4 text-destructive">
+                    <span className="font-semibold">debug error: </span>
+                    {session.errorMessage ?? 'No error message was stored.'}
+                  </div>
+                ) : null}
 
                 <div className="flex flex-1 flex-col gap-4 px-4 py-4">
                   <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
@@ -739,6 +749,12 @@ const CodingAgentSession = ({ runId }: { runId: string }) => {
               <span className={`size-2 rounded-full ${busy ? 'animate-pulse bg-chart-4' : 'bg-chart-3'}`} />
               {session.status.replace('_', ' ')}
             </div>
+            {session.status === 'unavailable' ? (
+              <p className="mb-3 max-w-3xl rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 font-mono text-xs leading-5 text-destructive">
+                <span className="font-semibold">debug error: </span>
+                {session.errorMessage ?? 'No error message was stored.'}
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h2 className="font-mono text-base font-semibold">{context.worktree.name}</h2>
               <span className="font-mono text-sm text-muted-foreground">

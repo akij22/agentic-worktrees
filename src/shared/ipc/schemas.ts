@@ -107,6 +107,7 @@ export const codingAgentSessionSchema = z.object({
   repositoryId: z.string(),
   title: z.string(),
   status: z.string(),
+  errorMessage: z.string().nullable(),
   providerId: z.string(),
   modelId: z.string(),
   createdAt: z.date(),

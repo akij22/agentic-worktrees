@@ -47,6 +47,7 @@ export interface AgentSessionSummary {
   repositoryId: string;
   title: string;
   status: string;
+  errorMessage: string | null;
   providerId: string;
   modelId: string;
   createdAt: Date;
@@ -72,6 +73,7 @@ export interface AgentUiEvent {
 }
 
 const adapter = new OpenCodeAdapter();
+let startupPromise: Promise<void> | null = null;
 const listeners = new Set<(event: AgentUiEvent) => void>();
 const reconcileTimers = new Map<string, NodeJS.Timeout>();
 const reasoningByRun = new Map<string, Map<string, string>>();
@@ -190,6 +192,7 @@ const toSummary = (row: ReturnType<typeof getSessionRecord>): AgentSessionSummar
   repositoryId: row.run.repositoryId,
   title: row.run.title,
   status: row.run.status,
+  errorMessage: row.run.errorMessage,
   providerId: row.agent.providerId,
   modelId: row.agent.modelId,
   createdAt: row.run.createdAt,
@@ -302,7 +305,15 @@ const ensureStarted = async (): Promise<void> => {
     throw new Error('OpenCode is not configured. Select its executable in Settings.');
   }
   const runtime = adapter.getStatus();
-  if (!runtime.running) {
+  if (runtime.running && runtime.version) return;
+  if (startupPromise) return startupPromise;
+
+  const currentStartup = (async () => {
+    // Multiple renderer requests can arrive together on first navigation.
+    // Re-check the runtime after waiting for the lock so only one OpenCode
+    // process/client pair is created for that burst.
+    const currentRuntime = adapter.getStatus();
+    if (currentRuntime.running && currentRuntime.version) return;
     const version = await adapter.start(
       installation.executablePath,
       app.getPath('userData'),
@@ -312,6 +323,12 @@ const ensureStarted = async (): Promise<void> => {
       .set({ version, lastVerifiedAt: new Date(), updatedAt: new Date() })
       .where(eq(codingAgentInstallations.id, INSTALLATION_ID))
       .run();
+  })();
+  startupPromise = currentStartup;
+  try {
+    await currentStartup;
+  } finally {
+    if (startupPromise === currentStartup) startupPromise = null;
   }
 };
 
@@ -491,10 +508,10 @@ export const setAgentSessionModel = async (input: {
 };
 
 export const reconcileAgentSession = async (runId: string): Promise<void> => {
-  const row = getSessionRecord(runId);
-  const context = getContext(row.run.worktreeId);
-  await ensureStarted();
   try {
+    const row = getSessionRecord(runId);
+    const context = getContext(row.run.worktreeId);
+    await ensureStarted();
     await adapter.getSession(context.worktree.path, row.agent.externalSessionId);
     const messages = await adapter.listMessages(
       context.worktree.path,
@@ -505,7 +522,9 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
     setRunStatus(
       runId,
       'unavailable',
-      error instanceof Error ? error.message : String(error),
+      error instanceof Error && error.message
+        ? error.message
+        : 'Unknown error while reconciling the OpenCode session.',
     );
     throw error;
   }
