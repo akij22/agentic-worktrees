@@ -5,7 +5,6 @@ import type {
 import {
   compactActivity,
   formatDate,
-  formatElapsedTime,
 } from "../lib/formatters";
 import type { SessionGridDetail } from "../types";
 import { GridIcon } from "./GridIcon";
@@ -38,16 +37,12 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-4 px-4 py-4">
-        <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex min-w-0 items-center gap-1.5 font-mono">
             <GridIcon name="bot" />
             <span className="truncate">
               {session.providerId}/{session.modelId}
             </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5 font-mono">
-            <GridIcon name="clock" />
-            {formatElapsedTime(session.createdAt)}
           </span>
         </div>
         <div className="min-h-16 rounded-lg border border-border bg-background/70 px-3 py-2.5 font-mono text-xs leading-5 text-muted-foreground shadow-inner">
