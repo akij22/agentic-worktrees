@@ -1,17 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Repository, Worktree } from '../../shared/db/schema';
 import type { BranchDto, RemoteRepositoryDto } from '../../shared/ipc/schemas';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import {
   Dialog,
@@ -23,6 +14,14 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
+import { RepositorySidebar } from '../features/dashboard/components/RepositorySidebar';
+import { RepositoryWorkspace } from '../features/dashboard/components/RepositoryWorkspace';
+import { useWorktreeChatSummary } from '../features/dashboard/hooks/use-worktree-chat-summary';
+import {
+  filterRepositories,
+  resolveSelectedRepositoryId,
+  resolveSelectedWorktreeId,
+} from '../features/dashboard/dashboard-state';
 
 type LoadState =
   | { status: 'idle' }
@@ -66,8 +65,6 @@ const initialOpenDialog = (repo: Repository): DialogState => ({
   submitting: false,
 });
 
-const isLocalRepository = (repo: Repository): boolean => repo.githubRepoId < 0;
-
 export const Dashboard = () => {
   const navigate = useNavigate();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'idle' });
@@ -78,20 +75,28 @@ export const Dashboard = () => {
   const [createdWorktrees, setCreatedWorktrees] = useState<
     Record<string, Worktree[]>
   >({});
+  const [repositoryQuery, setRepositoryQuery] = useState('');
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>();
+  const [selectedWorktreeId, setSelectedWorktreeId] = useState<string>();
 
   const loadRepos = useCallback(async (refresh: boolean) => {
     setLoadState({ status: 'loading' });
     try {
       const repos = await window.api.github.listRepos({ refresh });
       const persistedWorktrees = await window.api.worktrees.listAll();
-      setCreatedWorktrees(
-        persistedWorktrees.reduce<Record<string, Worktree[]>>((grouped, worktree) => {
+      const groupedWorktrees = persistedWorktrees.reduce<Record<string, Worktree[]>>(
+        (grouped, worktree) => {
           grouped[worktree.repositoryId] = [
             ...(grouped[worktree.repositoryId] ?? []),
             worktree,
           ];
           return grouped;
-        }, {}),
+        },
+        {},
+      );
+      setCreatedWorktrees(groupedWorktrees);
+      setSelectedRepositoryId((currentId) =>
+        resolveSelectedRepositoryId(repos, currentId),
       );
       setLoadState({ status: 'success', repos });
       return repos;
@@ -108,6 +113,36 @@ export const Dashboard = () => {
   useEffect(() => {
     void loadRepos(false);
   }, [loadRepos]);
+
+  const repositories = loadState.status === 'success' ? loadState.repos : [];
+  const visibleRepositories = useMemo(
+    () => filterRepositories(repositories, repositoryQuery),
+    [repositories, repositoryQuery],
+  );
+  const selectedRepository = useMemo(
+    () => repositories.find((repository) => repository.id === selectedRepositoryId),
+    [repositories, selectedRepositoryId],
+  );
+  const selectedRepositoryWorktrees = useMemo(
+    () =>
+      selectedRepository ? (createdWorktrees[selectedRepository.id] ?? []) : [],
+    [createdWorktrees, selectedRepository],
+  );
+
+  useEffect(() => {
+    setSelectedWorktreeId((currentId) =>
+      resolveSelectedWorktreeId(selectedRepositoryWorktrees, currentId),
+    );
+  }, [selectedRepositoryId, selectedRepositoryWorktrees]);
+
+  const selectedWorktree = useMemo(
+    () =>
+      selectedRepositoryWorktrees.find(
+        (worktree) => worktree.id === selectedWorktreeId,
+      ) ?? selectedRepositoryWorktrees[0],
+    [selectedRepositoryWorktrees, selectedWorktreeId],
+  );
+  const worktreeChatSummary = useWorktreeChatSummary(selectedWorktree);
 
   const openAddRepositoryDialog = useCallback(() => {
     setAddRepository({
@@ -296,6 +331,8 @@ export const Dashboard = () => {
         ...prev,
         [repo.id]: [...(prev[repo.id] ?? []), worktree],
       }));
+      setSelectedRepositoryId(repo.id);
+      setSelectedWorktreeId(worktree.id);
       setDialog({ status: 'closed' });
     } catch (error) {
       setDialog((prev) =>
@@ -311,159 +348,75 @@ export const Dashboard = () => {
   }, [dialog]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">Repositories</h2>
-          <p className="text-sm text-muted-foreground">
-            Load repositories from a local folder or sync them from GitHub.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={openAddRepositoryDialog}
-            disabled={loadState.status === 'loading'}
-          >
-            +
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void loadRepos(false)}
-            disabled={loadState.status === 'loading'}
-          >
-            {loadState.status === 'loading' ? 'Loading…' : 'Refresh'}
-          </Button>
-        </div>
+    <>
+      <div className="flex h-full min-h-0 overflow-hidden bg-background text-foreground">
+        <RepositorySidebar
+          repositories={visibleRepositories}
+          selectedRepositoryId={selectedRepositoryId}
+          query={repositoryQuery}
+          loading={loadState.status === 'idle' || loadState.status === 'loading'}
+          onAdd={openAddRepositoryDialog}
+          onRefresh={() => void loadRepos(false)}
+          onQueryChange={setRepositoryQuery}
+          onSelect={setSelectedRepositoryId}
+        />
+
+        {loadState.status === 'error' ? (
+          <section className="flex min-w-0 flex-1 items-center justify-center p-8">
+            <div className="max-w-md rounded-lg border border-destructive/40 bg-destructive/5 px-8 py-7 text-center">
+              <h2 className="text-base font-semibold text-destructive">
+                Failed to load repositories
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {loadState.message}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-5"
+                onClick={() => void loadRepos(true)}
+              >
+                Retry
+              </Button>
+            </div>
+          </section>
+        ) : loadState.status === 'success' && repositories.length === 0 ? (
+          <section className="flex min-w-0 flex-1 items-center justify-center p-8">
+            <div className="max-w-md rounded-lg border border-dashed border-border px-8 py-10 text-center">
+              <h2 className="text-base font-semibold">No repositories</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Add a local repository or select repositories from the connected
+                GitHub account.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                className="mt-5"
+                onClick={openAddRepositoryDialog}
+              >
+                Add repository
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <RepositoryWorkspace
+            repository={selectedRepository}
+            worktrees={selectedRepositoryWorktrees}
+            selectedWorktreeId={selectedWorktreeId}
+            chatSummary={worktreeChatSummary}
+            onCreateWorktree={openCreateDialog}
+            onSelectWorktree={setSelectedWorktreeId}
+            onOpenCodingAgent={(worktree) =>
+              navigate(
+                worktree.activeRunId
+                  ? `/coding-agent/${worktree.id}/${worktree.activeRunId}`
+                  : `/coding-agent?worktreeId=${encodeURIComponent(worktree.id)}&new=1`,
+              )
+            }
+          />
+        )}
       </div>
-
-      {loadState.status === 'loading' && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 w-full" />
-          ))}
-        </div>
-      )}
-
-      {loadState.status === 'error' && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-destructive">Failed to load repositories</CardTitle>
-            <CardDescription>{loadState.message}</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button variant="outline" size="sm" onClick={() => void loadRepos(true)}>
-              Retry
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
-
-      {loadState.status === 'success' && loadState.repos.length === 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>No repositories</CardTitle>
-            <CardDescription>
-              Add a local repository or import all repositories available from
-              GitHub with the `+` button.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
-      {loadState.status === 'success' && loadState.repos.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {loadState.repos.map((repo) => {
-            const wts = createdWorktrees[repo.id] ?? [];
-            return (
-              <Card key={repo.id} className="flex flex-col">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="truncate text-base">
-                      {isLocalRepository(repo) ? repo.name : repo.fullName}
-                    </CardTitle>
-                    <div className="flex shrink-0 gap-1.5">
-                      <Badge variant="outline">
-                        {isLocalRepository(repo) ? 'Local' : 'Remote'}
-                      </Badge>
-                      {repo.isPrivate && (
-                        <Badge variant="secondary">Private</Badge>
-                      )}
-                      {repo.isArchived && (
-                        <Badge variant="outline">Archived</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <CardDescription className="truncate">
-                    {isLocalRepository(repo)
-                      ? repo.localRootPath ?? 'Local path unavailable'
-                      : `default: ${repo.defaultBranch ?? '—'}`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  {wts.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Recent worktrees
-                      </span>
-                      {wts.map((wt) => (
-                        <div
-                          key={wt.id}
-                          className="rounded-md border border-border bg-muted/40 px-3 py-2"
-                        >
-                          <div className="truncate font-mono text-xs text-muted-foreground">
-                            {wt.path}
-                          </div>
-                          <div className="mt-1 text-xs">
-                            branch{' '}
-                            <span className="font-medium text-foreground">
-                              {wt.branchName}
-                            </span>{' '}
-                            from{' '}
-                            <span className="text-muted-foreground">
-                              {wt.baseBranchName ?? '—'}
-                            </span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="mt-2 w-full"
-                            onClick={() =>
-                              navigate(
-                                wt.activeRunId
-                                  ? `/coding-agent/${wt.id}/${wt.activeRunId}`
-                                  : `/coding-agent?worktreeId=${encodeURIComponent(wt.id)}&new=1`,
-                              )
-                            }
-                          >
-                            Open Coding Agent
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No worktrees created yet.
-                    </p>
-                  )}
-                </CardContent>
-                <CardFooter className="justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => openCreateDialog(repo)}
-                    disabled={repo.isArchived}
-                  >
-                    Create worktree
-                  </Button>
-                </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
-      )}
 
       {dialog.status === 'open' && (
         <Dialog open onOpenChange={(o) => !o && closeDialog()}>
@@ -735,6 +688,6 @@ export const Dashboard = () => {
           </DialogFooter>
         </Dialog>
       )}
-    </div>
+    </>
   );
 };

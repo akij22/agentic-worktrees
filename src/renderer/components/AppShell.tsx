@@ -1,5 +1,14 @@
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTheme } from '../lib/use-theme';
+import {
+  clampDashboardSidebarWidth,
+  DASHBOARD_SIDEBAR_DEFAULT_WIDTH,
+  DASHBOARD_SIDEBAR_MAX_WIDTH,
+  DASHBOARD_SIDEBAR_MIN_WIDTH,
+  isDashboardSidebarCollapsed as isDashboardSidebarCompact,
+  isDashboardWorkspace,
+} from './app-shell-layout';
 
 const navItems = [
   {
@@ -41,27 +50,83 @@ const navItems = [
 export const AppShell = () => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [dashboardSidebarWidth, setDashboardSidebarWidth] = useState(
+    DASHBOARD_SIDEBAR_DEFAULT_WIDTH,
+  );
+  const [isResizingDashboardSidebar, setIsResizingDashboardSidebar] = useState(false);
   const isCodingAgentSession = /^\/coding-agent\/[^/]+\/[^/]+$/.test(
     location.pathname,
   );
+  const isDashboard = isDashboardWorkspace(location.pathname);
+  const isDashboardSidebarCollapsed = isDashboardSidebarCompact(
+    dashboardSidebarWidth,
+  );
+
+  useEffect(() => {
+    if (!isResizingDashboardSidebar) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const bounds = shellRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setDashboardSidebarWidth(
+        clampDashboardSidebarWidth(event.clientX - bounds.left),
+      );
+    };
+    const stopResizing = () => setIsResizingDashboardSidebar(false);
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResizing);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResizing);
+    };
+  }, [isResizingDashboardSidebar]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-        <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
+    <div ref={shellRef} className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
+      <aside
+        style={{ width: `${dashboardSidebarWidth}px` }}
+        className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+      >
+        <div
+          className={`flex h-16 items-center border-b border-sidebar-border ${
+            isDashboardSidebarCollapsed
+              ? 'justify-center px-2'
+              : 'gap-2.5 px-5'
+          }`}
+        >
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground shadow-sm">
             AW
           </div>
-          <span className="font-semibold tracking-tight text-foreground">Agentic Worktrees</span>
+          <span
+            className={
+              isDashboardSidebarCollapsed
+                ? 'sr-only'
+                : 'font-semibold tracking-tight text-foreground'
+            }
+          >
+            Agentic Worktrees
+          </span>
         </div>
-        <nav aria-label="Main navigation" className="flex flex-1 flex-col gap-1 px-3 py-4">
+        <nav
+          aria-label="Main navigation"
+          className={`flex flex-1 flex-col gap-1 py-4 ${
+            isDashboardSidebarCollapsed ? 'px-2' : 'px-3'
+          }`}
+        >
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
+              title={isDashboardSidebarCollapsed ? item.label : undefined}
               className={({ isActive }) =>
-                `flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
+                `flex h-10 items-center rounded-md text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
+                  isDashboardSidebarCollapsed
+                    ? 'justify-center px-2'
+                    : 'gap-3 px-3'
+                } ${
                   isActive
                     ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -69,18 +134,30 @@ export const AppShell = () => {
               }
             >
               <span className="h-5 w-5 shrink-0">{item.icon}</span>
-              {item.label}
+              {isDashboardSidebarCollapsed ? (
+                <span className="sr-only">{item.label}</span>
+              ) : (
+                item.label
+              )}
             </NavLink>
           ))}
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
+        <div
+          className={`border-t border-sidebar-border ${
+            isDashboardSidebarCollapsed ? 'p-2' : 'p-3'
+          }`}
+        >
           <button
             type="button"
             onClick={toggleTheme}
             aria-label={theme === 'dark' ? 'Attiva tema chiaro' : 'Attiva tema scuro'}
             title={theme === 'dark' ? 'Attiva tema chiaro' : 'Attiva tema scuro'}
-            className="inline-flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring"
+            className={`inline-flex h-10 w-full items-center rounded-md text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
+              isDashboardSidebarCollapsed
+                ? 'justify-center px-2'
+                : 'gap-3 px-3'
+            }`}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               {theme === 'dark' ? (
@@ -92,28 +169,84 @@ export const AppShell = () => {
                 <path d="M20.5 15.6A8.5 8.5 0 0 1 8.4 3.5 8.5 8.5 0 1 0 20.5 15.6Z" strokeLinecap="round" strokeLinejoin="round" />
               )}
             </svg>
-            {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+            {isDashboardSidebarCollapsed ? (
+              <span className="sr-only">
+                {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+              </span>
+            ) : (
+              theme === 'dark' ? 'Light theme' : 'Dark theme'
+            )}
           </button>
         </div>
       </aside>
 
-      <main className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center border-b border-border px-6">
-          <h1 className="text-base font-semibold tracking-tight">
-            {navItems.find((i) =>
-              i.end ? i.to === location.pathname : location.pathname.startsWith(i.to),
-            )?.label ?? 'Dashboard'}
-          </h1>
-        </header>
-        <div
-          className={
-            isCodingAgentSession
-              ? 'min-h-0 flex-1 overflow-hidden'
-              : 'flex-1 overflow-auto p-6'
-          }
+      <div
+          role="separator"
+          aria-label="Resize main navigation"
+          aria-orientation="vertical"
+          aria-valuemin={DASHBOARD_SIDEBAR_MIN_WIDTH}
+          aria-valuemax={DASHBOARD_SIDEBAR_MAX_WIDTH}
+          aria-valuenow={dashboardSidebarWidth}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault();
+              setDashboardSidebarWidth((width) =>
+                clampDashboardSidebarWidth(width - 16),
+              );
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault();
+              setDashboardSidebarWidth((width) =>
+                clampDashboardSidebarWidth(width + 16),
+              );
+            }
+          }}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            setIsResizingDashboardSidebar(true);
+          }}
+          className={`group relative z-10 -ml-px flex w-2 shrink-0 touch-none cursor-col-resize items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+            isResizingDashboardSidebar
+              ? 'bg-primary/15'
+              : 'bg-transparent hover:bg-primary/10'
+          }`}
         >
-          <Outlet />
-        </div>
+          <span
+            aria-hidden="true"
+            className={`h-10 w-px rounded-full transition-all ${
+              isResizingDashboardSidebar
+                ? 'h-14 bg-primary'
+                : 'bg-border group-hover:h-14 group-hover:bg-primary/70'
+            }`}
+          />
+      </div>
+
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {isDashboard ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Outlet />
+          </div>
+        ) : (
+          <>
+            <header className="flex h-16 shrink-0 items-center border-b border-border px-6">
+              <h1 className="text-base font-semibold tracking-tight">
+                {navItems.find((i) =>
+                  i.end ? i.to === location.pathname : location.pathname.startsWith(i.to),
+                )?.label ?? 'Dashboard'}
+              </h1>
+            </header>
+            <div
+              className={
+                isCodingAgentSession
+                  ? 'min-h-0 flex-1 overflow-hidden'
+                  : 'flex-1 overflow-auto p-6'
+              }
+            >
+              <Outlet />
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
