@@ -1,9 +1,52 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from './shared/ipc/channels';
 import type { Api } from './shared/ipc/api';
+import {
+  githubAuthStatusSchema,
+  githubDeviceChallengeSchema,
+} from './shared/ipc/schemas';
 
 const api: Api = {
   github: {
+    auth: {
+      getStatus: async () => githubAuthStatusSchema.parse(
+        await ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_STATUS),
+      ),
+      startLogin: async () => githubDeviceChallengeSchema.parse(
+        await ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_START),
+      ),
+      completeLogin: () =>
+        ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_COMPLETE).then((value) =>
+          githubAuthStatusSchema.parse(value),
+        ),
+      cancelLogin: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_CANCEL),
+      refreshInstallations: async () => githubAuthStatusSchema.parse(
+        await ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_REFRESH_INSTALLATIONS),
+      ),
+      logout: async () => githubAuthStatusSchema.parse(
+        await ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_LOGOUT),
+      ),
+      retrySession: async () => githubAuthStatusSchema.parse(
+        await ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_RETRY_SESSION),
+      ),
+      onStatusChanged: (listener) => {
+        const handler = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+          listener(githubAuthStatusSchema.parse(payload));
+        ipcRenderer.on(IPC_CHANNELS.GITHUB_AUTH_STATUS_CHANGED, handler);
+        return () =>
+          ipcRenderer.removeListener(IPC_CHANNELS.GITHUB_AUTH_STATUS_CHANGED, handler);
+      },
+      openDeviceVerification: () =>
+        ipcRenderer.invoke(
+          IPC_CHANNELS.GITHUB_AUTH_OPEN_DEVICE_VERIFICATION,
+        ),
+      openInstallation: () =>
+        ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_OPEN_INSTALLATION),
+      openAuthorizationSettings: () =>
+        ipcRenderer.invoke(
+          IPC_CHANNELS.GITHUB_AUTH_OPEN_AUTHORIZATION_SETTINGS,
+        ),
+    },
     listRepos: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_REPOS, request ?? {}),
     listRemoteRepos: () =>

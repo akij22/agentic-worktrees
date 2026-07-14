@@ -1,10 +1,22 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
 // https://vitejs.dev/config
-export default defineConfig({
-  build: {
-    rollupOptions: {
-      external: ['better-sqlite3'],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+
+  return {
+    define: {
+      'process.env.GITHUB_CLIENT_ID': JSON.stringify(
+        env.GITHUB_CLIENT_ID ?? '',
+      ),
+      'process.env.GITHUB_APP_SLUG': JSON.stringify(
+        env.GITHUB_APP_SLUG ?? '',
+      ),
     },
-  },
+    build: {
+      rollupOptions: {
+        external: ['better-sqlite3'],
+      },
+    },
+  };
 });

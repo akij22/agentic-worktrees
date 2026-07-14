@@ -3,6 +3,7 @@ import {
   dialog,
   ipcMain,
   IpcMainInvokeEvent,
+  shell,
   type OpenDialogOptions,
 } from 'electron';
 import { realpathSync, statSync } from 'node:fs';
@@ -19,6 +20,8 @@ import {
   editorOpenRequestSchema,
   githubListBranchesRequestSchema,
   githubListReposRequestSchema,
+  githubAuthStatusSchema,
+  githubDeviceChallengeSchema,
   repositoryImportRemoteRequestSchema,
   worktreeCreateRequestSchema,
   worktreeListRequestSchema,
@@ -26,6 +29,8 @@ import {
 import { listAvailableEditors, openEditor } from '../editors/editor-service';
 import { listRemoteRepositories } from '../github/repos';
 import { listBranches } from '../github/branches';
+import { githubAuthService } from '../github/auth-service';
+import { GITHUB_CONFIG } from '../github/config';
 import { listLocalBranches } from '../git/local-branches';
 import {
   createWorktree,
@@ -55,6 +60,32 @@ import {
   setAgentSessionModel,
   subscribeToAgentEvents,
 } from '../coding-agents/coding-agent-service';
+
+const requireAuthenticated = <Arguments extends unknown[], Result>(
+  handler: (...args: Arguments) => Result,
+) =>
+  async (...args: Arguments): Promise<Awaited<Result>> => {
+    await githubAuthService.assertAuthenticated();
+    try {
+      return await handler(...args);
+    } catch (error) {
+      const record = typeof error === 'object' && error !== null
+        ? error as Record<string, unknown>
+        : null;
+      if (
+        error instanceof TypeError ||
+        typeof record?.status === 'number' ||
+        typeof record?.code === 'string'
+      ) {
+        return githubAuthService.handleOperationError(error);
+      }
+      throw error;
+    }
+  };
+
+const authStatusResponse = async (
+  operation: () => Promise<unknown>,
+) => githubAuthStatusSchema.parse(await operation());
 
 const handleGithubListRepos = async (
   _event: IpcMainInvokeEvent,
@@ -90,6 +121,31 @@ const handleGithubListBranches = async (
 };
 
 const handleGithubListRemoteRepos = async () => listRemoteRepositories();
+
+const openGithubExternal = async (url: string): Promise<void> => {
+  try {
+    await shell.openExternal(url);
+  } catch (error) {
+    console.error(`Failed to open GitHub URL: ${url}`, error);
+    throw error;
+  }
+};
+
+const handleGithubOpenInstallation = async (): Promise<void> => {
+  await openGithubExternal(
+    `${GITHUB_CONFIG.webBaseUrl}/apps/${GITHUB_CONFIG.appSlug}/installations/new`,
+  );
+};
+
+const handleGithubOpenDeviceVerification = async (): Promise<void> => {
+  await openGithubExternal(`${GITHUB_CONFIG.webBaseUrl}/login/device`);
+};
+
+const handleGithubOpenAuthorizationSettings = async (): Promise<void> => {
+  await openGithubExternal(
+    `${GITHUB_CONFIG.webBaseUrl}/settings/connections/applications/${GITHUB_CONFIG.clientId}`,
+  );
+};
 
 const handleRepositoryImportLocal = async () => {
   const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -244,64 +300,105 @@ const handleCodingAgentPermissionRespond = async (
 };
 
 export const registerIpcHandlers = (): void => {
-  ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_REPOS, handleGithubListRepos);
+  ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_STATUS, () =>
+    authStatusResponse(() => githubAuthService.getStatus()),
+  );
+  ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_START, () =>
+    githubAuthService.startLogin().then((value) =>
+      githubDeviceChallengeSchema.parse(value),
+    ),
+  );
+  ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_COMPLETE, () =>
+    authStatusResponse(() => githubAuthService.completeLogin()),
+  );
+  ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_CANCEL, () =>
+    githubAuthService.cancelLogin(),
+  );
+  ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_REFRESH_INSTALLATIONS, () =>
+    authStatusResponse(() => githubAuthService.refreshInstallations()),
+  );
+  ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_LOGOUT, () =>
+    authStatusResponse(() => githubAuthService.logout()),
+  );
+  ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_RETRY_SESSION, () =>
+    authStatusResponse(() => githubAuthService.retrySession()),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.GITHUB_AUTH_OPEN_DEVICE_VERIFICATION,
+    handleGithubOpenDeviceVerification,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.GITHUB_AUTH_OPEN_INSTALLATION,
+    handleGithubOpenInstallation,
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.GITHUB_AUTH_OPEN_AUTHORIZATION_SETTINGS,
+    handleGithubOpenAuthorizationSettings,
+  );
+  ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_REPOS, requireAuthenticated(handleGithubListRepos));
   ipcMain.handle(
     IPC_CHANNELS.GITHUB_LIST_REMOTE_REPOS,
-    handleGithubListRemoteRepos,
+    requireAuthenticated(handleGithubListRemoteRepos),
   );
-  ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_BRANCHES, handleGithubListBranches);
+  ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_BRANCHES, requireAuthenticated(handleGithubListBranches));
   ipcMain.handle(
     IPC_CHANNELS.REPOSITORY_IMPORT_LOCAL,
-    handleRepositoryImportLocal,
+    requireAuthenticated(handleRepositoryImportLocal),
   );
   ipcMain.handle(
     IPC_CHANNELS.REPOSITORY_IMPORT_REMOTE,
-    handleRepositoryImportRemote,
+    requireAuthenticated(handleRepositoryImportRemote),
   );
-  ipcMain.handle(IPC_CHANNELS.WORKTREE_CREATE, handleWorktreeCreate);
-  ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST, handleWorktreeList);
-  ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST_ALL, () => listAllWorktrees());
-  ipcMain.handle(IPC_CHANNELS.EDITOR_LIST_AVAILABLE, () => listAvailableEditors());
-  ipcMain.handle(IPC_CHANNELS.EDITOR_OPEN, handleEditorOpen);
+  ipcMain.handle(IPC_CHANNELS.WORKTREE_CREATE, requireAuthenticated(handleWorktreeCreate));
+  ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST, requireAuthenticated(handleWorktreeList));
+  ipcMain.handle(IPC_CHANNELS.WORKTREE_LIST_ALL, requireAuthenticated(() => listAllWorktrees()));
+  ipcMain.handle(IPC_CHANNELS.EDITOR_LIST_AVAILABLE, requireAuthenticated(() => listAvailableEditors()));
+  ipcMain.handle(IPC_CHANNELS.EDITOR_OPEN, requireAuthenticated(handleEditorOpen));
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE,
-    handleCodingAgentSelectExecutable,
+    requireAuthenticated(handleCodingAgentSelectExecutable),
   );
-  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_STATUS, () =>
+  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_STATUS, requireAuthenticated(() =>
     getAgentInstallationStatus(),
-  );
-  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_MODELS, handleCodingAgentModels);
-  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_WORKTREES, () =>
+  ));
+  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_MODELS, requireAuthenticated(handleCodingAgentModels));
+  ipcMain.handle(IPC_CHANNELS.CODING_AGENT_WORKTREES, requireAuthenticated(() =>
     listAgentWorktrees(),
-  );
+  ));
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_LIST,
-    handleCodingAgentSessionList,
+    requireAuthenticated(handleCodingAgentSessionList),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_CREATE,
-    handleCodingAgentSessionCreate,
+    requireAuthenticated(handleCodingAgentSessionCreate),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE,
-    handleCodingAgentSessionModelUpdate,
+    requireAuthenticated(handleCodingAgentSessionModelUpdate),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_GET,
-    handleCodingAgentSessionGet,
+    requireAuthenticated(handleCodingAgentSessionGet),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_SEND,
-    handleCodingAgentSessionSend,
+    requireAuthenticated(handleCodingAgentSessionSend),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,
-    handleCodingAgentSessionAbort,
+    requireAuthenticated(handleCodingAgentSessionAbort),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND,
-    handleCodingAgentPermissionRespond,
+    requireAuthenticated(handleCodingAgentPermissionRespond),
   );
+  githubAuthService.onStatusChange((status) => {
+    const publicStatus = githubAuthStatusSchema.parse(status);
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(IPC_CHANNELS.GITHUB_AUTH_STATUS_CHANGED, publicStatus);
+    }
+  });
   subscribeToAgentEvents((event) => {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(IPC_CHANNELS.CODING_AGENT_EVENT, event);

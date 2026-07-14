@@ -2,23 +2,23 @@ import { mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { simpleGit, type SimpleGit } from 'simple-git';
 import { getEnvConfig } from '../config/env';
-import { getInstallationAccessToken } from '../github/octokit';
+import { getGitHubAccessToken } from '../github/octokit';
 import type { Repository } from '../../shared/db/schema';
 
 const GIT_COMMAND_TIMEOUT_MS = 120_000;
 
 const createGitClient = (
   baseDir?: string,
-  installationToken?: string,
+  accessToken?: string,
 ): SimpleGit => {
-  const basicAuth = installationToken
-    ? Buffer.from(`x-access-token:${installationToken}`).toString('base64')
+  const basicAuth = accessToken
+    ? Buffer.from(`x-access-token:${accessToken}`).toString('base64')
     : null;
   const git = simpleGit({
     ...(baseDir ? { baseDir } : {}),
     timeout: { block: GIT_COMMAND_TIMEOUT_MS },
-    // The config value is generated internally and carries the GitHub App
-    // token without putting it in the command-line arguments.
+    // The config value is generated internally and carries the authenticated
+    // user's OAuth token without putting it in the command-line arguments.
     ...(basicAuth ? { unsafe: { allowUnsafeConfigEnvCount: true } } : {}),
   });
 
@@ -83,14 +83,14 @@ const ensureDirFor = (filePath: string): void => {
 };
 
 export const ensureClone = async (repo: Repository): Promise<string> => {
-  const installationToken =
-    repo.githubRepoId < 0 ? undefined : await getInstallationAccessToken();
+  const accessToken =
+    repo.githubRepoId < 0 ? undefined : await getGitHubAccessToken();
 
   if (repo.localRootPath && existsSync(repo.localRootPath)) {
     if (repo.githubRepoId < 0) {
       return repo.localRootPath;
     }
-    const git = createGitClient(repo.localRootPath, installationToken);
+    const git = createGitClient(repo.localRootPath, accessToken);
     await git.fetch(['origin', '--prune']);
     return repo.localRootPath;
   }
@@ -99,7 +99,7 @@ export const ensureClone = async (repo: Repository): Promise<string> => {
   ensureDirFor(targetPath);
 
   if (existsSync(targetPath)) {
-    const git = createGitClient(targetPath, installationToken);
+    const git = createGitClient(targetPath, accessToken);
     const isBareRepository =
       (await git.raw(['rev-parse', '--is-bare-repository'])).trim() === 'true';
     if (!isBareRepository) {
@@ -109,7 +109,7 @@ export const ensureClone = async (repo: Repository): Promise<string> => {
     return targetPath;
   }
 
-  await createGitClient(undefined, installationToken).clone(
+  await createGitClient(undefined, accessToken).clone(
     repo.cloneUrl,
     targetPath,
     ['--bare'],
@@ -133,9 +133,9 @@ export const createWorktreeFromBranch = async (
   worktreeName: string,
 ): Promise<CreatedWorktree> => {
   const sourcePath = await ensureClone(repo);
-  const installationToken =
-    repo.githubRepoId < 0 ? undefined : await getInstallationAccessToken();
-  const git = createGitClient(sourcePath, installationToken);
+  const accessToken =
+    repo.githubRepoId < 0 ? undefined : await getGitHubAccessToken();
+  const git = createGitClient(sourcePath, accessToken);
 
   const worktreeRoot = getWorktreeRootPath(repo);
   const worktreePath = path.join(worktreeRoot, sanitizeBranchName(worktreeName));

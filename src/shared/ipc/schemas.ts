@@ -1,6 +1,56 @@
 import { z } from 'zod';
 import type { Repository, Worktree } from '../db/schema';
 
+export const githubAuthStateSchema = z.enum([
+  'loading',
+  'signed_out',
+  'authorizing',
+  'installation_required',
+  'authenticated',
+  'error',
+]);
+
+export const githubAuthProfileSchema = z.object({
+  id: z.number().int(),
+  login: z.string(),
+  name: z.string().nullable(),
+  avatarUrl: z.string().url(),
+});
+
+export const githubAuthErrorCodeSchema = z.enum([
+  'network',
+  'session_expired',
+  'saml_required',
+  'organization_approval_required',
+  'insufficient_permissions',
+  'publisher_configuration',
+  'unknown',
+]);
+
+export type GitHubAuthErrorCode = z.infer<typeof githubAuthErrorCodeSchema>;
+
+export const githubAuthStatusSchema = z.object({
+  state: githubAuthStateSchema,
+  profile: githubAuthProfileSchema.nullable(),
+  installationCount: z.number().int().nonnegative(),
+  persistent: z.boolean(),
+  message: z.string().nullable().default(null),
+  errorCode: githubAuthErrorCodeSchema.nullable().default(null),
+  recoverable: z.boolean().default(false),
+});
+
+export type GitHubAuthStatusDto = z.infer<typeof githubAuthStatusSchema>;
+
+export const githubDeviceChallengeSchema = z.object({
+  userCode: z.string(),
+  verificationUri: z.string().url(),
+  expiresAt: z.number(),
+});
+
+export type GitHubDeviceChallengeDto = z.infer<
+  typeof githubDeviceChallengeSchema
+>;
+
 export const githubListReposRequestSchema = z.object({
   refresh: z.boolean().optional().default(false),
 });
