@@ -93,3 +93,4 @@ out/
 
 # Superpowers planning artifacts
 docs/superpowers/
+.superpowers/sdd
