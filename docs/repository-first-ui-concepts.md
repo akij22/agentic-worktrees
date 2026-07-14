@@ -90,3 +90,18 @@ The next design decision is whether the repository switcher should remain open
 at all times or collapse into a compact rail when a coding session needs more
 horizontal space. Implementation should begin only after that navigation model
 and the selected concept are approved.
+
+## Alternative HTML mockups
+
+Interactive HTML explorations live under [`docs/mockups/`](./mockups/index.html).
+They keep the same visual language and user-facing capabilities as the PNG
+concepts above, and probe other navigation models for discussion:
+
+| Concept | File | What it explores |
+| --- | --- | --- |
+| 3 · Collapsible icon rail | [`mockups/03-collapsible-rail.html`](./mockups/03-collapsible-rail.html) | Hybrid of Concept 1: activity rail + expandable repo flyout + session focus mode (addresses the open rail decision) |
+| 4 · Nested tree | [`mockups/04-nested-tree.html`](./mockups/04-nested-tree.html) | Single hierarchical sidebar: repo → worktree → session |
+| 5 · Header switcher + palette | [`mockups/05-header-switcher.html`](./mockups/05-header-switcher.html) | Minimal chrome; top repo switcher and ⌘K command palette |
+
+These pages are discussion artifacts only. They do not approve a direction or
+change application behavior.
