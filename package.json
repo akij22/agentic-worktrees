@@ -53,6 +53,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
     "@opencode-ai/sdk": "^1.17.18",
     "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
