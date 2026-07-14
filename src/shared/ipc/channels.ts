@@ -1,4 +1,17 @@
 export const IPC_CHANNELS = {
+  GITHUB_AUTH_STATUS: 'github:auth-status',
+  GITHUB_AUTH_START: 'github:auth-start',
+  GITHUB_AUTH_COMPLETE: 'github:auth-complete',
+  GITHUB_AUTH_CANCEL: 'github:auth-cancel',
+  GITHUB_AUTH_REFRESH_INSTALLATIONS: 'github:auth-refresh-installations',
+  GITHUB_AUTH_LOGOUT: 'github:auth-logout',
+  GITHUB_AUTH_RETRY_SESSION: 'github:auth-retry-session',
+  GITHUB_AUTH_STATUS_CHANGED: 'github:auth-status-changed',
+  GITHUB_AUTH_OPEN_DEVICE_VERIFICATION:
+    'github:auth-open-device-verification',
+  GITHUB_AUTH_OPEN_INSTALLATION: 'github:auth-open-installation',
+  GITHUB_AUTH_OPEN_AUTHORIZATION_SETTINGS:
+    'github:auth-open-authorization-settings',
   GITHUB_LIST_REPOS: 'github:list-repos',
   GITHUB_LIST_REMOTE_REPOS: 'github:list-remote-repos',
   GITHUB_LIST_BRANCHES: 'github:list-branches',

@@ -1,4 +1,4 @@
-import { getInstallationOctokit } from './octokit';
+import { getAuthenticatedOctokit } from './octokit';
 
 export interface RemoteBranch {
   name: string;
@@ -10,7 +10,7 @@ export const listBranches = async (
   owner: string,
   repo: string,
 ): Promise<RemoteBranch[]> => {
-  const octokit = await getInstallationOctokit();
+  const octokit = await getAuthenticatedOctokit();
   const branches: RemoteBranch[] = [];
 
   for await (const response of octokit.paginate.iterator(

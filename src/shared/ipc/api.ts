@@ -9,11 +9,28 @@ import type {
   CodingAgentWorktreeContextDto,
   AvailableEditorDto,
   EditorId,
+  GitHubAuthStatusDto,
+  GitHubDeviceChallengeDto,
   RemoteRepositoryDto,
 } from './schemas';
 
 export interface Api {
   github: {
+    auth: {
+      getStatus: () => Promise<GitHubAuthStatusDto>;
+      startLogin: () => Promise<GitHubDeviceChallengeDto>;
+      completeLogin: () => Promise<GitHubAuthStatusDto>;
+      cancelLogin: () => Promise<void>;
+      refreshInstallations: () => Promise<GitHubAuthStatusDto>;
+      logout: () => Promise<GitHubAuthStatusDto>;
+      retrySession: () => Promise<GitHubAuthStatusDto>;
+      onStatusChanged: (
+        listener: (status: GitHubAuthStatusDto) => void,
+      ) => () => void;
+      openDeviceVerification: () => Promise<void>;
+      openInstallation: () => Promise<void>;
+      openAuthorizationSettings: () => Promise<void>;
+    };
     listRepos: (request?: { refresh?: boolean }) => Promise<Repository[]>;
     listRemoteRepos: () => Promise<RemoteRepositoryDto[]>;
     listBranches: (request: {
