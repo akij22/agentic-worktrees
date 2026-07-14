@@ -95,3 +95,5 @@
 * Do not use `any` unless interacting with genuinely untyped external boundaries.
 * Do not write commit messages in languages other than English.
 * Do not use package managers other than `npm` for project commands.
+* Do not spawn subagents until I ask you to do so.
+* Do not use 'superpowers' skill until I ask you to do so.
