@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { useTheme } from '../lib/use-theme';
+import type { Theme } from '../lib/use-theme';
 
 const navItems = [
   {
@@ -38,9 +38,13 @@ const navItems = [
   },
 ];
 
-export const AppShell = () => {
+interface AppShellProps {
+  theme: Theme;
+  toggleTheme: () => void;
+}
+
+export const AppShell = ({ theme, toggleTheme }: AppShellProps) => {
   const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
   const isCodingAgentSession = /^\/coding-agent\/[^/]+\/[^/]+$/.test(
     location.pathname,
   );

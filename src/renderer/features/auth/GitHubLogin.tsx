@@ -10,6 +10,17 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
+<<<<<<< HEAD
+=======
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from '../../components/ui/card';
+// Photo by Visax on Unsplash: https://unsplash.com/photos/OnoTv1fuzCg
+import loginBackground from '../../assets/auth/red-black-waves-visax.webp';
+>>>>>>> 01e566e (feat(auth): add crossfade transition between login and dashboard)
 import { getUserFacingAuthActionError } from './auth-state';
 import { useGitHubAuth } from './useGitHubAuth';
 
@@ -53,6 +64,7 @@ export const GitHubLogin = () => {
 
   const isExpired = remainingSeconds === 0;
 
+<<<<<<< HEAD
   const primaryLabel = status.recoverable
     ? 'Retry existing session'
     : error
@@ -88,6 +100,46 @@ export const GitHubLogin = () => {
         </header>
 
         <div className="w-full space-y-5">
+=======
+  return (
+    <main className="relative isolate h-screen overflow-y-auto bg-[#160607]">
+      <img
+        src={loginBackground}
+        alt=""
+        aria-hidden="true"
+        className="fixed inset-0 -z-30 h-full w-full object-cover object-center"
+      />
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 -z-20 bg-[linear-gradient(115deg,rgba(23,5,7,0.22)_0%,rgba(18,5,6,0.36)_48%,rgba(8,3,4,0.64)_100%)] dark:bg-[linear-gradient(115deg,rgba(8,2,3,0.44)_0%,rgba(8,2,3,0.58)_50%,rgba(3,1,2,0.78)_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_67%_34%,rgba(255,255,255,0.14),transparent_30%)] opacity-70 dark:opacity-40"
+      />
+
+      <div className="mx-auto flex min-h-full w-full max-w-6xl items-center justify-center px-5 py-10 sm:px-8 lg:pl-24 lg:pr-0">
+        <Card className="w-full max-w-md overflow-hidden border-white/35 bg-card/90 shadow-[0_32px_100px_-28px_rgba(0,0,0,0.85)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/80 dark:border-white/15 dark:bg-card/90 dark:supports-[backdrop-filter]:bg-card/75">
+          <CardHeader className="border-b border-border/70 bg-card/35 pb-5">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="flex size-10 items-center justify-center rounded-md border border-border/80 bg-foreground text-background shadow-sm">
+              <GitFork className="size-5" />
+            </div>
+            <Badge variant="outline" className="font-mono uppercase tracking-wider">
+              GitHub connection
+            </Badge>
+          </div>
+          <h1 className="text-xl font-semibold leading-none tracking-tight">
+            Agentic Worktrees
+          </h1>
+          <CardDescription className="mt-1 leading-5">
+            Sign in to load repositories, branches, and pull request context.
+            Access is handled by GitHub and credentials stay in the main process.
+          </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-5 pt-6">
+>>>>>>> 01e566e (feat(auth): add crossfade transition between login and dashboard)
           {auth.view === 'loading' ? (
             <div
               role="status"
@@ -295,7 +347,12 @@ export const GitHubLogin = () => {
           <span role="status" aria-live="polite" className="sr-only">
             {copied ? 'Device code copied.' : ''}
           </span>
+<<<<<<< HEAD
         </div>
+=======
+          </CardContent>
+        </Card>
+>>>>>>> 01e566e (feat(auth): add crossfade transition between login and dashboard)
       </div>
     </main>
   );

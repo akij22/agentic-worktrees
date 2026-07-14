@@ -200,3 +200,20 @@
     letter-spacing: var(--tracking-normal);
   }
 }
+
+@layer utilities {
+  .auth-crossfade-enter {
+    opacity: 0;
+  }
+  .auth-crossfade-enter-active {
+    opacity: 1;
+    transition: opacity 250ms ease-out;
+  }
+  .auth-crossfade-exit {
+    opacity: 1;
+  }
+  .auth-crossfade-exit-active {
+    opacity: 0;
+    transition: opacity 250ms ease-in;
+  }
+}
