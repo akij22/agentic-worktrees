@@ -92,7 +92,7 @@ export const AppShell = () => {
                 <path d="M20.5 15.6A8.5 8.5 0 0 1 8.4 3.5 8.5 8.5 0 1 0 20.5 15.6Z" strokeLinecap="round" strokeLinejoin="round" />
               )}
             </svg>
-            {theme === 'dark' ? 'Tema chiaro' : 'Tema scuro'}
+            {theme === 'dark' ? 'Light theme' : 'Dark theme'}
           </button>
         </div>
       </aside>
