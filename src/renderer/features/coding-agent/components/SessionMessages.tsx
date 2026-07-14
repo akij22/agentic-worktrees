@@ -1,6 +1,7 @@
 import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
 import { useEffect, useRef } from "react";
 import { Button } from "../../../components/ui/button";
+import { AIMessage } from "./AIMessage";
 import type { PendingPermission } from "../types";
 
 type Props = {
@@ -66,16 +67,16 @@ export const SessionMessages = ({
         <div className="mb-1.5 text-xs font-semibold">
           {message.role === "user" ? "You" : "OpenCode"}
         </div>
-        {message.content.trim() ? (
-          <div
-            className={
-              message.role === "user"
-                ? "whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6"
-                : "whitespace-pre-wrap border-l-2 border-primary/70 bg-muted/35 px-4 py-3 text-sm leading-6"
-            }
-          >
+        {message.content.trim() && message.role === "user" ? (
+          <div className="whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6">
             {message.content}
           </div>
+        ) : null}
+        {message.content.trim() && message.role === "assistant" ? (
+          <AIMessage
+            content={message.content}
+            isStreaming={message.completedAt === null}
+          />
         ) : null}
         {message.role === "assistant" && message.reasoning ? (
           <div className="whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs italic leading-5 text-muted-foreground/75">
