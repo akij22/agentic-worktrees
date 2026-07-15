@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTheme } from '../lib/use-theme';
+import appLogo from '../assets/agentic-worktrees-logo.png';
 import {
   clampDashboardSidebarWidth,
   DASHBOARD_SIDEBAR_DEFAULT_WIDTH,
@@ -87,7 +88,7 @@ export const AppShell = () => {
     <div ref={shellRef} className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <aside
         style={{ width: `${dashboardSidebarWidth}px` }}
-        className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+        className="flex min-h-[20rem] w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
       >
         <div
           className={`flex h-16 items-center border-b border-sidebar-border ${
@@ -96,8 +97,8 @@ export const AppShell = () => {
               : 'gap-2.5 px-5'
           }`}
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground shadow-sm">
-            AW
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#f8f5ef] shadow-sm">
+            <img src={appLogo} alt="" aria-hidden="true" className="h-full w-full object-cover" />
           </div>
           <span
             className={

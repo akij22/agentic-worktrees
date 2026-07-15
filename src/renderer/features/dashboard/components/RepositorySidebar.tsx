@@ -38,23 +38,12 @@ export const RepositorySidebar = ({
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="shrink-0 px-3 pb-3 pt-5">
-        <div className="mb-3 flex items-center justify-between px-1">
+        <div className="mb-3 px-1">
           <div>
             <h2 className="text-base font-semibold tracking-tight text-foreground">
               Repositories
             </h2>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={onAdd}
-            aria-label="Add repository"
-            title="Add repository"
-          >
-            <Plus aria-hidden="true" />
-          </Button>
         </div>
         <div className="relative">
           <Search

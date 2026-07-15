@@ -18,6 +18,7 @@ import {
   CardHeader,
 } from '../../components/ui/card';
 import loginBackground from '../../assets/auth/red-black-waves-visax.webp';
+import appLogo from '../../assets/agentic-worktrees-logo.png';
 import { getUserFacingAuthActionError } from './auth-state';
 import { useGitHubAuth } from './useGitHubAuth';
 
@@ -90,8 +91,8 @@ export const GitHubLogin = () => {
         <Card className="w-full max-w-md overflow-hidden border-white/35 bg-card/90 shadow-[0_32px_100px_-28px_rgba(0,0,0,0.85)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/80 dark:border-white/15 dark:bg-card/90 dark:supports-[backdrop-filter]:bg-card/75">
           <CardHeader className="border-b border-border/70 bg-card/35 pb-5">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="flex size-10 items-center justify-center rounded-md border border-border/80 bg-foreground text-background shadow-sm">
-                <GitFork className="size-5" />
+              <div className="flex size-10 items-center justify-center overflow-hidden rounded-md border border-border/80 bg-[#f8f5ef] shadow-sm">
+                <img src={appLogo} alt="" aria-hidden="true" className="h-full w-full object-cover" />
               </div>
               <Badge variant="outline" className="font-mono uppercase tracking-wider">
                 GitHub connection
