@@ -74,8 +74,8 @@ export const RepositoryWorkspace = ({
                 {isLocalRepository(repository) ? 'Local' : 'Remote'}
               </Badge>
               {repository.isPrivate ? (
-                <Badge variant="secondary">
-                  <LockKeyhole aria-hidden="true" />
+                <Badge variant="secondary" className="gap-1.5">
+                  <LockKeyhole aria-hidden="true" className="size-3.5 shrink-0" />
                   Private
                 </Badge>
               ) : null}
@@ -296,14 +296,10 @@ const WorktreeChatSummary = ({
 
   return (
     <section className="space-y-5 border-t border-border pt-5">
-      <div className="flex items-center justify-between gap-3">
+      <div>
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           Coding Agent
         </p>
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="size-1.5 rounded-full bg-primary" />
-          {summary.snapshot.session.status}
-        </span>
       </div>
 
       <div>
@@ -335,8 +331,10 @@ const WorktreeChatSummary = ({
                 <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                   {file.file}
                 </span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
-                  +{file.additions} / −{file.deletions}
+                <span className="shrink-0 text-[11px]">
+                  <span className="text-emerald-400">+{file.additions}</span>{' '}
+                  /
+                  <span className="text-red-400"> −{file.deletions}</span>
                 </span>
               </li>
             ))}
