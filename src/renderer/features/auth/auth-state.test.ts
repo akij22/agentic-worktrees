@@ -49,6 +49,17 @@ describe('GitHub renderer auth state', () => {
     expect(getAuthView(next)).toBe('sign-in');
   });
 
+  it('moves startup loading to the app after restoring an authenticated session', () => {
+    const next = authReducer(createInitialAuthState(), {
+      type: 'statusResolved',
+      status: status('authenticated'),
+      operationId: 0,
+    });
+
+    expect(next.status.state).toBe('authenticated');
+    expect(getAuthView(next)).toBe('app');
+  });
+
   it('moves a login challenge to authorizing without private credentials', () => {
     const signedOut = authReducer(createInitialAuthState(), {
       type: 'statusResolved',
