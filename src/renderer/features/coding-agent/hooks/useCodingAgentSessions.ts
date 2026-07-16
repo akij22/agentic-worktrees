@@ -15,8 +15,8 @@ export const useCodingAgentSessions = () => {
   >(() => new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [nextStatus, nextContexts, nextSessions] = await Promise.all([
         window.api.codingAgent.getStatus(),
@@ -36,6 +36,12 @@ export const useCodingAgentSessions = () => {
               session: snapshot.session,
               detail: {
                 lastActivity: snapshot.messages.at(-1)?.content,
+                isProcessing:
+                  ["creating", "busy"].includes(snapshot.session.status) &&
+                  !(
+                    snapshot.messages.at(-1)?.role === "assistant" &&
+                    snapshot.messages.at(-1)?.completedAt !== null
+                  ),
                 additions: snapshot.diff.reduce(
                   (total, file) => total + file.additions,
                   0,
@@ -54,6 +60,7 @@ export const useCodingAgentSessions = () => {
               session,
               detail: {
                 lastActivity: undefined,
+                isProcessing: ["creating", "busy"].includes(session.status),
                 additions: 0,
                 deletions: 0,
                 changedFiles: 0,
@@ -81,6 +88,20 @@ export const useCodingAgentSessions = () => {
   }, []);
   useEffect(() => {
     void load();
+    return window.api.codingAgent.onEvent((event) => {
+      if (
+        event.runId !== null &&
+        [
+          "messages.updated",
+          "session.diff",
+          "session.idle",
+          "session.error",
+          "session.status",
+        ].includes(event.type)
+      ) {
+        void load(false);
+      }
+    });
   }, [load]);
   return {
     status,

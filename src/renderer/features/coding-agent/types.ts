@@ -7,6 +7,7 @@ export type PendingPermission = {
 
 export type SessionGridDetail = {
   lastActivity: string | undefined;
+  isProcessing: boolean;
   additions: number;
   deletions: number;
   changedFiles: number;
