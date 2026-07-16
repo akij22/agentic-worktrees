@@ -36,6 +36,10 @@ export interface Api {
     listBranches: (request: {
       repositoryId: string;
     }) => Promise<BranchDto[]>;
+    createBranch: (request: {
+      repositoryId: string;
+      branchName: string;
+    }) => Promise<BranchDto>;
   };
   repositories: {
     importLocal: () => Promise<Repository | null>;

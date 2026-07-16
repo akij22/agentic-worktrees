@@ -17,6 +17,7 @@ import {
   codingAgentSessionListRequestSchema,
   codingAgentSessionSendRequestSchema,
   codingAgentSessionModelUpdateSchema,
+  createLocalBranchRequestSchema,
   editorOpenRequestSchema,
   githubListBranchesRequestSchema,
   githubListReposRequestSchema,
@@ -31,7 +32,7 @@ import { listRemoteRepositories } from '../github/repos';
 import { listBranches } from '../github/branches';
 import { githubAuthService } from '../github/auth-service';
 import { GITHUB_CONFIG } from '../github/config';
-import { listLocalBranches } from '../git/local-branches';
+import { listLocalBranches, createLocalBranch } from '../git/local-branches';
 import {
   createWorktree,
   getWorktreeById,
@@ -118,6 +119,24 @@ const handleGithubListBranches = async (
 
   const [owner, repoName] = repo.fullName.split('/');
   return listBranches(owner, repoName);
+};
+
+const handleCreateLocalBranch = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = createLocalBranchRequestSchema.parse(rawRequest);
+  const repo = getRepositoryById(request.repositoryId);
+  if (!repo) {
+    throw new Error(`Repository not found: ${request.repositoryId}`);
+  }
+  if (!isLocalRepository(repo)) {
+    throw new Error('Creating branches is only supported for local repositories.');
+  }
+  if (!repo.localRootPath) {
+    throw new Error(`Local repository path not found: ${repo.id}`);
+  }
+  return createLocalBranch(repo.localRootPath, request.branchName);
 };
 
 const handleGithubListRemoteRepos = async () => listRemoteRepositories();
@@ -341,6 +360,7 @@ export const registerIpcHandlers = (): void => {
     requireAuthenticated(handleGithubListRemoteRepos),
   );
   ipcMain.handle(IPC_CHANNELS.GITHUB_LIST_BRANCHES, requireAuthenticated(handleGithubListBranches));
+  ipcMain.handle(IPC_CHANNELS.GIT_CREATE_BRANCH, requireAuthenticated(handleCreateLocalBranch));
   ipcMain.handle(
     IPC_CHANNELS.REPOSITORY_IMPORT_LOCAL,
     requireAuthenticated(handleRepositoryImportLocal),

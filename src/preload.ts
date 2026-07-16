@@ -53,6 +53,8 @@ const api: Api = {
       ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_REMOTE_REPOS),
     listBranches: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_BRANCHES, request),
+    createBranch: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GIT_CREATE_BRANCH, request),
   },
   repositories: {
     importLocal: () => ipcRenderer.invoke(IPC_CHANNELS.REPOSITORY_IMPORT_LOCAL),

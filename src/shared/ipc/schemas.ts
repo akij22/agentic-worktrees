@@ -98,6 +98,21 @@ export const githubListBranchesResponseSchema = z.array(branchSchema);
 
 export const repositoryImportLocalResponseSchema = z.custom<Repository>().nullable();
 
+export const createLocalBranchRequestSchema = z.object({
+  repositoryId: z.string().min(1),
+  branchName: z
+    .string()
+    .min(1)
+    .regex(
+      /^[a-zA-Z0-9._/-]+$/,
+      'Branch name may only contain letters, numbers, ".", "/", and "-"',
+    ),
+});
+
+export const createLocalBranchResponseSchema = branchSchema;
+
+export type CreateLocalBranchRequest = z.infer<typeof createLocalBranchRequestSchema>;
+
 export const worktreeCreateRequestSchema = z.object({
   repositoryId: z.string().min(1),
   baseBranch: z.string().min(1),

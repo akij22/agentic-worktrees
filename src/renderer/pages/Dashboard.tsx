@@ -39,6 +39,10 @@ type AddRepositoryState =
       error?: string;
     };
 
+type CreateBaseBranchState =
+  | { status: 'idle' }
+  | { status: 'open'; name: string; creating: boolean; error?: string };
+
 type DialogState =
   | { status: 'closed' }
   | {
@@ -52,6 +56,7 @@ type DialogState =
       worktreeName: string;
       submitting: boolean;
       error?: string;
+      createBaseBranch: CreateBaseBranchState;
     };
 
 const initialOpenDialog = (repo: Repository): DialogState => ({
@@ -63,6 +68,7 @@ const initialOpenDialog = (repo: Repository): DialogState => ({
   newBranchName: '',
   worktreeName: '',
   submitting: false,
+  createBaseBranch: { status: 'idle' },
 });
 
 export const Dashboard = () => {
@@ -306,6 +312,50 @@ export const Dashboard = () => {
     setDialog({ status: 'closed' });
   }, []);
 
+  const handleCreateBaseBranch = useCallback(async () => {
+    if (dialog.status !== 'open' || dialog.createBaseBranch.status !== 'open') return;
+    const branchName = dialog.createBaseBranch.name.trim();
+    if (!branchName) return;
+
+    setDialog((prev) =>
+      prev.status === 'open' && prev.createBaseBranch.status === 'open'
+        ? { ...prev, createBaseBranch: { ...prev.createBaseBranch, creating: true, error: undefined } }
+        : prev,
+    );
+
+    try {
+      const newBranch = await window.api.github.createBranch({
+        repositoryId: dialog.repo.id,
+        branchName,
+      });
+      setDialog((prev) =>
+        prev.status === 'open'
+          ? {
+              ...prev,
+              branches: [...prev.branches, newBranch].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+              baseBranch: newBranch.name,
+              createBaseBranch: { status: 'idle' },
+            }
+          : prev,
+      );
+    } catch (error) {
+      setDialog((prev) =>
+        prev.status === 'open' && prev.createBaseBranch.status === 'open'
+          ? {
+              ...prev,
+              createBaseBranch: {
+                ...prev.createBaseBranch,
+                creating: false,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            }
+          : prev,
+      );
+    }
+  }, [dialog]);
+
   const submitCreate = useCallback(async () => {
     if (dialog.status !== 'open') return;
     const { repo, baseBranch, newBranchName, worktreeName } = dialog;
@@ -440,27 +490,124 @@ export const Dashboard = () => {
                 </p>
               )}
               {dialog.branchesState === 'loaded' && (
-                <Select
-                  id="base-branch"
-                  value={dialog.baseBranch}
-                  onChange={(e) =>
-                    setDialog((prev) =>
-                      prev.status === 'open'
-                        ? { ...prev, baseBranch: e.target.value }
-                        : prev,
-                    )
-                  }
-                >
-                  {dialog.branches.length === 0 && (
-                    <option value="">No branches available</option>
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    id="base-branch"
+                    value={dialog.baseBranch}
+                    onChange={(e) =>
+                      setDialog((prev) =>
+                        prev.status === 'open'
+                          ? { ...prev, baseBranch: e.target.value }
+                          : prev,
+                      )
+                    }
+                    className="flex-1"
+                  >
+                    {dialog.branches.length === 0 && (
+                      <option value="">No branches available</option>
+                    )}
+                    {dialog.branches.map((b) => (
+                      <option key={b.name} value={b.name}>
+                        {b.name}
+                        {b.protected ? ' (protected)' : ''}
+                      </option>
+                    ))}
+                  </Select>
+                  {dialog.repo.githubRepoId < 0 &&
+                    dialog.createBaseBranch.status === 'idle' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 shrink-0 p-0"
+                        title="Create new local branch"
+                        onClick={() =>
+                          setDialog((prev) =>
+                            prev.status === 'open'
+                              ? {
+                                  ...prev,
+                                  createBaseBranch: {
+                                    status: 'open',
+                                    name: '',
+                                    creating: false,
+                                  },
+                                }
+                              : prev,
+                          )
+                        }
+                      >
+                        +
+                      </Button>
+                    )}
+                </div>
+              )}
+              {dialog.createBaseBranch.status === 'open' && (
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      autoFocus
+                      placeholder="new-branch-name"
+                      value={dialog.createBaseBranch.name}
+                      disabled={dialog.createBaseBranch.creating}
+                      onChange={(e) =>
+                        setDialog((prev) =>
+                          prev.status === 'open' &&
+                          prev.createBaseBranch.status === 'open'
+                            ? {
+                                ...prev,
+                                createBaseBranch: {
+                                  ...prev.createBaseBranch,
+                                  name: e.target.value,
+                                  error: undefined,
+                                },
+                              }
+                            : prev,
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleCreateBaseBranch();
+                        if (e.key === 'Escape')
+                          setDialog((prev) =>
+                            prev.status === 'open'
+                              ? { ...prev, createBaseBranch: { status: 'idle' } }
+                              : prev,
+                          );
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      disabled={
+                        dialog.createBaseBranch.creating ||
+                        !dialog.createBaseBranch.name.trim()
+                      }
+                      onClick={() => void handleCreateBaseBranch()}
+                    >
+                      {dialog.createBaseBranch.creating ? 'Creating…' : 'Create'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={dialog.createBaseBranch.creating}
+                      onClick={() =>
+                        setDialog((prev) =>
+                          prev.status === 'open'
+                            ? { ...prev, createBaseBranch: { status: 'idle' } }
+                            : prev,
+                        )
+                      }
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {dialog.createBaseBranch.error && (
+                    <p className="text-sm text-destructive">
+                      {dialog.createBaseBranch.error}
+                    </p>
                   )}
-                  {dialog.branches.map((b) => (
-                    <option key={b.name} value={b.name}>
-                      {b.name}
-                      {b.protected ? ' (protected)' : ''}
-                    </option>
-                  ))}
-                </Select>
+                </div>
               )}
             </div>
 
