@@ -17,6 +17,34 @@ export const CodingAgentLanding = () => {
     () => new Map(contexts.map((context) => [context.worktree.id, context])),
     [contexts],
   );
+  const sessionsByRepository = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        repositoryName: string;
+        sessions: typeof sessions;
+      }
+    >();
+
+    sessions.forEach((session) => {
+      const context = contextByWorktree.get(session.worktreeId);
+      const repositoryId = context?.repository.id ?? "unavailable";
+      const group = groups.get(repositoryId);
+
+      if (group) {
+        group.sessions.push(session);
+        return;
+      }
+
+      groups.set(repositoryId, {
+        repositoryName:
+          context?.repository.fullName ?? "Unavailable repository",
+        sessions: [session],
+      });
+    });
+
+    return Array.from(groups.entries());
+  }, [contextByWorktree, sessions]);
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!status?.configured)
     return (
@@ -75,18 +103,37 @@ export const CodingAgentLanding = () => {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {sessions.map((session) => (
-            <SessionCard
-              key={session.id}
-              session={session}
-              context={contextByWorktree.get(session.worktreeId)}
-              detail={sessionDetails.get(session.id)}
-              onOpen={() =>
-                navigate(`/coding-agent/${session.worktreeId}/${session.id}`)
-              }
-            />
-          ))}
+        <div className="flex flex-col gap-5">
+          {sessionsByRepository.map(
+            ([repositoryId, { repositoryName, sessions: repositorySessions }]) => (
+              <section key={repositoryId} className="flex flex-col gap-2.5">
+                <div className="flex items-center gap-3 border-b border-border pb-2">
+                  <h3 className="font-mono text-sm font-semibold">
+                    {repositoryName}
+                  </h3>
+                  <span className="rounded-md border border-border bg-muted/30 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                    {repositorySessions.length} session
+                    {repositorySessions.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  {repositorySessions.map((session) => (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      context={contextByWorktree.get(session.worktreeId)}
+                      detail={sessionDetails.get(session.id)}
+                      onOpen={() =>
+                        navigate(
+                          `/coding-agent/${session.worktreeId}/${session.id}`,
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            ),
+          )}
         </div>
       )}
       <NewSessionDialog

@@ -2,6 +2,7 @@ import type {
   CodingAgentSessionDto,
   CodingAgentWorktreeContextDto,
 } from "../../../../shared/ipc/schemas";
+import { LoaderCircle } from "lucide-react";
 import {
   compactActivity,
   formatDate,
@@ -17,6 +18,8 @@ type Props = {
 };
 
 export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
+  const isProcessing = detail?.isProcessing ?? session.status === "creating";
+
   return (
     <button
       type="button"
@@ -35,6 +38,15 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
             </span>
           </div>
         </div>
+        {isProcessing ? (
+          <span
+            className="flex shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 font-mono text-[11px] text-primary"
+            title="The agent is processing a request"
+          >
+            <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+            <span className="sr-only">Processing request</span>
+          </span>
+        ) : null}
       </div>
       <div className="flex flex-1 flex-col gap-4 px-4 py-4">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
