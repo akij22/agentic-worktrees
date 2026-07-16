@@ -15,3 +15,21 @@ export const listLocalBranches = async (
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 };
+
+export const createLocalBranch = async (
+  repositoryPath: string,
+  branchName: string,
+): Promise<BranchDto> => {
+  const git = simpleGit(repositoryPath);
+  await git.raw(['branch', branchName]);
+  const branches = await git.branchLocal();
+  const branch = branches.branches[branchName];
+  if (!branch) {
+    throw new Error(`Branch "${branchName}" was not found after creation.`);
+  }
+  return {
+    name: branchName,
+    protected: false,
+    headCommitSha: branch.commit ?? null,
+  };
+};
