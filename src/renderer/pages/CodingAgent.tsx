@@ -1,8 +1,12 @@
 import { useParams } from "react-router-dom";
 import { CodingAgentLanding } from "../features/coding-agent/views/CodingAgentLanding";
-import { CodingAgentSession } from "../features/coding-agent/views/CodingAgentSession";
+import { CodingAgentWorkspace } from "../features/coding-agent/views/CodingAgentWorkspace";
 
 export const CodingAgent = () => {
   const { runId } = useParams();
-  return runId ? <CodingAgentSession runId={runId} /> : <CodingAgentLanding />;
+  return runId ? (
+    <CodingAgentWorkspace primaryRunId={runId} />
+  ) : (
+    <CodingAgentLanding />
+  );
 };
