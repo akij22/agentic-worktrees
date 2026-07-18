@@ -2,6 +2,7 @@ import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
 import { useEffect, useRef } from "react";
 import { Button } from "../../../components/ui/button";
 import { AIMessage } from "./AIMessage";
+import { buildSessionMessageEntries } from "../lib/session-messages";
 import type { PendingPermission } from "../types";
 
 type Props = {
@@ -24,6 +25,7 @@ export const SessionMessages = ({
   const messagesRef = useRef<HTMLDivElement>(null);
   const hasMountedRef = useRef(false);
   const lastMessageIdRef = useRef<string | undefined>(undefined);
+  const entries = buildSessionMessageEntries(messages);
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -57,34 +59,42 @@ export const SessionMessages = ({
         Ask OpenCode to make a change in this worktree.
       </div>
     ) : null}
-    {messages.map((message) => (
-      <article
-        key={message.id}
-        className={
-          message.role === "user" ? "ml-auto max-w-[46rem]" : "max-w-[48rem]"
-        }
-      >
-        <div className="mb-1.5 text-xs font-semibold">
-          {message.role === "user" ? "You" : "OpenCode"}
-        </div>
-        {message.content.trim() && message.role === "user" ? (
-          <div className="whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6">
-            {message.content}
+    {entries.map((entry) => {
+      if (entry.kind === "thought") {
+        return (
+          <article key={entry.key} className="max-w-[48rem]">
+            <div className="mb-1.5 text-xs font-semibold">OpenCode</div>
+            <div className="whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs italic leading-5 text-muted-foreground/75">
+              {entry.text}
+            </div>
+          </article>
+        );
+      }
+      const { message } = entry;
+      return (
+        <article
+          key={message.id}
+          className={
+            message.role === "user" ? "ml-auto max-w-[46rem]" : "max-w-[48rem]"
+          }
+        >
+          <div className="mb-1.5 text-xs font-semibold">
+            {message.role === "user" ? "You" : "OpenCode"}
           </div>
-        ) : null}
-        {message.content.trim() && message.role === "assistant" ? (
-          <AIMessage
-            content={message.content}
-            isStreaming={message.completedAt === null}
-          />
-        ) : null}
-        {message.role === "assistant" && message.reasoning ? (
-          <div className="whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs italic leading-5 text-muted-foreground/75">
-            {message.reasoning}
-          </div>
-        ) : null}
-      </article>
-    ))}
+          {message.content.trim() && message.role === "user" ? (
+            <div className="whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6">
+              {message.content}
+            </div>
+          ) : null}
+          {message.content.trim() && message.role === "assistant" ? (
+            <AIMessage
+              content={message.content}
+              isStreaming={message.completedAt === null}
+            />
+          ) : null}
+        </article>
+      );
+    })}
     {activity && busy ? (
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
         <span className="size-1.5 animate-pulse rounded-full bg-primary" />
