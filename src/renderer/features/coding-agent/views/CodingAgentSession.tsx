@@ -10,6 +10,7 @@ import { InspectionPanel } from "../components/InspectionPanel";
 import { SessionComposer } from "../components/SessionComposer";
 import { SessionMessages } from "../components/SessionMessages";
 import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
+import { getSessionWorkspaceColumns } from "../lib/dual-chat-layout";
 
 type EditorError = {
   source: "discovery" | "open";
@@ -36,7 +37,13 @@ const editorIconSources: Record<EditorId, string> = {
   ).href,
 };
 
-export const CodingAgentSession = ({ runId }: { runId: string }) => {
+export const CodingAgentSession = ({
+  runId,
+  showInspection = true,
+}: {
+  runId: string;
+  showInspection?: boolean;
+}) => {
   const sessionState = useCodingAgentSession(runId);
   const [draft, setDraft] = useState("");
   const splitRef = useRef<HTMLDivElement>(null);
@@ -181,9 +188,14 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
       <div
         ref={splitRef}
         style={
-          { "--inspection-panel-width": `${diffPanelWidth}px` } as CSSProperties
+          {
+            "--session-workspace-columns": getSessionWorkspaceColumns(
+              showInspection,
+              diffPanelWidth,
+            ),
+          } as CSSProperties
         }
-        className="grid min-h-0 flex-1 grid-cols-1 xl:[grid-template-columns:minmax(0,1fr)_0.5rem_var(--inspection-panel-width)]"
+        className="grid min-h-0 flex-1 grid-cols-1 xl:[grid-template-columns:var(--session-workspace-columns)]"
       >
         <section className="flex min-h-0 flex-col border-b border-border xl:border-b-0">
           <div className="flex items-center justify-between border-b border-border px-5 py-3">
@@ -219,39 +231,43 @@ export const CodingAgentSession = ({ runId }: { runId: string }) => {
             onStop={() => void window.api.codingAgent.abortSession({ runId })}
           />
         </section>
-        <div
-          role="separator"
-          aria-label="Resize chat and diff panels"
-          aria-orientation="vertical"
-          aria-valuemin={280}
-          aria-valuemax={720}
-          aria-valuenow={diffPanelWidth}
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowLeft") {
-              event.preventDefault();
-              setDiffPanelWidth((width) => Math.min(720, width + 24));
-            }
-            if (event.key === "ArrowRight") {
-              event.preventDefault();
-              setDiffPanelWidth((width) => Math.max(280, width - 24));
-            }
-          }}
-          onPointerDown={(event) => {
-            event.preventDefault();
-            setIsResizing(true);
-          }}
-          className={`group relative hidden touch-none cursor-col-resize items-center justify-center border-x border-border/60 bg-transparent transition-colors xl:flex ${isResizing ? "bg-primary/10" : "hover:bg-primary/5"}`}
-        >
-          <span
-            className={`h-8 w-px rounded-full transition-all ${isResizing ? "h-12 bg-primary" : "bg-border group-hover:h-12 group-hover:bg-primary/70"}`}
-          />
-        </div>
-        <InspectionPanel
-          diff={diff}
-          selectedFile={sessionState.selectedFile}
-          onSelectFile={sessionState.setSelectedFile}
-        />
+        {showInspection ? (
+          <>
+            <div
+              role="separator"
+              aria-label="Resize chat and diff panels"
+              aria-orientation="vertical"
+              aria-valuemin={280}
+              aria-valuemax={720}
+              aria-valuenow={diffPanelWidth}
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowLeft") {
+                  event.preventDefault();
+                  setDiffPanelWidth((width) => Math.min(720, width + 24));
+                }
+                if (event.key === "ArrowRight") {
+                  event.preventDefault();
+                  setDiffPanelWidth((width) => Math.max(280, width - 24));
+                }
+              }}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                setIsResizing(true);
+              }}
+              className={`group relative hidden touch-none cursor-col-resize items-center justify-center border-x border-border/60 bg-transparent transition-colors xl:flex ${isResizing ? "bg-primary/10" : "hover:bg-primary/5"}`}
+            >
+              <span
+                className={`h-8 w-px rounded-full transition-all ${isResizing ? "h-12 bg-primary" : "bg-border group-hover:h-12 group-hover:bg-primary/70"}`}
+              />
+            </div>
+            <InspectionPanel
+              diff={diff}
+              selectedFile={sessionState.selectedFile}
+              onSelectFile={sessionState.setSelectedFile}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );
