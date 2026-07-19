@@ -21,7 +21,6 @@ export const useCodingAgentSession = (runId: string) => {
   const [error, setError] = useState<string>();
   const [permission, setPermission] = useState<PendingPermission>();
   const [activity, setActivity] = useState<string>();
-  const [selectedFile, setSelectedFile] = useState<string>();
   const refreshSequence = useRef(0);
   const load = useCallback(async () => {
     const sequence = ++refreshSequence.current;
@@ -30,11 +29,6 @@ export const useCodingAgentSession = (runId: string) => {
       if (sequence !== refreshSequence.current) return;
       setSnapshot(next);
       if (!isSessionBusy(next.session.status)) setActivity(undefined);
-      setSelectedFile((current) =>
-        current && next.diff.some((file) => file.file === current)
-          ? current
-          : next.diff[0]?.file,
-      );
       setError(undefined);
     } catch (cause) {
       if (sequence !== refreshSequence.current) return;
@@ -190,8 +184,6 @@ export const useCodingAgentSession = (runId: string) => {
     error,
     permission,
     activity,
-    selectedFile,
-    setSelectedFile,
     setReasoningVariant,
     load,
     send,
