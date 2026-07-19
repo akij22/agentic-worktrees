@@ -262,9 +262,8 @@ export const CodingAgentSession = ({
               />
             </div>
             <InspectionPanel
+              key={runId}
               diff={diff}
-              selectedFile={sessionState.selectedFile}
-              onSelectFile={sessionState.setSelectedFile}
             />
           </>
         ) : null}

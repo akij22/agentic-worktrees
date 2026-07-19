@@ -7,6 +7,7 @@ import type {
 import type { SessionGridDetail } from "../types";
 import { buildSecondarySessionOptions } from "../lib/secondary-session-options";
 import { CodingAgentLayoutControls } from "./CodingAgentLayoutControls";
+import { InspectionPanel } from "./InspectionPanel";
 import { SecondarySessionSelector } from "./SecondarySessionSelector";
 
 const createSession = (
@@ -68,6 +69,36 @@ const createContext = (
 });
 
 describe("coding agent layout components", () => {
+  it("renders file diffs as independently expandable sections", () => {
+    const markup = renderToStaticMarkup(
+      <InspectionPanel
+        diff={[
+          {
+            file: "src/first.ts",
+            before: "const value = 1;",
+            after: "const value = 2;",
+            additions: 1,
+            deletions: 1,
+          },
+          {
+            file: "src/second.ts",
+            before: "",
+            after: "export const secondFile = true;",
+            additions: 1,
+            deletions: 0,
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain("src/first.ts");
+    expect(markup).toContain("src/second.ts");
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain("const value = 2;");
+    expect(markup).not.toContain("export const secondFile = true;");
+  });
+
   it("renders accessible single and dual layout controls", () => {
     const markup = renderToStaticMarkup(
       <CodingAgentLayoutControls
