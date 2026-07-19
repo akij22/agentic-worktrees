@@ -1,6 +1,6 @@
 import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
 
-type ThoughtEntry = {
+export type ThoughtEntry = {
   kind: "thought";
   key: string;
   text: string;

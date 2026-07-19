@@ -1,8 +1,10 @@
 import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { AIMessage } from "./AIMessage";
+import { SessionThought } from "./SessionThought";
 import { buildSessionMessageEntries } from "../lib/session-messages";
+import type { ThoughtEntry } from "../lib/session-messages";
 import type { PendingPermission } from "../types";
 
 type Props = {
@@ -13,6 +15,10 @@ type Props = {
   error: string | undefined;
   onRespondPermission: (response: "once" | "always" | "reject") => void;
 };
+
+type ThoughtState = { entry: ThoughtEntry; exiting: boolean } | null;
+
+const THOUGHT_EXIT_DURATION_MS = 300;
 
 export const SessionMessages = ({
   messages,
@@ -25,7 +31,40 @@ export const SessionMessages = ({
   const messagesRef = useRef<HTMLDivElement>(null);
   const hasMountedRef = useRef(false);
   const lastMessageIdRef = useRef<string | undefined>(undefined);
-  const entries = buildSessionMessageEntries(messages);
+  const entries = useMemo(() => buildSessionMessageEntries(messages), [messages]);
+  const thoughtEntry = entries.find(
+    (entry): entry is ThoughtEntry => entry.kind === "thought",
+  );
+  const [thought, setThought] = useState<ThoughtState>(null);
+
+  // An open thought is always the last entry; once it closes, it is kept
+  // mounted right before the persistent message that replaced it, so it can
+  // animate out instead of disappearing abruptly.
+  const displayEntries = [...entries];
+  if (thought && !thoughtEntry) {
+    displayEntries.splice(Math.max(displayEntries.length - 1, 0), 0, thought.entry);
+  }
+
+  // Keeps the chain of thoughts mounted while it leaves, so it can animate
+  // out instead of disappearing abruptly when a persistent message arrives.
+  useEffect(() => {
+    if (thoughtEntry) {
+      setThought({ entry: thoughtEntry, exiting: false });
+      return;
+    }
+    setThought((current) =>
+      current ? { ...current, exiting: true } : null,
+    );
+  }, [thoughtEntry]);
+
+  useEffect(() => {
+    if (!thought?.exiting) return;
+    const timeout = setTimeout(
+      () => setThought(null),
+      THOUGHT_EXIT_DURATION_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [thought?.exiting]);
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -59,15 +98,14 @@ export const SessionMessages = ({
         Ask OpenCode to make a change in this worktree.
       </div>
     ) : null}
-    {entries.map((entry) => {
+    {displayEntries.map((entry) => {
       if (entry.kind === "thought") {
         return (
-          <article key={entry.key} className="max-w-[48rem]">
-            <div className="mb-1.5 text-xs font-semibold">OpenCode</div>
-            <div className="whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs italic leading-5 text-muted-foreground/75">
-              {entry.text}
-            </div>
-          </article>
+          <SessionThought
+            key={entry.key}
+            text={entry.text}
+            exiting={thought?.exiting === true && thought.entry.key === entry.key}
+          />
         );
       }
       const { message } = entry;
