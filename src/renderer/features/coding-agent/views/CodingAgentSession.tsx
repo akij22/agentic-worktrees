@@ -1,4 +1,10 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Badge } from "../../../components/ui/badge";
 import { DropdownMenu } from "../../../components/ui/dropdown-menu";
 import { Skeleton } from "../../../components/ui/skeleton";
@@ -7,6 +13,7 @@ import type {
   EditorId,
 } from "../../../../shared/ipc/schemas";
 import { InspectionPanel } from "../components/InspectionPanel";
+import { SessionChangesSummary } from "../components/SessionChangesSummary";
 import { SessionComposer } from "../components/SessionComposer";
 import { SessionMessages } from "../components/SessionMessages";
 import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
@@ -51,6 +58,10 @@ export const CodingAgentSession = ({
   const [isResizing, setIsResizing] = useState(false);
   const [editors, setEditors] = useState<AvailableEditorDto[]>([]);
   const [editorError, setEditorError] = useState<EditorError>();
+  const clearFocusedDiffFile = useCallback(
+    () => sessionState.selectSummaryFile(undefined),
+    [sessionState.selectSummaryFile],
+  );
   useEffect(() => {
     if (!isResizing) return;
     const handlePointerMove = (event: PointerEvent) => {
@@ -212,7 +223,15 @@ export const CodingAgentSession = ({
             onRespondPermission={(response) =>
               void sessionState.respondPermission(response)
             }
-          />
+          >
+            {sessionState.changesSummary ? (
+              <SessionChangesSummary
+                diff={sessionState.changesSummary}
+                onSelectFile={sessionState.selectSummaryFile}
+                onDismiss={sessionState.dismissChangesSummary}
+              />
+            ) : null}
+          </SessionMessages>
           <SessionComposer
             session={session}
             draft={draft}
@@ -264,6 +283,8 @@ export const CodingAgentSession = ({
             <InspectionPanel
               key={runId}
               diff={diff}
+              focusedFile={sessionState.selectedSummaryFile}
+              onFocusedFileConsumed={clearFocusedDiffFile}
             />
           </>
         ) : null}

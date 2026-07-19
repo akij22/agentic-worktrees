@@ -233,6 +233,7 @@ export const codingAgentSessionSnapshotSchema = z.object({
   context: codingAgentWorktreeContextSchema,
   messages: z.array(codingAgentMessageSchema),
   diff: z.array(codingAgentDiffSchema),
+  turnDiff: z.array(codingAgentDiffSchema),
 });
 
 export type CodingAgentSessionSnapshotDto = z.infer<

@@ -6,14 +6,21 @@ import { DiffPreview } from "./DiffPreview";
 
 type Props = {
   diff: CodingAgentDiffDto[];
+  focusedFile?: string;
+  onFocusedFileConsumed?: () => void;
 };
 
-export const InspectionPanel = ({ diff }: Props) => {
+export const InspectionPanel = ({
+  diff,
+  focusedFile,
+  onFocusedFileConsumed,
+}: Props) => {
   const panelId = useId();
   const previousFiles = useRef(new Set(diff.map((file) => file.file)));
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(
     () => new Set(diff[0] ? [diff[0].file] : []),
   );
+  const fileRefs = useRef(new Map<string, HTMLElement>());
 
   useEffect(() => {
     const availableFiles = new Set(diff.map((file) => file.file));
@@ -28,6 +35,24 @@ export const InspectionPanel = ({ diff }: Props) => {
     });
     previousFiles.current = availableFiles;
   }, [diff]);
+
+  // Handles a focus request coming from outside (e.g. the changes summary
+  // panel): expands the file and scrolls it into view, then releases the
+  // request so the same file can be requested again later.
+  useEffect(() => {
+    if (!focusedFile) return;
+    if (diff.some((file) => file.file === focusedFile)) {
+      setExpandedFiles((current) => {
+        const next = new Set(current);
+        next.add(focusedFile);
+        return next;
+      });
+      fileRefs.current
+        .get(focusedFile)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    onFocusedFileConsumed?.();
+  }, [diff, focusedFile, onFocusedFileConsumed]);
 
   const toggleFile = (file: string) => {
     setExpandedFiles((current) => {
@@ -62,6 +87,10 @@ export const InspectionPanel = ({ diff }: Props) => {
               return (
                 <section
                   key={file.file}
+                  ref={(element) => {
+                    if (element) fileRefs.current.set(file.file, element);
+                    else fileRefs.current.delete(file.file);
+                  }}
                   className={`overflow-hidden rounded-lg border bg-background transition-colors ${expanded ? "border-border shadow-sm" : "border-border/70 hover:border-border"}`}
                 >
                   <button

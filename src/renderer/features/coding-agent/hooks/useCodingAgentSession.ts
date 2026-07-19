@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  CodingAgentDiffDto,
   CodingAgentModelDto,
   CodingAgentSessionSnapshotDto,
 } from "../../../../shared/ipc/schemas";
 import { readPermission, readToolActivity } from "../lib/agent-events";
+import {
+  isBusyLikeStatus,
+  nextChangesSummaryUpdate,
+} from "../lib/changes-summary";
 import type { PendingPermission } from "../types";
-
-const isSessionBusy = (status: string): boolean =>
-  ["busy", "creating", "aborting"].includes(status);
 
 export const useCodingAgentSession = (runId: string) => {
   const [snapshot, setSnapshot] = useState<CodingAgentSessionSnapshotDto>();
@@ -21,14 +23,17 @@ export const useCodingAgentSession = (runId: string) => {
   const [error, setError] = useState<string>();
   const [permission, setPermission] = useState<PendingPermission>();
   const [activity, setActivity] = useState<string>();
+  const [changesSummary, setChangesSummary] = useState<CodingAgentDiffDto[]>();
+  const [selectedSummaryFile, setSelectedSummaryFile] = useState<string>();
   const refreshSequence = useRef(0);
+  const wasBusyRef = useRef(false);
   const load = useCallback(async () => {
     const sequence = ++refreshSequence.current;
     try {
       const next = await window.api.codingAgent.getSession({ runId });
       if (sequence !== refreshSequence.current) return;
       setSnapshot(next);
-      if (!isSessionBusy(next.session.status)) setActivity(undefined);
+      if (!isBusyLikeStatus(next.session.status)) setActivity(undefined);
       setError(undefined);
     } catch (cause) {
       if (sequence !== refreshSequence.current) return;
@@ -111,16 +116,44 @@ export const useCodingAgentSession = (runId: string) => {
     const timer = window.setInterval(() => void load(), 750);
     return () => window.clearInterval(timer);
   }, [load, snapshot]);
+  // Surfaces the changes summary panel only when the agent finishes while the
+  // session is being viewed; see nextChangesSummaryUpdate for the transition
+  // rules (diff lagging behind completion, run status stuck on busy). The
+  // panel summarizes only the current turn (turnDiff), not the whole session.
+  useEffect(() => {
+    if (!snapshot) return;
+    const lastMessage = snapshot.messages.at(-1);
+    const update = nextChangesSummaryUpdate(wasBusyRef.current, {
+      status: snapshot.session.status,
+      diff: snapshot.turnDiff,
+      agentFinished:
+        lastMessage?.role === "assistant" && lastMessage.completedAt !== null,
+    });
+    if (update.kind === "working") {
+      wasBusyRef.current = true;
+      setChangesSummary(undefined);
+      setSelectedSummaryFile(undefined);
+      return;
+    }
+    if (update.kind === "completed") {
+      wasBusyRef.current = false;
+      setChangesSummary(update.diff);
+    }
+  }, [snapshot]);
   const send = useCallback(
     async (content: string) => {
       if (!content.trim()) return;
       setSending(true);
+      setChangesSummary(undefined);
+      setSelectedSummaryFile(undefined);
       try {
         await window.api.codingAgent.sendMessage({
           runId,
           content,
           reasoningVariant: reasoningVariant || undefined,
         });
+        // Arm the completion detector even if no busy snapshot is observed.
+        wasBusyRef.current = true;
         setActivity("OpenCode is working…");
         await load();
       } catch (cause) {
@@ -172,6 +205,13 @@ export const useCodingAgentSession = (runId: string) => {
     },
     [permission, runId],
   );
+  const dismissChangesSummary = useCallback(() => {
+    setChangesSummary(undefined);
+    setSelectedSummaryFile(undefined);
+  }, []);
+  const selectSummaryFile = useCallback((file: string | undefined) => {
+    setSelectedSummaryFile(file);
+  }, []);
   return {
     snapshot,
     models,
@@ -184,10 +224,14 @@ export const useCodingAgentSession = (runId: string) => {
     error,
     permission,
     activity,
+    changesSummary,
+    selectedSummaryFile,
     setReasoningVariant,
     load,
     send,
     changeModel,
     respondPermission,
+    dismissChangesSummary,
+    selectSummaryFile,
   };
 };
