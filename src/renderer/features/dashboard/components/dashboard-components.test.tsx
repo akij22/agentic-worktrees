@@ -75,6 +75,15 @@ const chatSummary: WorktreeChatSummaryState = {
         deletions: 3,
       },
     ],
+    turnDiff: [
+      {
+        file: 'src/renderer/pages/Dashboard.tsx',
+        before: '',
+        after: '',
+        additions: 12,
+        deletions: 3,
+      },
+    ],
   },
 };
 

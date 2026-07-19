@@ -1,5 +1,6 @@
 import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Button } from "../../../components/ui/button";
 import { AIMessage } from "./AIMessage";
 import { SessionThought } from "./SessionThought";
@@ -14,6 +15,7 @@ type Props = {
   permission: PendingPermission | undefined;
   error: string | undefined;
   onRespondPermission: (response: "once" | "always" | "reject") => void;
+  children?: ReactNode;
 };
 
 type ThoughtState = { entry: ThoughtEntry; exiting: boolean } | null;
@@ -27,6 +29,7 @@ export const SessionMessages = ({
   permission,
   error,
   onRespondPermission,
+  children,
 }: Props) => {
   const messagesRef = useRef<HTMLDivElement>(null);
   const hasMountedRef = useRef(false);
@@ -172,6 +175,7 @@ export const SessionMessages = ({
       </div>
     ) : null}
     {error ? <p className="text-sm text-destructive">{error}</p> : null}
+    {children}
   </div>
   );
 };

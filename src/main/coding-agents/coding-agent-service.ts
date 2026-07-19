@@ -65,6 +65,7 @@ export interface AgentSessionSnapshot {
   context: AgentWorktreeContext;
   messages: CodingAgentMessage[];
   diff: CodingAgentDiff[];
+  turnDiff: CodingAgentDiff[];
 }
 
 export interface AgentUiEvent {
@@ -594,11 +595,14 @@ export const getAgentSessionSnapshot = async (
         lastUserMessage.id.slice(runId.length + 1),
       )
     : [];
-  const hydratedDiff = await hydrateDiffContent(context.worktree.path, [
-    ...sessionDiff,
-    ...currentDiff,
-  ]);
-  persistSessionDiffs(runId, hydratedDiff);
+  // turnDiff holds only the changes made after the last user message, while
+  // diff accumulates every change in the session.
+  const hydratedSessionDiff = await hydrateDiffContent(
+    context.worktree.path,
+    sessionDiff,
+  );
+  const turnDiff = await hydrateDiffContent(context.worktree.path, currentDiff);
+  persistSessionDiffs(runId, [...hydratedSessionDiff, ...turnDiff]);
   const diff = await hydrateDiffContent(
     context.worktree.path,
     getPersistedSessionDiffs(runId),
@@ -609,6 +613,7 @@ export const getAgentSessionSnapshot = async (
     context,
     messages: storedMessages,
     diff,
+    turnDiff,
   };
 };
 
