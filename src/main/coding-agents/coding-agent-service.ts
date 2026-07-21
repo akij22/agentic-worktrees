@@ -17,6 +17,7 @@ import {
   worktrees,
 } from '../../shared/db/schema';
 import { CodexAdapter } from './codex-adapter';
+import { calculateDiffStats } from './diff-stats';
 import {
   findCodexInSystem,
   parseCodexVersion,
@@ -201,20 +202,36 @@ const readWorktreeFile = async (
   }
 };
 
+const hydrateDiff = async (
+  directory: string,
+  diff: CodingAgentDiff,
+): Promise<CodingAgentDiff> => {
+  let content = diff;
+  if (!diff.before && !diff.after) {
+    const [before, after] = await Promise.all([
+      readHeadFile(directory, diff.file),
+      readWorktreeFile(directory, diff.file),
+    ]);
+    content = { ...diff, before, after };
+  }
+  if (
+    content.additions === 0 &&
+    content.deletions === 0 &&
+    content.before !== content.after
+  ) {
+    return {
+      ...content,
+      ...calculateDiffStats(content.before, content.after),
+    };
+  }
+  return content;
+};
+
 const hydrateDiffContent = async (
   directory: string,
   diffs: CodingAgentDiff[],
 ): Promise<CodingAgentDiff[]> =>
-  Promise.all(
-    diffs.map(async (diff) => {
-      if (diff.before || diff.after) return diff;
-      const [before, after] = await Promise.all([
-        readHeadFile(directory, diff.file),
-        readWorktreeFile(directory, diff.file),
-      ]);
-      return { ...diff, before, after };
-    }),
-  );
+  Promise.all(diffs.map((diff) => hydrateDiff(directory, diff)));
 
 const getInstallation = (kind: CodingAgentKind) =>
   getDatabase()
