@@ -5,9 +5,9 @@ import { initDatabase } from './main/database';
 import { registerIpcHandlers } from './main/ipc';
 import { githubAuthService } from './main/github/auth-service';
 import {
-  autoDiscoverOpenCode,
+  autoDiscoverAgent,
   getAgentInstallationStatus,
-  stopCodingAgent,
+  stopCodingAgents,
 } from './main/coding-agents/coding-agent-service';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -49,16 +49,22 @@ const initializeGitHubAuth = async (): Promise<void> => {
   }
 };
 
+const discoverCodingAgents = (): void => {
+  const status = getAgentInstallationStatus();
+  status.installations
+    .filter((installation) => !installation.configured)
+    .forEach((installation) => {
+      void autoDiscoverAgent(installation.kind).catch((error) => {
+        console.error(`Failed to discover ${installation.name}`, error);
+      });
+    });
+};
+
 void app.whenReady().then(async () => {
   initDatabase();
   registerIpcHandlers();
   await initializeGitHubAuth();
-  void (async () => {
-    const status = getAgentInstallationStatus();
-    if (!status.configured) {
-      await autoDiscoverOpenCode();
-    }
-  })();
+  discoverCodingAgents();
   createWindow();
   app.on('activate', () => {
     // On OS X it's common to re-create a window when the dock icon is clicked
@@ -78,12 +84,12 @@ app.on('window-all-closed', () => {
   }
 });
 
-let codingAgentStopped = false;
+let codingAgentsStopped = false;
 app.on('before-quit', (event) => {
-  if (codingAgentStopped) return;
+  if (codingAgentsStopped) return;
   event.preventDefault();
-  codingAgentStopped = true;
-  void stopCodingAgent().finally(() => app.quit());
+  codingAgentsStopped = true;
+  void stopCodingAgents().finally(() => app.quit());
 });
 
 // In this file you can include the rest of your app's specific main process

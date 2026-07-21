@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Import repositories, create task-specific branches and worktrees, then collaborate with OpenCode without leaving your local development environment.
+  Import repositories, create task-specific branches and worktrees, then collaborate with OpenCode or Codex without leaving your local development environment.
 </p>
 
 ## 1. Main features and supported functionalities
@@ -37,12 +37,14 @@
   - Open a selected worktree directly in Visual Studio Code, Cursor, Zed, WebStorm, IntelliJ IDEA, Sublime Text, or Android Studio.
 
 - **AI coding-agent sessions**
-  - Configure and run the local headless OpenCode executable.
-  - Create and resume coding sessions for a specific worktree.
+  - Configure and run local OpenCode and Codex CLI installations.
+  - Choose the harness explicitly when creating a chat.
+  - Create and resume coding sessions with independent, persistent context for a specific worktree.
   - Send natural-language coding requests and receive streamed agent activity.
-  - Select the provider/model and reasoning variant for a session.
+  - Select the model and reasoning level available for the active harness.
   - Review session messages, changed files, additions, deletions, and file-level diffs.
-  - Handle agent permission requests and abort an active session when needed.
+  - Handle interactive approval requests and abort an active session when needed.
+  - Run Codex turns with explicit `workspace-write` sandboxing and `on-request` approval defaults.
   - Persist session metadata, messages, output events, and diffs in the local SQLite database.
 
 - **Desktop workspace**
@@ -61,7 +63,7 @@
 - **Backend communication:** Typed Electron IPC with Zod request and response validation
 - **Git integration:** `simple-git` and native Git commands
 - **GitHub integration:** Octokit
-- **AI coding agent:** OpenCode SDK and a locally managed OpenCode server process
+- **AI coding agents:** OpenCode SDK/server and Codex `app-server`, both managed as local processes
 - **Persistence:** SQLite through `better-sqlite3`, Drizzle ORM, and Drizzle Kit migrations
 - **Testing:** Vitest
 - **Code quality:** ESLint and TypeScript strict mode
@@ -86,7 +88,8 @@ The application uses a GitHub App for repository access. A valid `GITHUB_CLIENT_
 - Git installed and available on `PATH`
 - A GitHub account
 - A GitHub App configured for Device Flow, with its Client ID and slug
-- OpenCode installed locally if AI coding sessions are required
+- OpenCode installed locally for OpenCode chats
+- Codex CLI installed and authenticated locally for Codex chats
 - At least one supported code editor installed if editor integration is required
 
 ### Setup
@@ -152,8 +155,9 @@ Database migrations are initialized by the application. When database schema def
 4. Open the dashboard and add repositories either by selecting a local Git repository or by importing repositories available through GitHub.
 5. Select a repository, choose a base branch, enter a new branch name and worktree name, and create the worktree.
 6. Open the new worktree in one of the detected editors, or start a coding-agent session for it.
-7. In a coding-agent session, choose an available model, describe the requested change, and review the streamed response and generated diff.
-8. Approve or reject permission requests when OpenCode needs to perform an operation, and use the stop action to abort a running session.
-9. Use **Settings** to sign out of GitHub or select/change the local OpenCode executable.
+7. Choose OpenCode or Codex explicitly when creating a chat. Each chat retains its own harness identity and conversation context.
+8. In a coding-agent session, choose an available model and reasoning level, describe the requested change, and review the streamed response and generated diff.
+9. Approve or reject interactive permission requests, and use the stop action to abort a running session. Codex uses `workspace-write` with `on-request` approvals by default.
+10. Use **Settings** to sign out of GitHub or select/change either local coding-agent executable. Codex reuses the authentication and configuration of the selected local CLI; the application does not request separate Codex credentials.
 
 The application stores its local database and encrypted credentials in Electron's application data directory. Keep the worktree workspace path backed up if the local worktree metadata is important to your workflow.

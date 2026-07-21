@@ -13,6 +13,8 @@ export const CodingAgentLanding = () => {
   const { status, contexts, sessions, sessionDetails, loading, error } =
     useCodingAgentSessions();
   const requestedWorktreeId = searchParams.get("worktreeId") ?? undefined;
+  const configuredInstallations =
+    status?.installations.filter((installation) => installation.configured) ?? [];
   const contextByWorktree = useMemo(
     () => new Map(contexts.map((context) => [context.worktree.id, context])),
     [contexts],
@@ -46,17 +48,17 @@ export const CodingAgentLanding = () => {
     return Array.from(groups.entries());
   }, [contextByWorktree, sessions]);
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (!status?.configured)
+  if (configuredInstallations.length === 0)
     return (
       <div className="mx-auto grid min-h-[32rem] max-w-2xl place-items-center text-center">
         <div>
           <div className="mx-auto mb-5 grid size-14 place-items-center rounded-2xl border border-dashed border-border bg-muted/30 font-mono text-xl">
             &gt;_
           </div>
-          <h2 className="text-xl font-semibold">Configure OpenCode first</h2>
+          <h2 className="text-xl font-semibold">Configure a coding agent first</h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-            Select your local OpenCode executable. Provider credentials remain
-            in OpenCode and are never exposed to this renderer.
+            Select a local coding-agent executable. Provider credentials remain
+            in the selected agent and are never exposed to this renderer.
           </p>
           <Button className="mt-5" onClick={() => navigate("/settings")}>
             Open Settings
@@ -72,7 +74,9 @@ export const CodingAgentLanding = () => {
       <div className="flex items-end justify-between gap-4 border-b border-border pb-5">
         <div>
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
-            OpenCode · {status.version}
+            {configuredInstallations
+              .map(({ name, version }) => `${name} ${version ?? "configured"}`)
+              .join(" · ")}
           </p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight">
             Coding sessions
@@ -139,6 +143,7 @@ export const CodingAgentLanding = () => {
       <NewSessionDialog
         open={dialogOpen}
         contexts={contexts}
+        installations={status?.installations ?? []}
         initialWorktreeId={requestedWorktreeId}
         onClose={() => {
           setDialogOpen(false);

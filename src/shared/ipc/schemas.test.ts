@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  codingAgentKindSchema,
+  codingAgentModelsRequestSchema,
+  codingAgentSessionCreateRequestSchema,
   editorOpenRequestSchema,
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
@@ -93,5 +96,30 @@ describe('editor IPC schemas', () => {
         worktreePath: '/tmp/untrusted-path',
       }),
     ).toThrow();
+  });
+});
+
+describe('coding agent IPC schemas', () => {
+  it.each(['opencode', 'codex'] as const)('accepts the %s harness', (agentKind) => {
+    expect(codingAgentKindSchema.parse(agentKind)).toBe(agentKind);
+  });
+
+  it('requires an explicit harness when creating a session', () => {
+    expect(() => codingAgentSessionCreateRequestSchema.parse({
+      worktreeId: 'worktree-1',
+      title: 'Chat',
+    })).toThrow();
+    expect(codingAgentSessionCreateRequestSchema.parse({
+      agentKind: 'codex',
+      worktreeId: 'worktree-1',
+      title: 'Chat',
+    })).toEqual({ agentKind: 'codex', worktreeId: 'worktree-1', title: 'Chat' });
+  });
+
+  it('routes model lookup by session run ID', () => {
+    expect(codingAgentModelsRequestSchema.parse({ runId: 'run-1' }))
+      .toEqual({ runId: 'run-1' });
+    expect(() => codingAgentModelsRequestSchema.parse({ worktreeId: 'worktree-1' }))
+      .toThrow();
   });
 });

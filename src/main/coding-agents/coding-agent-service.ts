@@ -16,15 +16,21 @@ import {
   runs,
   worktrees,
 } from '../../shared/db/schema';
+import { CodexAdapter } from './codex-adapter';
+import {
+  findCodexInSystem,
+  parseCodexVersion,
+} from './codex-utils';
 import { OpenCodeAdapter } from './opencode-adapter';
 import {
   findOpenCodeInSystem,
   parseOpenCodeVersion,
-  readOpenCodeSessionId,
 } from './opencode-utils';
 import type {
+  CodingAgentAdapter,
   CodingAgentDiff,
   CodingAgentEvent,
+  CodingAgentKind,
   CodingAgentMessage,
   CodingAgentModel,
   CodingAgentPermission,
@@ -32,9 +38,10 @@ import type {
 } from './types';
 
 const execFileAsync = promisify(execFile);
-const INSTALLATION_ID = 'opencode';
 
 export interface AgentInstallationStatus {
+  kind: CodingAgentKind;
+  name: string;
   configured: boolean;
   executablePath: string | null;
   version: string | null;
@@ -42,8 +49,14 @@ export interface AgentInstallationStatus {
   error: string | null;
 }
 
+export interface AgentStatus {
+  installations: AgentInstallationStatus[];
+}
+
 export interface AgentSessionSummary {
   id: string;
+  agentKind: CodingAgentKind;
+  agentName: string;
   worktreeId: string;
   repositoryId: string;
   title: string;
@@ -74,8 +87,33 @@ export interface AgentUiEvent {
   payload: unknown;
 }
 
-const adapter = new OpenCodeAdapter();
-let startupPromise: Promise<void> | null = null;
+interface CodingAgentHarness {
+  installationId: CodingAgentKind;
+  name: string;
+  adapter: CodingAgentAdapter;
+  discover: () => Promise<string | null>;
+  parseVersion: (output: string) => string | null;
+}
+
+const harnesses: Record<CodingAgentKind, CodingAgentHarness> = {
+  opencode: {
+    installationId: 'opencode',
+    name: 'OpenCode',
+    adapter: new OpenCodeAdapter(),
+    discover: findOpenCodeInSystem,
+    parseVersion: parseOpenCodeVersion,
+  },
+  codex: {
+    installationId: 'codex',
+    name: 'Codex',
+    adapter: new CodexAdapter(),
+    discover: findCodexInSystem,
+    parseVersion: parseCodexVersion,
+  },
+};
+
+const harnessKinds = Object.keys(harnesses) as CodingAgentKind[];
+const startupPromises = new Map<CodingAgentKind, Promise<void>>();
 const listeners = new Set<(event: AgentUiEvent) => void>();
 const reconcileTimers = new Map<string, NodeJS.Timeout>();
 const reasoningByRun = new Map<string, Map<string, string>>();
@@ -153,7 +191,7 @@ const readWorktreeFile = async (
     resolvedFile !== resolvedDirectory &&
     !resolvedFile.startsWith(`${resolvedDirectory}${path.sep}`)
   ) {
-    throw new Error(`OpenCode returned a diff outside the worktree: ${file}`);
+    throw new Error(`Coding agent returned a diff outside the worktree: ${file}`);
   }
   try {
     return await fs.readFile(resolvedFile, 'utf8');
@@ -178,12 +216,32 @@ const hydrateDiffContent = async (
     }),
   );
 
-const getInstallation = () =>
+const getInstallation = (kind: CodingAgentKind) =>
   getDatabase()
     .select()
     .from(codingAgentInstallations)
-    .where(eq(codingAgentInstallations.id, INSTALLATION_ID))
+    .where(eq(codingAgentInstallations.id, kind))
     .get();
+
+const getHarness = (kind: string): CodingAgentHarness => {
+  if (kind !== 'opencode' && kind !== 'codex') {
+    throw new Error(`Unsupported coding-agent installation kind: ${kind}`);
+  }
+  return harnesses[kind];
+};
+
+const getHarnessForInstallation = (installation: {
+  id: string;
+  kind: string;
+}): CodingAgentHarness => {
+  const harness = getHarness(installation.kind);
+  if (installation.id !== harness.installationId) {
+    throw new Error(
+      `Coding-agent installation identity mismatch: ${installation.id}`,
+    );
+  }
+  return harness;
+};
 
 const getContext = (worktreeId: string): AgentWorktreeContext => {
   const db = getDatabase();
@@ -207,9 +265,17 @@ const getContext = (worktreeId: string): AgentWorktreeContext => {
 
 const getSessionRecord = (runId: string) => {
   const row = getDatabase()
-    .select({ run: runs, agent: codingAgentSessions })
+    .select({
+      run: runs,
+      agent: codingAgentSessions,
+      installation: codingAgentInstallations,
+    })
     .from(runs)
     .innerJoin(codingAgentSessions, eq(codingAgentSessions.runId, runs.id))
+    .innerJoin(
+      codingAgentInstallations,
+      eq(codingAgentInstallations.id, codingAgentSessions.installationId),
+    )
     .where(eq(runs.id, runId))
     .get();
   if (!row) throw new Error(`Coding-agent session not found: ${runId}`);
@@ -218,6 +284,8 @@ const getSessionRecord = (runId: string) => {
 
 const toSummary = (row: ReturnType<typeof getSessionRecord>): AgentSessionSummary => ({
   id: row.run.id,
+  agentKind: getHarnessForInstallation(row.installation).installationId,
+  agentName: row.installation.name,
   worktreeId: row.run.worktreeId,
   repositoryId: row.run.repositoryId,
   title: row.run.title,
@@ -255,7 +323,11 @@ const setRunStatus = (
     .run();
 };
 
-const appendOutputEvent = (runId: string, event: CodingAgentEvent): void => {
+const appendOutputEvent = (
+  runId: string,
+  kind: CodingAgentKind,
+  event: CodingAgentEvent,
+): void => {
   const db = getDatabase();
   db.transaction((tx) => {
     const run = tx.select().from(runs).where(eq(runs.id, runId)).get();
@@ -276,7 +348,7 @@ const appendOutputEvent = (runId: string, event: CodingAgentEvent): void => {
         runId,
         sequence,
         eventType: event.type,
-        stream: 'opencode',
+        stream: kind,
         payload: JSON.stringify(event.properties ?? null),
         createdAt: new Date(),
       })
@@ -284,12 +356,25 @@ const appendOutputEvent = (runId: string, event: CodingAgentEvent): void => {
   });
 };
 
-const findRunIdForExternalSession = (externalSessionId: string): string | null =>
-  getDatabase()
+const findRunIdForExternalSession = (
+  kind: CodingAgentKind,
+  externalSessionId: string,
+): string | null => {
+  const session = getDatabase()
     .select({ runId: codingAgentSessions.runId })
     .from(codingAgentSessions)
+    .innerJoin(
+      codingAgentInstallations,
+      eq(codingAgentInstallations.id, codingAgentSessions.installationId),
+    )
     .where(eq(codingAgentSessions.externalSessionId, externalSessionId))
-    .get()?.runId ?? null;
+    .get();
+  if (!session) return null;
+  const record = getSessionRecord(session.runId);
+  return getHarnessForInstallation(record.installation).installationId === kind
+    ? session.runId
+    : null;
+};
 
 const replaceProjectedMessages = (
   runId: string,
@@ -329,69 +414,85 @@ const replaceProjectedMessages = (
   });
 };
 
-const ensureStarted = async (): Promise<void> => {
-  const installation = getInstallation();
+const ensureStarted = async (harness: CodingAgentHarness): Promise<void> => {
+  const installation = getInstallation(harness.installationId);
   if (!installation || !installation.enabled) {
-    throw new Error('OpenCode is not configured. Select its executable in Settings.');
+    throw new Error(
+      `${harness.name} is not configured. Select its executable in Settings.`,
+    );
   }
-  const runtime = adapter.getStatus();
+  getHarnessForInstallation(installation);
+  const runtime = harness.adapter.getStatus();
   if (runtime.running && runtime.version) return;
+  const startupPromise = startupPromises.get(harness.installationId);
   if (startupPromise) return startupPromise;
 
   const currentStartup = (async () => {
     // Multiple renderer requests can arrive together on first navigation.
-    // Re-check the runtime after waiting for the lock so only one OpenCode
+    // Re-check the runtime after waiting for the lock so only one harness
     // process/client pair is created for that burst.
-    const currentRuntime = adapter.getStatus();
+    const currentRuntime = harness.adapter.getStatus();
     if (currentRuntime.running && currentRuntime.version) return;
-    const version = await adapter.start(
+    const version = await harness.adapter.start(
       installation.executablePath,
       app.getPath('userData'),
     );
     getDatabase()
       .update(codingAgentInstallations)
       .set({ version, lastVerifiedAt: new Date(), updatedAt: new Date() })
-      .where(eq(codingAgentInstallations.id, INSTALLATION_ID))
+      .where(eq(codingAgentInstallations.id, harness.installationId))
       .run();
   })();
-  startupPromise = currentStartup;
+  startupPromises.set(harness.installationId, currentStartup);
   try {
     await currentStartup;
   } finally {
-    if (startupPromise === currentStartup) startupPromise = null;
+    if (startupPromises.get(harness.installationId) === currentStartup) {
+      startupPromises.delete(harness.installationId);
+    }
   }
 };
 
-export const validateOpenCodeExecutable = async (
+export const validateAgentExecutable = async (
+  kind: CodingAgentKind,
   executablePath: string,
 ): Promise<{ path: string; version: string }> => {
+  const harness = harnesses[kind];
   if (!path.isAbsolute(executablePath)) {
-    throw new Error('OpenCode executable path must be absolute.');
+    throw new Error(`${harness.name} executable path must be absolute.`);
   }
   const resolvedPath = await fs.realpath(executablePath);
   const stat = await fs.stat(resolvedPath);
-  if (!stat.isFile()) throw new Error('Selected OpenCode path is not a file.');
+  if (!stat.isFile()) {
+    throw new Error(`Selected ${harness.name} path is not a file.`);
+  }
   const { stdout, stderr } = await execFileAsync(resolvedPath, ['--version'], {
     timeout: 5_000,
     windowsHide: true,
   });
-  const version = parseOpenCodeVersion(`${stdout}\n${stderr}`);
+  const version = harness.parseVersion(`${stdout}\n${stderr}`);
   if (!version) {
-    throw new Error('Selected executable did not return a valid OpenCode version.');
+    throw new Error(
+      `Selected executable did not return a valid ${harness.name} version.`,
+    );
   }
   return { path: resolvedPath, version };
 };
 
-export const configureOpenCode = async (executablePath: string) => {
-  const validated = await validateOpenCodeExecutable(executablePath);
-  await adapter.stop();
+export const configureAgent = async (
+  kind: CodingAgentKind,
+  executablePath: string,
+): Promise<AgentStatus> => {
+  const harness = harnesses[kind];
+  const validated = await validateAgentExecutable(kind, executablePath);
+  await harness.adapter.stop();
   const now = new Date();
   const db = getDatabase();
   db.insert(codingAgentInstallations)
     .values({
-      id: INSTALLATION_ID,
-      kind: 'opencode',
-      name: 'OpenCode',
+      id: harness.installationId,
+      kind: harness.installationId,
+      name: harness.name,
       executablePath: validated.path,
       version: validated.version,
       enabled: true,
@@ -402,6 +503,8 @@ export const configureOpenCode = async (executablePath: string) => {
     .onConflictDoUpdate({
       target: codingAgentInstallations.id,
       set: {
+        kind: harness.installationId,
+        name: harness.name,
         executablePath: validated.path,
         version: validated.version,
         enabled: true,
@@ -413,23 +516,38 @@ export const configureOpenCode = async (executablePath: string) => {
   return getAgentInstallationStatus();
 };
 
-export const autoDiscoverOpenCode = async (): Promise<AgentInstallationStatus | null> => {
-  const candidate = await findOpenCodeInSystem();
+export const autoDiscoverAgent = async (
+  kind: CodingAgentKind,
+): Promise<AgentStatus | null> => {
+  const candidate = await harnesses[kind].discover();
   if (!candidate) return null;
-  return configureOpenCode(candidate);
+  try {
+    await validateAgentExecutable(kind, candidate);
+  } catch {
+    // A PATH entry can be another program named like the harness. Treat it as
+    // undiscovered so the IPC caller can continue to the file picker.
+    return null;
+  }
+  return configureAgent(kind, candidate);
 };
 
-export const getAgentInstallationStatus = (): AgentInstallationStatus => {
-  const installation = getInstallation();
-  const runtime = adapter.getStatus();
-  return {
-    configured: Boolean(installation?.enabled),
-    executablePath: installation?.executablePath ?? null,
-    version: runtime.version ?? installation?.version ?? null,
-    running: runtime.running,
-    error: runtime.error,
-  };
-};
+export const getAgentInstallationStatus = (): AgentStatus => ({
+  installations: harnessKinds.map((kind) => {
+    const harness = harnesses[kind];
+    const installation = getInstallation(kind);
+    if (installation) getHarnessForInstallation(installation);
+    const runtime = harness.adapter.getStatus();
+    return {
+      kind,
+      name: harness.name,
+      configured: Boolean(installation?.enabled),
+      executablePath: installation?.executablePath ?? null,
+      version: runtime.version ?? installation?.version ?? null,
+      running: runtime.running,
+      error: runtime.error,
+    };
+  }),
+});
 
 export const listAgentWorktrees = (): AgentWorktreeContext[] =>
   getDatabase()
@@ -439,18 +557,28 @@ export const listAgentWorktrees = (): AgentWorktreeContext[] =>
     .all();
 
 export const listAgentModels = async (
-  worktreeId: string,
+  runId: string,
 ): Promise<CodingAgentModel[]> => {
-  const context = getContext(worktreeId);
-  await ensureStarted();
-  return adapter.listModels(context.worktree.path);
+  const row = getSessionRecord(runId);
+  const context = getContext(row.run.worktreeId);
+  const harness = getHarnessForInstallation(row.installation);
+  await ensureStarted(harness);
+  return harness.adapter.listModels(context.worktree.path);
 };
 
 export const listAgentSessions = (worktreeId?: string): AgentSessionSummary[] => {
   const query = getDatabase()
-    .select({ run: runs, agent: codingAgentSessions })
+    .select({
+      run: runs,
+      agent: codingAgentSessions,
+      installation: codingAgentInstallations,
+    })
     .from(runs)
     .innerJoin(codingAgentSessions, eq(codingAgentSessions.runId, runs.id))
+    .innerJoin(
+      codingAgentInstallations,
+      eq(codingAgentInstallations.id, codingAgentSessions.installationId),
+    )
     .orderBy(desc(runs.updatedAt));
   const rows = worktreeId
     ? query.where(eq(runs.worktreeId, worktreeId)).all()
@@ -459,18 +587,30 @@ export const listAgentSessions = (worktreeId?: string): AgentSessionSummary[] =>
 };
 
 export const createAgentSession = async (input: {
+  agentKind: CodingAgentKind;
   worktreeId: string;
   title: string;
 }): Promise<AgentSessionSummary> => {
+  const harness = harnesses[input.agentKind];
   const context = getContext(input.worktreeId);
-  const installation = getInstallation();
-  if (!installation) throw new Error('OpenCode is not configured.');
-  await ensureStarted();
-  const availableModels = await adapter.listModels(context.worktree.path);
-  const defaultModel = availableModels[0];
-  if (!defaultModel) throw new Error('No OpenCode models are available.');
+  const installation = getInstallation(input.agentKind);
+  if (!installation?.enabled) {
+    throw new Error(`${harness.name} is not configured.`);
+  }
+  getHarnessForInstallation(installation);
+  await ensureStarted(harness);
+  const availableModels = await harness.adapter.listModels(context.worktree.path);
+  const defaultModel =
+    availableModels.find((model) => model.isDefault) ?? availableModels[0];
+  if (!defaultModel) {
+    throw new Error(`No ${harness.name} models are available.`);
+  }
 
-  const external = await adapter.createSession(context.worktree.path, input.title);
+  const external = await harness.adapter.createSession(
+    context.worktree.path,
+    input.title,
+    { modelId: defaultModel.modelId },
+  );
   const now = new Date();
   const runId = nanoid();
   getDatabase().transaction((tx) => {
@@ -514,15 +654,16 @@ export const setAgentSessionModel = async (input: {
 }): Promise<AgentSessionSummary> => {
   const row = getSessionRecord(input.runId);
   const context = getContext(row.run.worktreeId);
-  await ensureStarted();
-  const availableModels = await adapter.listModels(context.worktree.path);
+  const harness = getHarnessForInstallation(row.installation);
+  await ensureStarted(harness);
+  const availableModels = await harness.adapter.listModels(context.worktree.path);
   if (
     !availableModels.some(
       (model) =>
         model.providerId === input.providerId && model.modelId === input.modelId,
     )
   ) {
-    throw new Error('Selected OpenCode model is not available.');
+    throw new Error(`Selected ${harness.name} model is not available.`);
   }
 
   getDatabase()
@@ -541,9 +682,16 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
   try {
     const row = getSessionRecord(runId);
     const context = getContext(row.run.worktreeId);
-    await ensureStarted();
-    await adapter.getSession(context.worktree.path, row.agent.externalSessionId);
-    const messages = await adapter.listMessages(
+    const harness = getHarnessForInstallation(row.installation);
+    await ensureStarted(harness);
+    const externalSession = await harness.adapter.getSession(
+      context.worktree.path,
+      row.agent.externalSessionId,
+    );
+    if (externalSession.status) {
+      setRunStatus(runId, externalSession.status, null);
+    }
+    const messages = await harness.adapter.listMessages(
       context.worktree.path,
       row.agent.externalSessionId,
     );
@@ -554,7 +702,7 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
       'unavailable',
       error instanceof Error && error.message
         ? error.message
-        : 'Unknown error while reconciling the OpenCode session.',
+        : 'Unknown error while reconciling the coding-agent session.',
     );
     throw error;
   }
@@ -566,6 +714,7 @@ export const getAgentSessionSnapshot = async (
   await reconcileAgentSession(runId);
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
+  const harness = getHarnessForInstallation(row.installation);
   const storedMessages = getDatabase()
     .select()
     .from(runMessages)
@@ -586,10 +735,13 @@ export const getAgentSessionSnapshot = async (
   const persistedDiff = getPersistedSessionDiffs(runId);
   const sessionDiff =
     persistedDiff.length === 0
-      ? await adapter.getDiff(context.worktree.path, row.agent.externalSessionId)
+      ? await harness.adapter.getDiff(
+          context.worktree.path,
+          row.agent.externalSessionId,
+        )
       : [];
   const currentDiff = lastUserMessage
-    ? await adapter.getDiff(
+    ? await harness.adapter.getDiff(
         context.worktree.path,
         row.agent.externalSessionId,
         lastUserMessage.id.slice(runId.length + 1),
@@ -624,11 +776,15 @@ export const sendAgentMessage = async (
 ): Promise<void> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
-  await ensureStarted();
+  const harness = getHarnessForInstallation(row.installation);
+  await ensureStarted(harness);
   if (reasoningVariant) {
-    const selectedModel = (await adapter.listModels(context.worktree.path)).find(
+    const selectedModel = (
+      await harness.adapter.listModels(context.worktree.path)
+    ).find(
       (model) =>
-        model.providerId === row.agent.providerId && model.modelId === row.agent.modelId,
+        model.providerId === row.agent.providerId &&
+        model.modelId === row.agent.modelId,
     );
     if (!selectedModel?.reasoningVariants.includes(reasoningVariant)) {
       throw new Error('Selected reasoning level is not available for this model.');
@@ -643,15 +799,18 @@ export const sendAgentMessage = async (
   }
   setRunStatus(runId, 'busy', null);
   try {
-    await adapter.sendPrompt(context.worktree.path, row.agent.externalSessionId, {
-      content,
-      providerId: row.agent.providerId,
-      modelId: row.agent.modelId,
-      reasoningVariant,
-    });
-    // prompt_async returns before OpenCode finishes processing. Reconcile
-    // shortly after submission so the user's message is projected immediately
-    // even when the corresponding SSE event is delayed or missed.
+    await harness.adapter.sendPrompt(
+      context.worktree.path,
+      row.agent.externalSessionId,
+      {
+        content,
+        providerId: row.agent.providerId,
+        modelId: row.agent.modelId,
+        reasoningVariant,
+      },
+    );
+    // Adapters may return before the harness finishes processing. Reconcile
+    // shortly after submission so the user's message is projected immediately.
     scheduleReconcile(runId);
   } catch (error) {
     setRunStatus(
@@ -666,9 +825,10 @@ export const sendAgentMessage = async (
 export const abortAgentSession = async (runId: string): Promise<void> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
+  const harness = getHarnessForInstallation(row.installation);
   setRunStatus(runId, 'aborting', null);
   try {
-    await adapter.abort(context.worktree.path, row.agent.externalSessionId);
+    await harness.adapter.abort(context.worktree.path, row.agent.externalSessionId);
     setRunStatus(runId, 'idle', null);
   } catch (error) {
     setRunStatus(
@@ -687,7 +847,8 @@ export const respondToAgentPermission = async (
 ): Promise<void> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
-  await adapter.respondPermission(
+  const harness = getHarnessForInstallation(row.installation);
+  await harness.adapter.respondPermission(
     context.worktree.path,
     row.agent.externalSessionId,
     permissionId,
@@ -723,17 +884,30 @@ const scheduleReconcile = (runId: string): void => {
   );
 };
 
-adapter.subscribe((event) => {
-  const externalSessionId = readOpenCodeSessionId(event.properties);
-  const runId = externalSessionId
-    ? findRunIdForExternalSession(externalSessionId)
+const handleAdapterEvent = (
+  kind: CodingAgentKind,
+  event: CodingAgentEvent,
+): void => {
+  const runId = event.sessionId
+    ? findRunIdForExternalSession(kind, event.sessionId)
     : null;
   if (!runId) {
-    emit({ runId: null, type: event.type, payload: event.properties });
+    const payload =
+      event.type === 'server.exit'
+        ? {
+            ...(event.properties !== null &&
+            typeof event.properties === 'object' &&
+            !Array.isArray(event.properties)
+              ? event.properties
+              : { detail: event.properties }),
+            agentKind: kind,
+          }
+        : event.properties;
+    emit({ runId: null, type: event.type, payload });
     return;
   }
 
-  appendOutputEvent(runId, event);
+  appendOutputEvent(runId, kind, event);
   if (event.type === 'message.updated' || event.type === 'message.part.updated') {
     scheduleReconcile(runId);
   } else if (event.type === 'session.idle') {
@@ -755,8 +929,14 @@ adapter.subscribe((event) => {
     if (status === 'idle') setRunStatus(runId, 'idle', null);
   }
   emit({ runId, type: event.type, payload: event.properties });
+};
+
+harnessKinds.forEach((kind) => {
+  harnesses[kind].adapter.subscribe((event) => handleAdapterEvent(kind, event));
 });
 
-export const stopCodingAgent = async (): Promise<void> => adapter.stop();
+export const stopCodingAgents = async (): Promise<void> => {
+  await Promise.all(harnessKinds.map((kind) => harnesses[kind].adapter.stop()));
+};
 
 export type { CodingAgentPermission };

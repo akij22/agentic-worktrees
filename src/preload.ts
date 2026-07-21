@@ -72,8 +72,8 @@ const api: Api = {
     open: (request) => ipcRenderer.invoke(IPC_CHANNELS.EDITOR_OPEN, request),
   },
   codingAgent: {
-    selectExecutable: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE),
+    selectExecutable: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE, request),
     getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_STATUS),
     listModels: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_MODELS, request),

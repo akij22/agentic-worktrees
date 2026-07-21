@@ -17,6 +17,7 @@ import {
   codingAgentSessionListRequestSchema,
   codingAgentSessionSendRequestSchema,
   codingAgentSessionModelUpdateSchema,
+  codingAgentSelectExecutableRequestSchema,
   createLocalBranchRequestSchema,
   editorOpenRequestSchema,
   githubListBranchesRequestSchema,
@@ -48,8 +49,8 @@ import {
 import { importLocalRepository } from '../repositories/local-repository-service';
 import {
   abortAgentSession,
-  autoDiscoverOpenCode,
-  configureOpenCode,
+  autoDiscoverAgent,
+  configureAgent,
   createAgentSession,
   getAgentInstallationStatus,
   getAgentSessionSnapshot,
@@ -240,20 +241,25 @@ const handleEditorOpen = async (
   await openEditor(request.editorId, worktreePath);
 };
 
-const handleCodingAgentSelectExecutable = async () => {
-  const discovered = await autoDiscoverOpenCode();
+const handleCodingAgentSelectExecutable = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSelectExecutableRequestSchema.parse(rawRequest);
+  const agentName = request.agentKind === 'codex' ? 'Codex' : 'OpenCode';
+  const discovered = await autoDiscoverAgent(request.agentKind);
   if (discovered) return discovered;
 
   const focusedWindow = BrowserWindow.getFocusedWindow();
   const options: OpenDialogOptions = {
-    title: 'Select the OpenCode executable',
+    title: `Select the ${agentName} executable`,
     properties: ['openFile'],
   };
   const result = focusedWindow
     ? await dialog.showOpenDialog(focusedWindow, options)
     : await dialog.showOpenDialog(options);
   if (result.canceled || result.filePaths.length === 0) return null;
-  return configureOpenCode(result.filePaths[0]);
+  return configureAgent(request.agentKind, result.filePaths[0]);
 };
 
 const handleCodingAgentModels = async (
@@ -261,7 +267,7 @@ const handleCodingAgentModels = async (
   rawRequest: unknown,
 ) => {
   const request = codingAgentModelsRequestSchema.parse(rawRequest);
-  return listAgentModels(request.worktreeId);
+  return listAgentModels(request.runId);
 };
 
 const handleCodingAgentSessionList = async (

@@ -13,7 +13,7 @@ import type {
   CodingAgentMessage,
   CodingAgentModel,
 } from './types';
-import { reserveLocalPort } from './opencode-utils';
+import { readOpenCodeSessionId, reserveLocalPort } from './opencode-utils';
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
@@ -201,6 +201,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           code === 0 ? null : `OpenCode exited (${signal ?? `code ${code}`}).`;
         this.emit({
           directory: '',
+          sessionId: null,
           type: 'server.exit',
           properties: { code, signal, error: this.error },
         });
@@ -293,6 +294,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           modelId: model.id,
           modelName: model.name,
           reasoningVariants: readReasoningVariants(model),
+          isDefault: false,
         })),
       )
       .sort((a, b) =>
@@ -418,6 +420,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           this.error = error instanceof Error ? error.message : String(error);
           this.emit({
             directory: '',
+            sessionId: null,
             type: 'server.event_error',
             properties: { error: this.error },
           });
@@ -429,6 +432,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   private forwardGlobalEvent(event: GlobalEvent): void {
     this.emit({
       directory: event.directory,
+      sessionId: readOpenCodeSessionId(event.payload.properties),
       type: event.payload.type,
       properties: event.payload.properties,
     });

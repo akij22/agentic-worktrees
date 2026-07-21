@@ -46,7 +46,11 @@ const SecondaryChatPanel = ({ primaryRunId }: { primaryRunId: string }) => {
 
   if (secondaryRunId) {
     return (
-      <CodingAgentSession runId={secondaryRunId} showInspection={false} />
+      <CodingAgentSession
+        key={secondaryRunId}
+        runId={secondaryRunId}
+        showInspection={false}
+      />
     );
   }
 
@@ -141,6 +145,7 @@ export const CodingAgentWorkspace = ({
         }
       >
         <CodingAgentSession
+          key={primaryRunId}
           runId={primaryRunId}
           showInspection={mode === "single"}
         />

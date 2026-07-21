@@ -215,6 +215,7 @@ export const CodingAgentSession = ({
             </span>
           </div>
           <SessionMessages
+            agentName={session.agentName}
             messages={visibleMessages}
             busy={agentRunning}
             activity={busy && !agentFinished ? sessionState.activity : undefined}

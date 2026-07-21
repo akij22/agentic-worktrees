@@ -9,6 +9,7 @@ import type { ThoughtEntry } from "../lib/session-messages";
 import type { PendingPermission } from "../types";
 
 type Props = {
+  agentName: string;
   messages: CodingAgentMessageDto[];
   busy: boolean;
   activity: string | undefined;
@@ -23,6 +24,7 @@ type ThoughtState = { entry: ThoughtEntry; exiting: boolean } | null;
 const THOUGHT_EXIT_DURATION_MS = 300;
 
 export const SessionMessages = ({
+  agentName,
   messages,
   busy,
   activity,
@@ -98,13 +100,14 @@ export const SessionMessages = ({
   >
     {messages.length === 0 ? (
       <div className="py-16 text-center text-sm text-muted-foreground">
-        Ask OpenCode to make a change in this worktree.
+        Ask {agentName} to make a change in this worktree.
       </div>
     ) : null}
     {displayEntries.map((entry) => {
       if (entry.kind === "thought") {
         return (
           <SessionThought
+            agentName={agentName}
             key={entry.key}
             text={entry.text}
             exiting={thought?.exiting === true && thought.entry.key === entry.key}
@@ -120,7 +123,7 @@ export const SessionMessages = ({
           }
         >
           <div className="mb-1.5 text-xs font-semibold">
-            {message.role === "user" ? "You" : "OpenCode"}
+            {message.role === "user" ? "You" : agentName}
           </div>
           {message.content.trim() && message.role === "user" ? (
             <div className="whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6">
@@ -129,6 +132,7 @@ export const SessionMessages = ({
           ) : null}
           {message.content.trim() && message.role === "assistant" ? (
             <AIMessage
+              agentName={agentName}
               content={message.content}
               isStreaming={message.completedAt === null}
             />

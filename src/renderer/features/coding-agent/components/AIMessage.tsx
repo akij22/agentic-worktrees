@@ -5,12 +5,13 @@ import remarkGfm from "remark-gfm";
 import { Button } from "../../../components/ui/button";
 
 type Props = {
+  agentName: string;
   content: string;
   isStreaming: boolean;
 };
 
 /** HextaUI's AI Message block, for durable assistant replies only. */
-export const AIMessage = ({ content, isStreaming }: Props) => {
+export const AIMessage = ({ agentName, content, isStreaming }: Props) => {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
 
@@ -31,7 +32,7 @@ export const AIMessage = ({ content, isStreaming }: Props) => {
   return (
     <div
       aria-atomic="false"
-      aria-label="OpenCode message"
+      aria-label={`${agentName} message`}
       aria-live={isStreaming ? "polite" : "off"}
       className="group relative"
       role="article"

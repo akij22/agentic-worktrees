@@ -56,7 +56,7 @@ export const SessionComposer = ({
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Describe the change you want OpenCode to make…"
+          placeholder={`Describe the change you want ${session.agentName} to make…`}
           rows={3}
           disabled={locked}
           className="block w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
@@ -110,8 +110,8 @@ export const SessionComposer = ({
               type="button"
               size="icon"
               variant="destructive"
-              aria-label="Stop OpenCode"
-              title="Stop OpenCode"
+              aria-label={`Stop ${session.agentName}`}
+              title={`Stop ${session.agentName}`}
               onClick={onStop}
             >
               <span

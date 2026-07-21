@@ -17,6 +17,8 @@ const createSession = (
   overrides: Partial<CodingAgentSessionDto> = {},
 ): CodingAgentSessionDto => ({
   id,
+  agentKind: "opencode",
+  agentName: "OpenCode",
   worktreeId,
   repositoryId: "repository",
   title,
