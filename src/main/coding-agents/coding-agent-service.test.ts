@@ -14,6 +14,7 @@ import {
 import { bootstrapSchemaSql } from '../database/bootstrap';
 import type {
   CodingAgentAdapter,
+  CodingAgentDiff,
   CodingAgentEvent,
   CodingAgentModel,
 } from './types';
@@ -47,7 +48,9 @@ const mocks = vi.hoisted(() => {
         status: 'idle' as const,
       })),
       listMessages: vi.fn(async () => []),
-      getDiff: vi.fn(async () => []),
+      getDiff: vi.fn<
+        (...args: Parameters<CodingAgentAdapter['getDiff']>) => Promise<CodingAgentDiff[]>
+      >(async () => []),
       sendPrompt: vi.fn(async () => undefined),
       abort: vi.fn(async () => undefined),
       respondPermission: vi.fn(async () => undefined),
@@ -112,6 +115,7 @@ import {
   autoDiscoverAgent,
   createAgentSession,
   getAgentInstallationStatus,
+  getAgentSessionSnapshot,
   listAgentModels,
   listAgentSessions,
   reconcileAgentSession,
@@ -335,6 +339,29 @@ describe('coding-agent service routing', () => {
     expect(models.at(-1)?.modelId).toBe('gpt-5.4');
     expect(mocks.codex.adapter.listModels).toHaveBeenCalledWith(process.cwd());
     expect(mocks.openCode.adapter.listModels).not.toHaveBeenCalled();
+  });
+
+  it('calculates missing line statistics when Codex returns file content only', async () => {
+    seedSession('codex-run', 'codex', 'codex-thread');
+    mocks.codex.adapter.getDiff.mockResolvedValueOnce([
+      {
+        file: 'README.md',
+        before: '',
+        after: '# Scratch Clone\n\nNew content\n',
+        additions: 0,
+        deletions: 0,
+      },
+    ] satisfies CodingAgentDiff[]);
+
+    const snapshot = await getAgentSessionSnapshot('codex-run');
+
+    expect(snapshot.diff).toEqual([
+      expect.objectContaining({
+        file: 'README.md',
+        additions: 3,
+        deletions: 0,
+      }),
+    ]);
   });
 
   it('keeps the persisted harness identity in session summaries', () => {
