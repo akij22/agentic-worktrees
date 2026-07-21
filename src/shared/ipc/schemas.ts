@@ -172,12 +172,26 @@ export type CodingAgentWorktreeContextDto = z.infer<
   typeof codingAgentWorktreeContextSchema
 >;
 
-export const codingAgentStatusSchema = z.object({
+export const codingAgentKindSchema = z.enum(['opencode', 'codex']);
+
+export type CodingAgentKindDto = z.infer<typeof codingAgentKindSchema>;
+
+export const codingAgentInstallationStatusSchema = z.object({
+  kind: codingAgentKindSchema,
+  name: z.string(),
   configured: z.boolean(),
   executablePath: z.string().nullable(),
   version: z.string().nullable(),
   running: z.boolean(),
   error: z.string().nullable(),
+});
+
+export type CodingAgentInstallationStatusDto = z.infer<
+  typeof codingAgentInstallationStatusSchema
+>;
+
+export const codingAgentStatusSchema = z.object({
+  installations: z.array(codingAgentInstallationStatusSchema),
 });
 
 export type CodingAgentStatusDto = z.infer<typeof codingAgentStatusSchema>;
@@ -188,12 +202,15 @@ export const codingAgentModelSchema = z.object({
   modelId: z.string(),
   modelName: z.string(),
   reasoningVariants: z.array(z.string()),
+  isDefault: z.boolean(),
 });
 
 export type CodingAgentModelDto = z.infer<typeof codingAgentModelSchema>;
 
 export const codingAgentSessionSchema = z.object({
   id: z.string(),
+  agentKind: codingAgentKindSchema,
+  agentName: z.string(),
   worktreeId: z.string(),
   repositoryId: z.string(),
   title: z.string(),
@@ -241,7 +258,7 @@ export type CodingAgentSessionSnapshotDto = z.infer<
 >;
 
 export const codingAgentModelsRequestSchema = z.object({
-  worktreeId: z.string().min(1),
+  runId: z.string().trim().min(1),
 });
 
 export const codingAgentSessionListRequestSchema = z
@@ -250,8 +267,13 @@ export const codingAgentSessionListRequestSchema = z
   .default({});
 
 export const codingAgentSessionCreateRequestSchema = z.object({
-  worktreeId: z.string().min(1),
+  agentKind: codingAgentKindSchema,
+  worktreeId: z.string().trim().min(1),
   title: z.string().trim().min(1).max(160),
+});
+
+export const codingAgentSelectExecutableRequestSchema = z.object({
+  agentKind: codingAgentKindSchema,
 });
 
 export const codingAgentSessionModelUpdateSchema = z.object({

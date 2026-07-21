@@ -10,6 +10,7 @@ import {
   nextChangesSummaryUpdate,
 } from "../lib/changes-summary";
 import type { PendingPermission } from "../types";
+import { getAgentDisplay } from "../lib/agent-display";
 
 export const useCodingAgentSession = (runId: string) => {
   const [snapshot, setSnapshot] = useState<CodingAgentSessionSnapshotDto>();
@@ -27,12 +28,35 @@ export const useCodingAgentSession = (runId: string) => {
   const [selectedSummaryFile, setSelectedSummaryFile] = useState<string>();
   const refreshSequence = useRef(0);
   const wasBusyRef = useRef(false);
+  const agentRef = useRef({ kind: "", name: "coding agent" });
+  useEffect(() => {
+    refreshSequence.current += 1;
+    wasBusyRef.current = false;
+    agentRef.current = { kind: "", name: "coding agent" };
+    setSnapshot(undefined);
+    setModels([]);
+    setModelKey("");
+    setReasoningVariant("");
+    setLoadingModels(false);
+    setChangingModel(false);
+    setLoading(true);
+    setSending(false);
+    setError(undefined);
+    setPermission(undefined);
+    setActivity(undefined);
+    setChangesSummary(undefined);
+    setSelectedSummaryFile(undefined);
+  }, [runId]);
   const load = useCallback(async () => {
     const sequence = ++refreshSequence.current;
     try {
       const next = await window.api.codingAgent.getSession({ runId });
       if (sequence !== refreshSequence.current) return;
       setSnapshot(next);
+      agentRef.current = {
+        kind: next.session.agentKind,
+        name: next.session.agentName,
+      };
       if (!isBusyLikeStatus(next.session.status)) setActivity(undefined);
       setError(undefined);
     } catch (cause) {
@@ -49,6 +73,14 @@ export const useCodingAgentSession = (runId: string) => {
     void load();
     return window.api.codingAgent.onEvent((event) => {
       if (event.runId === null && event.type === "server.exit") {
+        const eventAgentKind =
+          typeof event.payload === "object" &&
+          event.payload !== null &&
+          "agentKind" in event.payload &&
+          typeof event.payload.agentKind === "string"
+            ? event.payload.agentKind
+            : undefined;
+        if (eventAgentKind && eventAgentKind !== agentRef.current.kind) return;
         const message =
           typeof event.payload === "object" &&
           event.payload !== null &&
@@ -56,7 +88,7 @@ export const useCodingAgentSession = (runId: string) => {
           typeof event.payload.message === "string"
             ? event.payload.message
             : undefined;
-        setError(message ?? "The OpenCode server stopped unexpectedly.");
+        setError(message ?? getAgentDisplay(agentRef.current.name).exitError);
         void load();
         return;
       }
@@ -68,7 +100,15 @@ export const useCodingAgentSession = (runId: string) => {
       if (nextActivity) setActivity(nextActivity);
       if (event.type === "permission.updated") {
         const nextPermission = readPermission(event.payload);
-        if (nextPermission) setPermission(nextPermission);
+        if (nextPermission) {
+          setPermission({
+            ...nextPermission,
+            title:
+              nextPermission.title === "OpenCode requests permission"
+                ? getAgentDisplay(agentRef.current.name).permissionTitle
+                : nextPermission.title,
+          });
+        }
       }
       if (
         [
@@ -88,7 +128,7 @@ export const useCodingAgentSession = (runId: string) => {
     const currentModelKey = `${snapshot.session.providerId}::${snapshot.session.modelId}`;
     setLoadingModels(true);
     void window.api.codingAgent
-      .listModels({ worktreeId: snapshot.context.worktree.id })
+      .listModels({ runId })
       .then((nextModels) => {
         if (!cancelled) {
           setModels(nextModels);
@@ -106,7 +146,7 @@ export const useCodingAgentSession = (runId: string) => {
       cancelled = true;
     };
   }, [
-    snapshot?.context.worktree.id,
+    runId,
     snapshot?.session.modelId,
     snapshot?.session.providerId,
   ]);
@@ -154,14 +194,17 @@ export const useCodingAgentSession = (runId: string) => {
         });
         // Arm the completion detector even if no busy snapshot is observed.
         wasBusyRef.current = true;
-        setActivity("OpenCode is working…");
+        setActivity(
+          getAgentDisplay(snapshot?.session.agentName ?? agentRef.current.name)
+            .working,
+        );
         await load();
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
         setSending(false);
       }
     },
-    [load, reasoningVariant, runId],
+    [load, reasoningVariant, runId, snapshot?.session.agentName],
   );
   const changeModel = useCallback(
     async (nextModelKey: string) => {

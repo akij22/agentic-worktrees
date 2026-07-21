@@ -1,6 +1,7 @@
 import type { Repository, Worktree } from '../db/schema';
 import type {
   BranchDto,
+  CodingAgentKindDto,
   CodingAgentModelDto,
   CodingAgentSessionDto,
   CodingAgentSessionSnapshotDto,
@@ -63,16 +64,19 @@ export interface Api {
     }) => Promise<void>;
   };
   codingAgent: {
-    selectExecutable: () => Promise<CodingAgentStatusDto | null>;
+    selectExecutable: (request: {
+      agentKind: CodingAgentKindDto;
+    }) => Promise<CodingAgentStatusDto | null>;
     getStatus: () => Promise<CodingAgentStatusDto>;
     listModels: (request: {
-      worktreeId: string;
+      runId: string;
     }) => Promise<CodingAgentModelDto[]>;
     listWorktrees: () => Promise<CodingAgentWorktreeContextDto[]>;
     listSessions: (request?: {
       worktreeId?: string;
     }) => Promise<CodingAgentSessionDto[]>;
     createSession: (request: {
+      agentKind: CodingAgentKindDto;
       worktreeId: string;
       title: string;
     }) => Promise<CodingAgentSessionDto>;

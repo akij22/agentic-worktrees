@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { CodingAgentWorktreeContextDto } from "../../../../shared/ipc/schemas";
+import type {
+  CodingAgentInstallationStatusDto,
+  CodingAgentKindDto,
+  CodingAgentWorktreeContextDto,
+} from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
 import {
   Dialog,
@@ -16,6 +20,7 @@ import { Select } from "../../../components/ui/select";
 type Props = {
   open: boolean;
   contexts: CodingAgentWorktreeContextDto[];
+  installations: CodingAgentInstallationStatusDto[];
   initialWorktreeId?: string;
   onClose: () => void;
 };
@@ -23,25 +28,30 @@ type Props = {
 export const NewSessionDialog = ({
   open,
   contexts,
+  installations,
   initialWorktreeId,
   onClose,
 }: Props) => {
   const navigate = useNavigate();
   const [worktreeId, setWorktreeId] = useState(initialWorktreeId ?? "");
+  const [agentKind, setAgentKind] = useState<CodingAgentKindDto | "">("");
   const [title, setTitle] = useState("New coding session");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string>();
   useEffect(() => {
-    if (open)
+    if (open) {
       setWorktreeId(initialWorktreeId ?? contexts[0]?.worktree.id ?? "");
+      setAgentKind("");
+    }
   }, [contexts, initialWorktreeId, open]);
   if (!open) return null;
   const create = async () => {
-    if (!worktreeId || !title.trim()) return;
+    if (!agentKind || !worktreeId || !title.trim()) return;
     setCreating(true);
     setError(undefined);
     try {
       const session = await window.api.codingAgent.createSession({
+        agentKind,
         worktreeId,
         title: title.trim(),
       });
@@ -60,6 +70,28 @@ export const NewSessionDialog = ({
         </DialogDescription>
       </DialogHeader>
       <div className="mt-5 space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="coding-agent-harness">Coding agent</Label>
+          <Select
+            id="coding-agent-harness"
+            value={agentKind}
+            onChange={(event) =>
+              setAgentKind(event.target.value as CodingAgentKindDto | "")
+            }
+          >
+            <option value="">Select a coding agent…</option>
+            {installations.map((installation) => (
+              <option
+                key={installation.kind}
+                value={installation.kind}
+                disabled={!installation.configured}
+              >
+                {installation.name}
+                {installation.configured ? "" : " (not configured)"}
+              </option>
+            ))}
+          </Select>
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor="agent-worktree">Worktree</Label>
           <Select
@@ -90,7 +122,7 @@ export const NewSessionDialog = ({
         </Button>
         <Button
           onClick={() => void create()}
-          disabled={creating || !worktreeId || !title.trim()}
+          disabled={creating || !agentKind || !worktreeId || !title.trim()}
         >
           {creating ? "Creating…" : "Create chat"}
         </Button>

@@ -45,6 +45,8 @@ const chatSummary: WorktreeChatSummaryState = {
   snapshot: {
     session: {
       id: 'run',
+      agentKind: 'opencode',
+      agentName: 'OpenCode',
       worktreeId: worktree.id,
       repositoryId: repository.id,
       title: 'Dashboard work',

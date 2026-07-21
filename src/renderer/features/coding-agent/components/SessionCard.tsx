@@ -50,6 +50,9 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
       </div>
       <div className="flex flex-1 flex-col gap-4 px-4 py-4">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="shrink-0 rounded border border-border bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">
+            {session.agentName}
+          </span>
           <span className="flex min-w-0 items-center gap-1.5 font-mono">
             <GridIcon name="bot" />
             <span className="truncate">

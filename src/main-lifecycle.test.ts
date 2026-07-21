@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => {
     auth,
     resolveAuth,
     getStatus: vi.fn(() => auth),
+    autoDiscoverAgent: vi.fn(() => new Promise(() => undefined)),
+    stopCodingAgents: vi.fn(() => Promise.resolve()),
     initDatabase: vi.fn(),
     registerIpcHandlers: vi.fn(),
   };
@@ -70,9 +72,14 @@ vi.mock('./main/github/auth-service', () => ({
 }));
 
 vi.mock('./main/coding-agents/coding-agent-service', () => ({
-  autoDiscoverOpenCode: vi.fn(),
-  getAgentInstallationStatus: vi.fn(() => ({ configured: true })),
-  stopCodingAgent: vi.fn(() => Promise.resolve()),
+  autoDiscoverAgent: mocks.autoDiscoverAgent,
+  getAgentInstallationStatus: vi.fn(() => ({
+    installations: [
+      { kind: 'opencode', configured: false },
+      { kind: 'codex', configured: false },
+    ],
+  })),
+  stopCodingAgents: mocks.stopCodingAgents,
 }));
 
 const flushPromises = async (): Promise<void> => {
@@ -100,10 +107,23 @@ it('does not register activation or create windows until auth bootstrap settles'
 
   expect(mocks.windows).toHaveLength(1);
   expect(mocks.listeners.has('activate')).toBe(true);
+  expect(mocks.autoDiscoverAgent).toHaveBeenCalledTimes(2);
+  expect(mocks.autoDiscoverAgent).toHaveBeenCalledWith('opencode');
+  expect(mocks.autoDiscoverAgent).toHaveBeenCalledWith('codex');
   expect((mocks.windows[0] as { webContents: { openDevTools: ReturnType<typeof vi.fn> } }).webContents.openDevTools).toHaveBeenCalledOnce();
 
   mocks.listeners.get('activate')?.();
   expect(mocks.windows).toHaveLength(1);
+});
+
+it('stops all coding-agent harnesses before quitting', async () => {
+  const preventDefault = vi.fn();
+
+  mocks.listeners.get('before-quit')?.({ preventDefault });
+  await flushPromises();
+
+  expect(preventDefault).toHaveBeenCalledOnce();
+  expect(mocks.stopCodingAgents).toHaveBeenCalledOnce();
 });
 
 it('does not open DevTools in a packaged build', async () => {

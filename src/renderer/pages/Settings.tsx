@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Bot, GitFork } from 'lucide-react';
-import type { CodingAgentStatusDto } from '../../shared/ipc/schemas';
+import type {
+  CodingAgentKindDto,
+  CodingAgentStatusDto,
+} from '../../shared/ipc/schemas';
 import SettingsIntegrations, {
   type Integration,
 } from '../components/ui/settings-integrations';
@@ -25,9 +28,9 @@ export const Settings = () => {
     void refresh();
   }, [refresh]);
 
-  const selectExecutable = async () => {
+  const selectExecutable = async (agentKind: CodingAgentKindDto) => {
     try {
-      const next = await window.api.codingAgent.selectExecutable();
+      const next = await window.api.codingAgent.selectExecutable({ agentKind });
       if (next) setStatus(next);
       setError(undefined);
     } catch (cause) {
@@ -45,23 +48,26 @@ export const Settings = () => {
       icon: GitFork,
       status: 'connected',
     },
-    {
-      id: 'opencode',
-      name: 'OpenCode',
-      description: status?.configured
-        ? `Version ${status.version ?? 'unknown'} · ${status.running ? 'running' : 'configured'}`
-        : 'Select the local headless coding-agent executable.',
+    ...(status?.installations ?? []).map((installation) => ({
+      id: installation.kind,
+      name: installation.name,
+      description: installation.configured
+        ? `Version ${installation.version ?? 'unknown'} · ${installation.running ? 'running' : 'configured'}`
+        : `Select the local ${installation.name} executable.`,
       icon: Bot,
-      status: status?.configured ? 'connected' : 'disconnected',
+      status: installation.configured ? 'connected' as const : 'disconnected' as const,
       configurationAction: {
         connectedLabel: 'Change path',
-        disconnectedLabel: 'Select OpenCode',
+        disconnectedLabel: `Select ${installation.name}`,
       },
-    },
+    })),
   ];
 
   const handleConnect = async (integrationId: string) => {
-    if (integrationId === 'opencode') await selectExecutable();
+    const installation = status?.installations.find(
+      ({ kind }) => kind === integrationId,
+    );
+    if (installation) await selectExecutable(installation.kind);
   };
 
   const handleDisconnect = async (integrationId: string) => {
@@ -70,7 +76,10 @@ export const Settings = () => {
       return;
     }
 
-    await selectExecutable();
+    const installation = status?.installations.find(
+      ({ kind }) => kind === integrationId,
+    );
+    if (installation) await selectExecutable(installation.kind);
   };
 
   return (
@@ -90,9 +99,9 @@ export const Settings = () => {
         onConnect={handleConnect}
         onDisconnect={handleDisconnect}
       />
-      {error || status?.error ? (
+      {error || status?.installations.find(({ error }) => error)?.error ? (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error ?? status?.error}
+          {error ?? status?.installations.find(({ error }) => error)?.error}
         </p>
       ) : null}
     </div>

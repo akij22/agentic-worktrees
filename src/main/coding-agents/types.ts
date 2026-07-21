@@ -7,12 +7,15 @@ export type CodingAgentRunStatus =
   | 'error'
   | 'unavailable';
 
+export type CodingAgentKind = 'opencode' | 'codex';
+
 export interface CodingAgentModel {
   providerId: string;
   providerName: string;
   modelId: string;
   modelName: string;
   reasoningVariants: string[];
+  isDefault: boolean;
 }
 
 export interface CodingAgentMessage {
@@ -42,8 +45,13 @@ export interface CodingAgentPermission {
 
 export interface CodingAgentEvent {
   directory: string;
+  sessionId: string | null;
   type: string;
   properties: unknown;
+}
+
+export interface CodingAgentSessionOptions {
+  modelId: string;
 }
 
 export interface CodingAgentAdapter {
@@ -55,8 +63,15 @@ export interface CodingAgentAdapter {
   start(executablePath: string, cwd: string): Promise<string>;
   stop(): Promise<void>;
   listModels(directory: string): Promise<CodingAgentModel[]>;
-  createSession(directory: string, title: string): Promise<{ id: string }>;
-  getSession(directory: string, sessionId: string): Promise<{ id: string }>;
+  createSession(
+    directory: string,
+    title: string,
+    options: CodingAgentSessionOptions,
+  ): Promise<{ id: string }>;
+  getSession(directory: string, sessionId: string): Promise<{
+    id: string;
+    status?: 'idle' | 'busy' | 'error';
+  }>;
   listMessages(
     directory: string,
     sessionId: string,
