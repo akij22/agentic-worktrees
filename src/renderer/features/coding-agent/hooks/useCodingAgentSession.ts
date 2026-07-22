@@ -19,6 +19,7 @@ export const useCodingAgentSession = (runId: string) => {
   const [reasoningVariant, setReasoningVariant] = useState("");
   const [loadingModels, setLoadingModels] = useState(false);
   const [changingModel, setChangingModel] = useState(false);
+  const [compacting, setCompacting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
@@ -39,6 +40,7 @@ export const useCodingAgentSession = (runId: string) => {
     setReasoningVariant("");
     setLoadingModels(false);
     setChangingModel(false);
+    setCompacting(false);
     setLoading(true);
     setSending(false);
     setError(undefined);
@@ -232,6 +234,20 @@ export const useCodingAgentSession = (runId: string) => {
     },
     [load, modelKey, models, runId],
   );
+  const compact = useCallback(async () => {
+    setCompacting(true);
+    setError(undefined);
+    setChangesSummary(undefined);
+    setSelectedSummaryFile(undefined);
+    try {
+      await window.api.codingAgent.compactSession({ runId });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setCompacting(false);
+    }
+  }, [load, runId]);
   const respondPermission = useCallback(
     async (response: "once" | "always" | "reject") => {
       if (!permission) return;
@@ -262,6 +278,7 @@ export const useCodingAgentSession = (runId: string) => {
     reasoningVariant,
     loadingModels,
     changingModel,
+    compacting,
     loading,
     sending,
     error,
@@ -273,6 +290,7 @@ export const useCodingAgentSession = (runId: string) => {
     load,
     send,
     changeModel,
+    compact,
     respondPermission,
     dismissChangesSummary,
     selectSummaryFile,

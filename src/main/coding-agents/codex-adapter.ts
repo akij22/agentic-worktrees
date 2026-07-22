@@ -215,6 +215,14 @@ export class CodexAdapter implements CodingAgentAdapter {
     this.activeTurnByThread.delete(sessionId);
   }
 
+  async compact(): Promise<void> {
+    throw new Error('Session compaction is only available for OpenCode.');
+  }
+
+  async getUsage(): Promise<never> {
+    throw new Error('Session usage is only available for OpenCode.');
+  }
+
   async respondPermission(
     directory: string,
     sessionId: string,

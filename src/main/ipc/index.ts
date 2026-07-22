@@ -12,10 +12,12 @@ import {
   codingAgentModelsRequestSchema,
   codingAgentPermissionResponseSchema,
   codingAgentSessionAbortRequestSchema,
+  codingAgentSessionCompactRequestSchema,
   codingAgentSessionCreateRequestSchema,
   codingAgentSessionGetRequestSchema,
   codingAgentSessionListRequestSchema,
   codingAgentSessionSendRequestSchema,
+  codingAgentSessionUsageRequestSchema,
   codingAgentSessionModelUpdateSchema,
   codingAgentSelectExecutableRequestSchema,
   createLocalBranchRequestSchema,
@@ -49,11 +51,13 @@ import {
 import { importLocalRepository } from '../repositories/local-repository-service';
 import {
   abortAgentSession,
+  compactAgentSession,
   autoDiscoverAgent,
   configureAgent,
   createAgentSession,
   getAgentInstallationStatus,
   getAgentSessionSnapshot,
+  getAgentSessionUsage,
   listAgentModels,
   listAgentSessions,
   listAgentWorktrees,
@@ -296,6 +300,14 @@ const handleCodingAgentSessionGet = async (
   return getAgentSessionSnapshot(request.runId);
 };
 
+const handleCodingAgentSessionUsage = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSessionUsageRequestSchema.parse(rawRequest);
+  return getAgentSessionUsage(request.runId);
+};
+
 const handleCodingAgentSessionSend = async (
   _event: IpcMainInvokeEvent,
   rawRequest: unknown,
@@ -310,6 +322,14 @@ const handleCodingAgentSessionAbort = async (
 ) => {
   const request = codingAgentSessionAbortRequestSchema.parse(rawRequest);
   await abortAgentSession(request.runId);
+};
+
+const handleCodingAgentSessionCompact = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSessionCompactRequestSchema.parse(rawRequest);
+  await compactAgentSession(request.runId);
 };
 
 const handleCodingAgentPermissionRespond = async (
@@ -408,8 +428,16 @@ export const registerIpcHandlers = (): void => {
     requireAuthenticated(handleCodingAgentSessionGet),
   );
   ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_USAGE,
+    requireAuthenticated(handleCodingAgentSessionUsage),
+  );
+  ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_SEND,
     requireAuthenticated(handleCodingAgentSessionSend),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT,
+    requireAuthenticated(handleCodingAgentSessionCompact),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,

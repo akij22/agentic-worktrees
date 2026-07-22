@@ -52,6 +52,15 @@ const mocks = vi.hoisted(() => {
         (...args: Parameters<CodingAgentAdapter['getDiff']>) => Promise<CodingAgentDiff[]>
       >(async () => []),
       sendPrompt: vi.fn(async () => undefined),
+      compact: vi.fn(async () => undefined),
+      getUsage: vi.fn(async () => ({
+        contextTokens: 50_000,
+        contextWindow: 200_000,
+        contextPercentage: 25,
+        totalCost: 1.25,
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet',
+      })),
       abort: vi.fn(async () => undefined),
       respondPermission: vi.fn(async () => undefined),
       subscribe: vi.fn((listener: EventListener) => {
@@ -113,9 +122,11 @@ vi.mock('./codex-utils', () => ({
 import {
   type AgentUiEvent,
   autoDiscoverAgent,
+  compactAgentSession,
   createAgentSession,
   getAgentInstallationStatus,
   getAgentSessionSnapshot,
+  getAgentSessionUsage,
   listAgentModels,
   listAgentSessions,
   reconcileAgentSession,
@@ -339,6 +350,43 @@ describe('coding-agent service routing', () => {
     expect(models.at(-1)?.modelId).toBe('gpt-5.4');
     expect(mocks.codex.adapter.listModels).toHaveBeenCalledWith(process.cwd());
     expect(mocks.openCode.adapter.listModels).not.toHaveBeenCalled();
+  });
+
+  it('compacts an OpenCode session with its persisted model', async () => {
+    seedSession('opencode-run', 'opencode', 'opencode-session');
+
+    await compactAgentSession('opencode-run');
+
+    expect(mocks.openCode.adapter.compact).toHaveBeenCalledWith(
+      process.cwd(),
+      'opencode-session',
+      { providerId: 'anthropic', modelId: 'claude-sonnet' },
+    );
+    expect(mocks.database?.select().from(runs).get()?.status).toBe('idle');
+  });
+
+  it('reads OpenCode usage with the persisted model', async () => {
+    seedSession('opencode-run', 'opencode', 'opencode-session');
+
+    await expect(getAgentSessionUsage('opencode-run')).resolves.toMatchObject({
+      contextPercentage: 25,
+      totalCost: 1.25,
+      modelId: 'claude-sonnet',
+    });
+    expect(mocks.openCode.adapter.getUsage).toHaveBeenCalledWith(
+      process.cwd(),
+      'opencode-session',
+      { providerId: 'anthropic', modelId: 'claude-sonnet' },
+    );
+  });
+
+  it('rejects compaction for non-OpenCode sessions', async () => {
+    seedSession('codex-run', 'codex', 'codex-thread');
+
+    await expect(compactAgentSession('codex-run')).rejects.toThrow(
+      'only available for OpenCode',
+    );
+    expect(mocks.codex.adapter.compact).not.toHaveBeenCalled();
   });
 
   it('calculates missing line statistics when Codex returns file content only', async () => {

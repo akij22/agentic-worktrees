@@ -87,8 +87,12 @@ const api: Api = {
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE, request),
     getSession: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
+    getSessionUsage: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_USAGE, request),
     sendMessage: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_SEND, request),
+    compactSession: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT, request),
     abortSession: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_ABORT, request),
     respondPermission: (request) =>

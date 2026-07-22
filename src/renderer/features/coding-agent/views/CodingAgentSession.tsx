@@ -10,18 +10,27 @@ import { DropdownMenu } from "../../../components/ui/dropdown-menu";
 import { Skeleton } from "../../../components/ui/skeleton";
 import type {
   AvailableEditorDto,
+  CodingAgentSessionUsageDto,
   EditorId,
 } from "../../../../shared/ipc/schemas";
 import { InspectionPanel } from "../components/InspectionPanel";
 import { SessionChangesSummary } from "../components/SessionChangesSummary";
 import { SessionComposer } from "../components/SessionComposer";
 import { SessionMessages } from "../components/SessionMessages";
+import { SessionStatusPopup } from "../components/SessionStatusPopup";
 import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
 import { getSessionWorkspaceColumns } from "../lib/dual-chat-layout";
+import type { OpenCodeSlashCommandId } from "../lib/slash-commands";
 
 type EditorError = {
   source: "discovery" | "open";
   message: string;
+};
+
+type StatusPopupState = {
+  loading: boolean;
+  usage?: CodingAgentSessionUsageDto;
+  error?: string;
 };
 
 const editorIconSources: Record<EditorId, string> = {
@@ -58,6 +67,7 @@ export const CodingAgentSession = ({
   const [isResizing, setIsResizing] = useState(false);
   const [editors, setEditors] = useState<AvailableEditorDto[]>([]);
   const [editorError, setEditorError] = useState<EditorError>();
+  const [statusPopup, setStatusPopup] = useState<StatusPopupState>();
   const clearFocusedDiffFile = useCallback(
     () => sessionState.selectSummaryFile(undefined),
     [sessionState.selectSummaryFile],
@@ -108,6 +118,12 @@ export const CodingAgentSession = ({
       cancelled = true;
     };
   }, [sessionState.snapshot?.context.worktree.id]);
+  useEffect(() => setStatusPopup(undefined), [runId]);
+  useEffect(() => {
+    if (!statusPopup || statusPopup.loading) return;
+    const timeout = window.setTimeout(() => setStatusPopup(undefined), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [statusPopup]);
   if (sessionState.loading) return <Skeleton className="h-full w-full" />;
   if (!sessionState.snapshot)
     return (
@@ -143,6 +159,31 @@ export const CodingAgentSession = ({
     if (!content) return;
     setDraft("");
     void sessionState.send(content);
+  };
+  const showStatus = async () => {
+    setStatusPopup({ loading: true });
+    try {
+      const usage = await window.api.codingAgent.getSessionUsage({ runId });
+      setStatusPopup({ loading: false, usage });
+    } catch (cause) {
+      setStatusPopup({
+        loading: false,
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  };
+  const executeSlashCommand = (command: OpenCodeSlashCommandId) => {
+    if (command === "status") {
+      void showStatus();
+      return;
+    }
+    if (command === "compact") {
+      if (!agentRunning && !sessionState.compacting) void sessionState.compact();
+      return;
+    }
+    if (command === "stop") {
+      if (agentRunning) void window.api.codingAgent.abortSession({ runId });
+    }
   };
   const openInEditor = async (editor: AvailableEditorDto) => {
     setEditorError(undefined);
@@ -233,23 +274,37 @@ export const CodingAgentSession = ({
               />
             ) : null}
           </SessionMessages>
-          <SessionComposer
-            session={session}
-            draft={draft}
-            models={sessionState.models}
-            modelKey={sessionState.modelKey}
-            reasoningVariant={sessionState.reasoningVariant}
-            reasoningVariants={reasoningVariants}
-            loadingModels={sessionState.loadingModels}
-            changingModel={sessionState.changingModel}
-            busy={agentRunning}
-            locked={composerLocked}
-            onDraftChange={setDraft}
-            onModelChange={(key) => void sessionState.changeModel(key)}
-            onReasoningChange={sessionState.setReasoningVariant}
-            onSend={send}
-            onStop={() => void window.api.codingAgent.abortSession({ runId })}
-          />
+          <div className="relative shrink-0">
+            {statusPopup ? (
+              <SessionStatusPopup
+                session={session}
+                usage={statusPopup.usage}
+                loading={statusPopup.loading}
+                error={statusPopup.error}
+                onClose={() => setStatusPopup(undefined)}
+              />
+            ) : null}
+            <SessionComposer
+              session={session}
+              draft={draft}
+              models={sessionState.models}
+              modelKey={sessionState.modelKey}
+              reasoningVariant={sessionState.reasoningVariant}
+              reasoningVariants={reasoningVariants}
+              loadingModels={sessionState.loadingModels}
+              changingModel={sessionState.changingModel}
+              busy={agentRunning || sessionState.compacting}
+              locked={composerLocked || sessionState.compacting}
+              onDraftChange={setDraft}
+              onModelChange={(key) => void sessionState.changeModel(key)}
+              onReasoningChange={sessionState.setReasoningVariant}
+              onSend={send}
+              onStop={() =>
+                void window.api.codingAgent.abortSession({ runId })
+              }
+              onSlashCommand={executeSlashCommand}
+            />
+          </div>
         </section>
         {showInspection ? (
           <>
