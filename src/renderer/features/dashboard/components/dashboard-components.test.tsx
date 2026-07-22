@@ -95,9 +95,44 @@ describe('Dashboard repository workspace components', () => {
       <RepositorySidebar
         repositories={[repository]}
         selectedRepositoryId={repository.id}
+        branchLists={{
+          [repository.id]: {
+            status: 'ready',
+            branches: [
+              {
+                name: 'main',
+                protected: true,
+                headCommitSha: 'abc123',
+              },
+              {
+                name: worktree.branchName,
+                protected: false,
+                headCommitSha: null,
+              },
+              {
+                name: 'feat/idle-chat',
+                protected: false,
+                headCommitSha: null,
+              },
+            ],
+          },
+        }}
+        branchChatStatuses={{
+          [repository.id]: {
+            [worktree.branchName]: {
+              status: 'busy',
+              errorMessage: null,
+            },
+            'feat/idle-chat': {
+              status: 'idle',
+              errorMessage: null,
+            },
+          },
+        }}
         query=""
         loading={false}
         onAdd={() => undefined}
+        onBranchesRequested={() => undefined}
         onRefresh={() => undefined}
         onQueryChange={() => undefined}
         onSelect={() => undefined}
@@ -108,6 +143,14 @@ describe('Dashboard repository workspace components', () => {
     expect(markup).toContain(repository.fullName);
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('Search repositories');
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('main');
+    expect(markup).toContain(worktree.branchName);
+    expect(markup).toContain('Protected branch');
+    expect(markup.match(/Coding agent chat: Chat/g)).toHaveLength(2);
+    expect(markup).not.toContain('Active');
+    expect(markup).not.toContain('Running');
+    expect(markup).not.toContain('Coding agent chat: Idle');
     expect(markup).not.toContain('Coding Agent');
     expect(markup).not.toContain('Settings');
   });
