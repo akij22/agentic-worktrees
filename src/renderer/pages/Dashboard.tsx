@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Repository, Worktree } from '../../shared/db/schema';
-import type { BranchDto, RemoteRepositoryDto } from '../../shared/ipc/schemas';
+import type {
+  BranchDto,
+  CodingAgentSessionDto,
+  RemoteRepositoryDto,
+} from '../../shared/ipc/schemas';
 import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
 import {
@@ -14,7 +18,11 @@ import {
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
-import { RepositorySidebar } from '../features/dashboard/components/RepositorySidebar';
+import {
+  RepositorySidebar,
+  type BranchChatStatus,
+  type RepositoryBranchListState,
+} from '../features/dashboard/components/RepositorySidebar';
 import { RepositoryWorkspace } from '../features/dashboard/components/RepositoryWorkspace';
 import { useWorktreeChatSummary } from '../features/dashboard/hooks/use-worktree-chat-summary';
 import {
@@ -81,6 +89,13 @@ export const Dashboard = () => {
   const [createdWorktrees, setCreatedWorktrees] = useState<
     Record<string, Worktree[]>
   >({});
+  const [repositoryBranchLists, setRepositoryBranchLists] = useState<
+    Record<string, RepositoryBranchListState | undefined>
+  >({});
+  const [codingAgentSessions, setCodingAgentSessions] = useState<
+    CodingAgentSessionDto[]
+  >([]);
+  const requestedRepositoryBranches = useRef(new Set<string>());
   const [repositoryQuery, setRepositoryQuery] = useState('');
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>();
   const [selectedWorktreeId, setSelectedWorktreeId] = useState<string>();
@@ -88,8 +103,11 @@ export const Dashboard = () => {
   const loadRepos = useCallback(async (refresh: boolean) => {
     setLoadState({ status: 'loading' });
     try {
-      const repos = await window.api.github.listRepos({ refresh });
-      const persistedWorktrees = await window.api.worktrees.listAll();
+      const [repos, persistedWorktrees, sessions] = await Promise.all([
+        window.api.github.listRepos({ refresh }),
+        window.api.worktrees.listAll(),
+        window.api.codingAgent.listSessions(),
+      ]);
       const groupedWorktrees = persistedWorktrees.reduce<Record<string, Worktree[]>>(
         (grouped, worktree) => {
           grouped[worktree.repositoryId] = [
@@ -101,6 +119,7 @@ export const Dashboard = () => {
         {},
       );
       setCreatedWorktrees(groupedWorktrees);
+      setCodingAgentSessions(sessions);
       setSelectedRepositoryId((currentId) =>
         resolveSelectedRepositoryId(repos, currentId),
       );
@@ -119,6 +138,56 @@ export const Dashboard = () => {
   useEffect(() => {
     void loadRepos(false);
   }, [loadRepos]);
+
+  useEffect(
+    () =>
+      window.api.codingAgent.onEvent((event) => {
+        if (
+          event.runId === null ||
+          ![
+            'permission.updated',
+            'session.error',
+            'session.idle',
+            'session.status',
+          ].includes(event.type)
+        ) {
+          return;
+        }
+        void window.api.codingAgent
+          .listSessions()
+          .then(setCodingAgentSessions)
+          .catch((error: unknown) => {
+            console.error('Failed to refresh branch chat statuses', error);
+          });
+      }),
+    [],
+  );
+
+  const loadRepositoryBranches = useCallback(async (repositoryId: string) => {
+    if (requestedRepositoryBranches.current.has(repositoryId)) return;
+    requestedRepositoryBranches.current.add(repositoryId);
+    setRepositoryBranchLists((current) => ({
+      ...current,
+      [repositoryId]: { status: 'loading' },
+    }));
+
+    try {
+      const branches = await window.api.github.listBranches({ repositoryId });
+      setRepositoryBranchLists((current) => ({
+        ...current,
+        [repositoryId]: { status: 'ready', branches },
+      }));
+    } catch (error) {
+      requestedRepositoryBranches.current.delete(repositoryId);
+      setRepositoryBranchLists((current) => ({
+        ...current,
+        [repositoryId]: {
+          status: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      }));
+    }
+  }, []);
 
   const repositories = loadState.status === 'success' ? loadState.repos : [];
   const visibleRepositories = useMemo(
@@ -148,6 +217,36 @@ export const Dashboard = () => {
       ) ?? selectedRepositoryWorktrees[0],
     [selectedRepositoryWorktrees, selectedWorktreeId],
   );
+  const branchChatStatuses = useMemo(() => {
+    const sessionsById = new Map(
+      codingAgentSessions.map((session) => [session.id, session]),
+    );
+    const latestSessionByWorktree = new Map<string, CodingAgentSessionDto>();
+    codingAgentSessions.forEach((session) => {
+      const current = latestSessionByWorktree.get(session.worktreeId);
+      if (!current || session.updatedAt > current.updatedAt) {
+        latestSessionByWorktree.set(session.worktreeId, session);
+      }
+    });
+
+    return Object.values(createdWorktrees).reduce<
+      Record<string, Record<string, BranchChatStatus | undefined>>
+    >((statuses, worktrees) => {
+      worktrees.forEach((worktree) => {
+        const session =
+          (worktree.activeRunId
+            ? sessionsById.get(worktree.activeRunId)
+            : undefined) ?? latestSessionByWorktree.get(worktree.id);
+        if (!session) return;
+        statuses[worktree.repositoryId] ??= {};
+        statuses[worktree.repositoryId][worktree.branchName] = {
+          status: session.status,
+          errorMessage: session.errorMessage,
+        };
+      });
+      return statuses;
+    }, {});
+  }, [codingAgentSessions, createdWorktrees]);
   const worktreeChatSummary = useWorktreeChatSummary(selectedWorktree);
 
   const openAddRepositoryDialog = useCallback(() => {
@@ -328,6 +427,19 @@ export const Dashboard = () => {
         repositoryId: dialog.repo.id,
         branchName,
       });
+      setRepositoryBranchLists((current) => {
+        const branchList = current[dialog.repo.id];
+        if (branchList?.status !== 'ready') return current;
+        return {
+          ...current,
+          [dialog.repo.id]: {
+            status: 'ready',
+            branches: [...branchList.branches, newBranch].sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          },
+        };
+      });
       setDialog((prev) =>
         prev.status === 'open'
           ? {
@@ -381,6 +493,29 @@ export const Dashboard = () => {
         ...prev,
         [repo.id]: [...(prev[repo.id] ?? []), worktree],
       }));
+      setRepositoryBranchLists((current) => {
+        const branchList = current[repo.id];
+        if (
+          branchList?.status !== 'ready' ||
+          branchList.branches.some((branch) => branch.name === worktree.branchName)
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          [repo.id]: {
+            status: 'ready',
+            branches: [
+              ...branchList.branches,
+              {
+                name: worktree.branchName,
+                protected: false,
+                headCommitSha: worktree.headCommitSha,
+              },
+            ].sort((a, b) => a.name.localeCompare(b.name)),
+          },
+        };
+      });
       setSelectedRepositoryId(repo.id);
       setSelectedWorktreeId(worktree.id);
       setDialog({ status: 'closed' });
@@ -403,9 +538,14 @@ export const Dashboard = () => {
         <RepositorySidebar
           repositories={visibleRepositories}
           selectedRepositoryId={selectedRepositoryId}
+          branchLists={repositoryBranchLists}
+          branchChatStatuses={branchChatStatuses}
           query={repositoryQuery}
           loading={loadState.status === 'idle' || loadState.status === 'loading'}
           onAdd={openAddRepositoryDialog}
+          onBranchesRequested={(repositoryId) =>
+            void loadRepositoryBranches(repositoryId)
+          }
           onRefresh={() => void loadRepos(false)}
           onQueryChange={setRepositoryQuery}
           onSelect={setSelectedRepositoryId}
