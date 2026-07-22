@@ -36,6 +36,7 @@ import type {
   CodingAgentModel,
   CodingAgentPermission,
   CodingAgentRunStatus,
+  CodingAgentSessionUsage,
 } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -583,6 +584,26 @@ export const listAgentModels = async (
   return harness.adapter.listModels(context.worktree.path);
 };
 
+export const getAgentSessionUsage = async (
+  runId: string,
+): Promise<CodingAgentSessionUsage> => {
+  const row = getSessionRecord(runId);
+  if (row.installation.kind !== 'opencode') {
+    throw new Error('Session usage is only available for OpenCode.');
+  }
+  const context = getContext(row.run.worktreeId);
+  const harness = getHarnessForInstallation(row.installation);
+  await ensureStarted(harness);
+  return harness.adapter.getUsage(
+    context.worktree.path,
+    row.agent.externalSessionId,
+    {
+      providerId: row.agent.providerId,
+      modelId: row.agent.modelId,
+    },
+  );
+};
+
 export const listAgentSessions = (worktreeId?: string): AgentSessionSummary[] => {
   const query = getDatabase()
     .select({
@@ -828,6 +849,36 @@ export const sendAgentMessage = async (
     );
     // Adapters may return before the harness finishes processing. Reconcile
     // shortly after submission so the user's message is projected immediately.
+    scheduleReconcile(runId);
+  } catch (error) {
+    setRunStatus(
+      runId,
+      'error',
+      error instanceof Error ? error.message : String(error),
+    );
+    throw error;
+  }
+};
+
+export const compactAgentSession = async (runId: string): Promise<void> => {
+  const row = getSessionRecord(runId);
+  if (row.installation.kind !== 'opencode') {
+    throw new Error('Session compaction is only available for OpenCode.');
+  }
+  const context = getContext(row.run.worktreeId);
+  const harness = getHarnessForInstallation(row.installation);
+  await ensureStarted(harness);
+  setRunStatus(runId, 'busy', null);
+  try {
+    await harness.adapter.compact(
+      context.worktree.path,
+      row.agent.externalSessionId,
+      {
+        providerId: row.agent.providerId,
+        modelId: row.agent.modelId,
+      },
+    );
+    setRunStatus(runId, 'idle', null);
     scheduleReconcile(runId);
   } catch (error) {
     setRunStatus(

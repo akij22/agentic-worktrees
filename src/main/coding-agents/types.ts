@@ -54,6 +54,15 @@ export interface CodingAgentSessionOptions {
   modelId: string;
 }
 
+export interface CodingAgentSessionUsage {
+  contextTokens: number;
+  contextWindow: number;
+  contextPercentage: number;
+  totalCost: number;
+  providerId: string;
+  modelId: string;
+}
+
 export interface CodingAgentAdapter {
   getStatus(): {
     running: boolean;
@@ -91,6 +100,16 @@ export interface CodingAgentAdapter {
       reasoningVariant?: string;
     },
   ): Promise<void>;
+  compact(
+    directory: string,
+    sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<void>;
+  getUsage(
+    directory: string,
+    sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<CodingAgentSessionUsage>;
   abort(directory: string, sessionId: string): Promise<void>;
   respondPermission(
     directory: string,

@@ -12,6 +12,7 @@ import type {
   CodingAgentEvent,
   CodingAgentMessage,
   CodingAgentModel,
+  CodingAgentSessionUsage,
 } from './types';
 import { readOpenCodeSessionId, reserveLocalPort } from './opencode-utils';
 
@@ -371,6 +372,67 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       },
       throwOnError: true,
     });
+  }
+
+  async compact(
+    directory: string,
+    sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<void> {
+    await this.requireClient().session.summarize({
+      path: { id: sessionId },
+      query: { directory },
+      body: {
+        providerID: input.providerId,
+        modelID: input.modelId,
+      },
+      throwOnError: true,
+    });
+  }
+
+  async getUsage(
+    directory: string,
+    sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<CodingAgentSessionUsage> {
+    const client = this.requireClient();
+    const [messagesResult, providersResult] = await Promise.all([
+      client.session.messages({
+        path: { id: sessionId },
+        query: { directory },
+        throwOnError: true,
+      }),
+      client.provider.list({ query: { directory }, throwOnError: true }),
+    ]);
+    const assistantMessages = messagesResult.data
+      .map(({ info }) => info)
+      .filter((message) => message.role === 'assistant');
+    const latest = assistantMessages.at(-1);
+    const contextTokens = latest
+      ? latest.tokens.input +
+        latest.tokens.output +
+        latest.tokens.reasoning +
+        latest.tokens.cache.read +
+        latest.tokens.cache.write
+      : 0;
+    const provider = providersResult.data.all.find(
+      (candidate) => candidate.id === input.providerId,
+    );
+    const contextWindow = provider?.models[input.modelId]?.limit.context ?? 0;
+    if (contextWindow <= 0) {
+      throw new Error('OpenCode did not report the selected model context window.');
+    }
+    return {
+      contextTokens,
+      contextWindow,
+      contextPercentage: Math.min(100, (contextTokens / contextWindow) * 100),
+      totalCost: assistantMessages.reduce(
+        (total, message) => total + message.cost,
+        0,
+      ),
+      providerId: input.providerId,
+      modelId: input.modelId,
+    };
   }
 
   async abort(directory: string, sessionId: string): Promise<void> {

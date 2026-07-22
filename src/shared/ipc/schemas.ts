@@ -257,6 +257,19 @@ export type CodingAgentSessionSnapshotDto = z.infer<
   typeof codingAgentSessionSnapshotSchema
 >;
 
+export const codingAgentSessionUsageSchema = z.object({
+  contextTokens: z.number().nonnegative(),
+  contextWindow: z.number().positive(),
+  contextPercentage: z.number().min(0).max(100),
+  totalCost: z.number().nonnegative(),
+  providerId: z.string(),
+  modelId: z.string(),
+});
+
+export type CodingAgentSessionUsageDto = z.infer<
+  typeof codingAgentSessionUsageSchema
+>;
+
 export const codingAgentModelsRequestSchema = z.object({
   runId: z.string().trim().min(1),
 });
@@ -286,6 +299,10 @@ export const codingAgentSessionGetRequestSchema = z.object({
   runId: z.string().min(1),
 });
 
+export const codingAgentSessionUsageRequestSchema = z.object({
+  runId: z.string().min(1),
+});
+
 export const codingAgentSessionSendRequestSchema = z.object({
   runId: z.string().min(1),
   content: z.string().trim().min(1).max(100_000),
@@ -293,6 +310,10 @@ export const codingAgentSessionSendRequestSchema = z.object({
 });
 
 export const codingAgentSessionAbortRequestSchema = z.object({
+  runId: z.string().min(1),
+});
+
+export const codingAgentSessionCompactRequestSchema = z.object({
   runId: z.string().min(1),
 });
 

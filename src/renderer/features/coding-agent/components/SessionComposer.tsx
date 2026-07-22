@@ -1,10 +1,20 @@
-import type { ChangeEvent, KeyboardEvent } from "react";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type {
   CodingAgentModelDto,
   CodingAgentSessionDto,
 } from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
 import { Select } from "../../../components/ui/select";
+import {
+  filterOpenCodeSlashCommands,
+  type OpenCodeSlashCommandId,
+} from "../lib/slash-commands";
 
 type Props = {
   session: CodingAgentSessionDto;
@@ -22,6 +32,7 @@ type Props = {
   onReasoningChange: (variant: string) => void;
   onSend: () => void;
   onStop: () => void;
+  onSlashCommand: (command: OpenCodeSlashCommandId) => void;
 };
 
 export const SessionComposer = ({
@@ -40,8 +51,53 @@ export const SessionComposer = ({
   onReasoningChange,
   onSend,
   onStop,
+  onSlashCommand,
 }: Props) => {
+  const modelSelectRef = useRef<HTMLSelectElement>(null);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const slashCommands =
+    session.agentKind === "opencode"
+      ? filterOpenCodeSlashCommands(draft)
+      : [];
+  useEffect(() => setSelectedCommandIndex(0), [draft]);
+  const executeSlashCommand = (command: OpenCodeSlashCommandId) => {
+    onDraftChange("");
+    if (command === "model") {
+      const select = modelSelectRef.current;
+      select?.focus();
+      if (select && "showPicker" in select) {
+        try {
+          select.showPicker();
+        } catch {
+          // Keeping focus on the select provides a keyboard-accessible fallback.
+        }
+      }
+      return;
+    }
+    onSlashCommand(command);
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashCommands.length > 0) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setSelectedCommandIndex((current) =>
+          (current + direction + slashCommands.length) % slashCommands.length,
+        );
+        return;
+      }
+      if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
+        event.preventDefault();
+        const selected = slashCommands[selectedCommandIndex];
+        if (selected) executeSlashCommand(selected.id);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onDraftChange("");
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       onSend();
@@ -49,8 +105,50 @@ export const SessionComposer = ({
   };
   const onModelSelect = (event: ChangeEvent<HTMLSelectElement>) =>
     onModelChange(event.target.value);
+  const submit = () => {
+    const selected = slashCommands[selectedCommandIndex];
+    if (selected) {
+      executeSlashCommand(selected.id);
+      return;
+    }
+    onSend();
+  };
   return (
-    <div className="border-t border-border bg-muted/15 p-4">
+    <div className="relative border-t border-border bg-muted/15 p-4">
+      {slashCommands.length > 0 ? (
+        <div
+          role="listbox"
+          aria-label="OpenCode slash commands"
+          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-xl"
+        >
+          {slashCommands.map((command, index) => (
+            <button
+              key={command.id}
+              type="button"
+              role="option"
+              aria-selected={index === selectedCommandIndex}
+              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${
+                index === selectedCommandIndex
+                  ? "bg-accent text-accent-foreground"
+                  : "text-foreground hover:bg-muted"
+              }`}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setSelectedCommandIndex(index)}
+              onClick={() => executeSlashCommand(command.id)}
+            >
+              <span className="w-20 shrink-0 font-mono text-xs font-semibold">
+                {command.label}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {command.description}
+              </span>
+            </button>
+          ))}
+          <p className="border-t border-border px-3 pb-1 pt-2 text-[10px] text-muted-foreground">
+            ↑↓ navigate · Enter select · Esc close
+          </p>
+        </div>
+      ) : null}
       <div className="rounded-xl border border-input bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
         <textarea
           value={draft}
@@ -64,6 +162,7 @@ export const SessionComposer = ({
         <div className="flex items-center justify-between px-1 pt-2">
           <div className="flex min-w-0 items-center gap-2">
             <Select
+              ref={modelSelectRef}
               aria-label="AI model"
               value={modelKey}
               onChange={onModelSelect}
@@ -123,7 +222,7 @@ export const SessionComposer = ({
             <Button
               type="button"
               size="sm"
-              onClick={onSend}
+              onClick={submit}
               disabled={!draft.trim() || locked}
             >
               Send ↗

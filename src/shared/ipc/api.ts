@@ -5,6 +5,7 @@ import type {
   CodingAgentModelDto,
   CodingAgentSessionDto,
   CodingAgentSessionSnapshotDto,
+  CodingAgentSessionUsageDto,
   CodingAgentStatusDto,
   CodingAgentUiEventDto,
   CodingAgentWorktreeContextDto,
@@ -88,11 +89,15 @@ export interface Api {
     getSession: (request: {
       runId: string;
     }) => Promise<CodingAgentSessionSnapshotDto>;
+    getSessionUsage: (request: {
+      runId: string;
+    }) => Promise<CodingAgentSessionUsageDto>;
     sendMessage: (request: {
       runId: string;
       content: string;
       reasoningVariant?: string;
     }) => Promise<void>;
+    compactSession: (request: { runId: string }) => Promise<void>;
     abortSession: (request: { runId: string }) => Promise<void>;
     respondPermission: (request: {
       runId: string;
