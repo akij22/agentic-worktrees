@@ -92,7 +92,7 @@ const createAdapter = () => {
 };
 
 describe('Codex adapter', () => {
-  it('starts a persistent thread with explicit safe defaults and gives it a name', async () => {
+  it('starts a persistent thread with untrusted command approvals and gives it a name', async () => {
     const { adapter, client } = createAdapter();
     client.reply('thread/start', { thread: { id: 'thread-1' } });
 
@@ -106,7 +106,7 @@ describe('Codex adapter', () => {
         model: 'gpt-5.4',
         cwd: '/repo',
         sandbox: 'workspace-write',
-        approvalPolicy: 'on-request',
+        approvalPolicy: 'untrusted',
         ephemeral: false,
       },
     });

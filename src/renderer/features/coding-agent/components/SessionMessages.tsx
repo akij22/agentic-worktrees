@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../../components/ui/button";
 import { AIMessage } from "./AIMessage";
 import { SessionThought } from "./SessionThought";
+import { CommandApprovalCard } from "./CommandApprovalCard";
 import { buildSessionMessageEntries } from "../lib/session-messages";
 import type { ThoughtEntry } from "../lib/session-messages";
 import type { PendingPermission } from "../types";
@@ -146,7 +147,13 @@ export const SessionMessages = ({
         {activity}
       </div>
     ) : null}
-    {permission ? (
+    {permission?.type === "command" || permission?.type === "bash" ? (
+      <CommandApprovalCard
+        agentName={agentName}
+        permission={permission}
+        onRespond={onRespondPermission}
+      />
+    ) : permission ? (
       <div className="rounded-xl border border-chart-4/50 bg-chart-4/10 p-4">
         <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Permission required · {permission.type}
