@@ -158,18 +158,14 @@ export const useCodingAgentSession = (runId: string) => {
     const timer = window.setInterval(() => void load(), 750);
     return () => window.clearInterval(timer);
   }, [load, snapshot]);
-  // Surfaces the changes summary panel only when the agent finishes while the
-  // session is being viewed; see nextChangesSummaryUpdate for the transition
-  // rules (diff lagging behind completion, run status stuck on busy). The
-  // panel summarizes only the current turn (turnDiff), not the whole session.
+  // Surfaces the changes summary panel only after the whole turn becomes idle
+  // while the session is being viewed. The panel summarizes only the current
+  // turn (turnDiff), not the whole session.
   useEffect(() => {
     if (!snapshot) return;
-    const lastMessage = snapshot.messages.at(-1);
     const update = nextChangesSummaryUpdate(wasBusyRef.current, {
       status: snapshot.session.status,
       diff: snapshot.turnDiff,
-      agentFinished:
-        lastMessage?.role === "assistant" && lastMessage.completedAt !== null,
     });
     if (update.kind === "working") {
       wasBusyRef.current = true;

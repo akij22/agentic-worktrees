@@ -137,9 +137,16 @@ export const CodingAgentSession = ({
   const lastMessage = messages[lastFinalAssistantMessageIndex];
   const agentFinished =
     lastMessage?.role === "assistant" && lastMessage.completedAt !== null;
-  const agentRunning = busy && !agentFinished;
+  const agentRunning = [
+    "busy",
+    "creating",
+    "waiting_permission",
+    "aborting",
+  ].includes(session.status);
   const visibleMessages = messages.map((message, index) =>
-    agentFinished && index === lastFinalAssistantMessageIndex
+    session.status === "idle" &&
+    agentFinished &&
+    index === lastFinalAssistantMessageIndex
       ? { ...message, reasoning: "" }
       : message,
   );
