@@ -19,12 +19,10 @@ const snapshot = (
   overrides: Partial<{
     status: string;
     diff: CodingAgentDiffDto[];
-    agentFinished: boolean;
   }> = {},
 ) => ({
   status: "idle",
   diff,
-  agentFinished: true,
   ...overrides,
 });
 
@@ -48,16 +46,14 @@ describe("nextChangesSummaryUpdate", () => {
     ).toEqual({ kind: "completed", diff });
   });
 
-  it("shows the summary even when the run status is stuck on busy", () => {
-    // The idle SSE event can be missed, leaving the status busy-like forever;
-    // the completed final assistant message is the ground truth.
-    expect(
-      nextChangesSummaryUpdate(true, snapshot({ status: "busy" })),
-    ).toEqual({ kind: "completed", diff });
-    expect(
-      nextChangesSummaryUpdate(true, snapshot({ status: "creating" })),
-    ).toEqual({ kind: "completed", diff });
-  });
+  it.each(["busy", "creating", "aborting"])(
+    "does not show the summary before the whole turn is idle (%s)",
+    (status) => {
+      expect(
+        nextChangesSummaryUpdate(true, snapshot({ status })),
+      ).toEqual({ kind: "working" });
+    },
+  );
 
   it("stays armed when the finished snapshot has no diff yet", () => {
     // The diff endpoint can lag behind completion; dismissing the armed state
@@ -76,7 +72,7 @@ describe("nextChangesSummaryUpdate", () => {
   it.each(["busy", "creating", "aborting"])(
     "re-arms and hides the summary while the agent is working (%s)",
     (status) => {
-      const working = snapshot({ status, agentFinished: false });
+      const working = snapshot({ status });
       expect(nextChangesSummaryUpdate(false, working)).toEqual({
         kind: "working",
       });
@@ -86,29 +82,17 @@ describe("nextChangesSummaryUpdate", () => {
     },
   );
 
-  it("does not arm on finished snapshots, even when busy-like", () => {
-    expect(
-      nextChangesSummaryUpdate(false, snapshot({ status: "busy" })),
-    ).toEqual({ kind: "unchanged" });
-  });
-
   it("does not treat a permission pause as completion", () => {
     expect(
-      nextChangesSummaryUpdate(
-        true,
-        snapshot({ status: "waiting_permission", agentFinished: false }),
-      ),
+      nextChangesSummaryUpdate(true, snapshot({ status: "waiting_permission" })),
     ).toEqual({ kind: "unchanged" });
   });
 
   it.each(["error", "unavailable"])(
-    "does not show the summary when the session ends in %s without a completed message",
+    "does not show the summary when the session ends in %s",
     (status) => {
       expect(
-        nextChangesSummaryUpdate(
-          true,
-          snapshot({ status, agentFinished: false }),
-        ),
+        nextChangesSummaryUpdate(true, snapshot({ status })),
       ).toEqual({ kind: "unchanged" });
     },
   );

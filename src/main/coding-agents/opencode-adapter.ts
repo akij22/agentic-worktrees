@@ -5,6 +5,7 @@ import {
   type GlobalEvent,
   type Message,
   type Part,
+  type SessionStatus,
 } from '@opencode-ai/sdk';
 import type {
   CodingAgentAdapter,
@@ -50,6 +51,15 @@ const delay = (milliseconds: number): Promise<void> =>
 
 const removeInternalDoneMessage = (content: string): string =>
   content.replaceAll(INTERNAL_DONE_MESSAGE, '').trim();
+
+export const toOpenCodeRunStatus = (
+  status: SessionStatus | undefined,
+): 'idle' | 'busy' => {
+  // OpenCode's status endpoint lists active sessions only. An omitted session
+  // has completed and must clear any busy state previously persisted by us.
+  if (!status) return 'idle';
+  return status.type === 'idle' ? 'idle' : 'busy';
+};
 
 type OpenCodeDiffPayload = {
   file?: unknown;
@@ -315,12 +325,22 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   }
 
   async getSession(directory: string, sessionId: string) {
-    const result = await this.requireClient().session.get({
-      path: { id: sessionId },
-      query: { directory },
-      throwOnError: true,
-    });
-    return { id: result.data.id };
+    const client = this.requireClient();
+    const [sessionResult, statusesResult] = await Promise.all([
+      client.session.get({
+        path: { id: sessionId },
+        query: { directory },
+        throwOnError: true,
+      }),
+      client.session.status({
+        query: { directory },
+        throwOnError: true,
+      }),
+    ]);
+    return {
+      id: sessionResult.data.id,
+      status: toOpenCodeRunStatus(statusesResult.data[sessionId]),
+    };
   }
 
   async listMessages(

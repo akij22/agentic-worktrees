@@ -130,12 +130,6 @@ export const AIMessage = ({ agentName, content, isStreaming }: Props) => {
         >
           {content}
         </ReactMarkdown>
-        {isStreaming ? (
-          <span
-            aria-label="Streaming content"
-            className="ml-1 inline-block h-4 w-0.5 align-text-bottom bg-foreground motion-safe:animate-pulse"
-          />
-        ) : null}
       </div>
       {copyError ? (
         <span aria-live="assertive" className="sr-only" role="alert">
