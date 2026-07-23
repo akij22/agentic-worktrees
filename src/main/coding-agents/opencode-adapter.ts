@@ -20,6 +20,15 @@ import { readOpenCodeSessionId, reserveLocalPort } from './opencode-utils';
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
 const INTERNAL_DONE_MESSAGE = "*Done. I'll confirm to the user.*";
+const OPENCODE_COMMAND_APPROVAL_CONFIG = JSON.stringify({
+  agent: {
+    build: {
+      permission: {
+        bash: 'ask',
+      },
+    },
+  },
+});
 const REASONING_VARIANT_IDS = new Set([
   'none',
   'minimal',
@@ -181,7 +190,14 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       ['serve', '--hostname', '127.0.0.1', '--port', String(port)],
       {
         cwd,
-        env: { ...process.env, OPENCODE_SERVER_PASSWORD: password },
+        env: {
+          ...process.env,
+          OPENCODE_SERVER_PASSWORD: password,
+          // This is loaded by OpenCode as its highest-priority runtime config.
+          // The build agent is the one selected in sendPrompt(), so its shell
+          // commands must wait for the renderer's explicit decision.
+          OPENCODE_CONFIG_CONTENT: OPENCODE_COMMAND_APPROVAL_CONFIG,
+        },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       },

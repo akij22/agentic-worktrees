@@ -126,7 +126,7 @@ export class CodexAdapter implements CodingAgentAdapter {
       model: options.modelId,
       cwd: directory,
       sandbox: 'workspace-write',
-      approvalPolicy: 'on-request',
+      approvalPolicy: 'untrusted',
       ephemeral: false,
     });
     const threadId = readCodexThreadId(result);
