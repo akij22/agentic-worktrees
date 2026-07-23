@@ -543,9 +543,7 @@ export const Dashboard = () => {
           query={repositoryQuery}
           loading={loadState.status === 'idle' || loadState.status === 'loading'}
           onAdd={openAddRepositoryDialog}
-          onBranchesRequested={(repositoryId) =>
-            void loadRepositoryBranches(repositoryId)
-          }
+          onBranchesRequested={loadRepositoryBranches}
           onRefresh={() => void loadRepos(false)}
           onQueryChange={setRepositoryQuery}
           onSelect={setSelectedRepositoryId}
