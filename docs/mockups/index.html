@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Repository-first UI mockups — Agentic Worktrees</title>
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <div class="gallery">
+      <header>
+        <div class="tag" style="color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px">
+          Design exploration
+        </div>
+        <h1>Repository-first UI mockups</h1>
+        <p>
+          Interactive HTML companions to
+          <a href="../repository-first-ui-concepts.md" style="color: var(--accent)">docs/repository-first-ui-concepts.md</a>
+          and PR #17. The first two concepts match the PR; the rest explore
+          alternative navigation models for discussion. Labels and secondary
+          controls are illustrative, not approved requirements.
+        </p>
+      </header>
+
+      <div class="section-label">From the PR</div>
+      <div class="concept-grid">
+        <a class="concept-card" href="../images/repository-workspace-concept.png" target="_blank" rel="noopener">
+          <span class="label">Concept 1 · PNG</span>
+          <h2>Persistent repository workspace</h2>
+          <p>
+            Always-visible repository list with master-detail worktrees and a
+            contextual side panel. Leading direction when multi-repo switching
+            is central.
+          </p>
+          <span class="cta">Open PNG mockup →</span>
+        </a>
+        <a class="concept-card" href="../images/repository-overview-concept.png" target="_blank" rel="noopener">
+          <span class="label">Concept 2 · PNG</span>
+          <h2>Repository overview page</h2>
+          <p>
+            Calm browse-then-enter home for discovery and import. Best first-use
+            clarity; deliberate switch when changing repositories.
+          </p>
+          <span class="cta">Open PNG mockup →</span>
+        </a>
+      </div>
+
+      <div class="section-label">Alternative directions</div>
+      <div class="concept-grid">
+        <a class="concept-card recommended" href="03-collapsible-rail.html">
+          <span class="label">Concept 3 · Recommended hybrid</span>
+          <h2>Collapsible icon rail</h2>
+          <p>
+            Answers the PR’s open question: a compact activity rail that expands
+            into a repository list when needed, then collapses to free horizontal
+            space for sessions and detail.
+          </p>
+          <span class="cta">Open interactive mockup →</span>
+        </a>
+        <a class="concept-card" href="04-nested-tree.html">
+          <span class="label">Concept 4</span>
+          <h2>Nested tree navigation</h2>
+          <p>
+            One hierarchical sidebar: repositories expand into worktrees, which
+            expand into sessions. Strong for deep context; less ideal when the
+            list grows large.
+          </p>
+          <span class="cta">Open interactive mockup →</span>
+        </a>
+        <a class="concept-card" href="05-header-switcher.html">
+          <span class="label">Concept 5</span>
+          <h2>Header switcher + command palette</h2>
+          <p>
+            Minimal chrome. Current repository lives in a top switcher; ⌘K jumps
+            across repos, worktrees, and sessions. Maximum canvas for the active
+            task.
+          </p>
+          <span class="cta">Open interactive mockup →</span>
+        </a>
+      </div>
+
+      <div class="section-label" style="margin-top: 36px">Discussion notes</div>
+      <div class="tradeoffs" style="margin-top: 0">
+        <article>
+          <h3>Shared product direction (unchanged)</h3>
+          <ul>
+            <li>Repository is the primary entry point</li>
+            <li>Worktrees and sessions stay repository-scoped</li>
+            <li>Dense, operational UI with warm accent</li>
+            <li>Only existing user-facing capabilities illustrated</li>
+          </ul>
+        </article>
+        <article>
+          <h3>What these alternatives probe</h3>
+          <ul>
+            <li>How always-visible should the repo list be?</li>
+            <li>Is hierarchy (tree) better than master-detail?</li>
+            <li>Can keyboard-first switching replace persistent lists?</li>
+            <li>How does the layout behave when a coding session needs width?</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </body>
+</html>
