@@ -8,10 +8,16 @@ type Props = {
   agentName: string;
   content: string;
   isStreaming: boolean;
+  onOpenFile?: (href: string) => boolean;
 };
 
 /** HextaUI's AI Message block, for durable assistant replies only. */
-export const AIMessage = ({ agentName, content, isStreaming }: Props) => {
+export const AIMessage = ({
+  agentName,
+  content,
+  isStreaming,
+  onOpenFile,
+}: Props) => {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
 
@@ -73,6 +79,9 @@ export const AIMessage = ({ agentName, content, isStreaming }: Props) => {
                 href={href}
                 rel="noopener noreferrer"
                 target="_blank"
+                onClick={(event) => {
+                  if (href && onOpenFile?.(href)) event.preventDefault();
+                }}
               >
                 {children}
               </a>
