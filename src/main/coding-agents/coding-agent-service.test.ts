@@ -342,6 +342,15 @@ describe('coding-agent service routing', () => {
     expect(mocks.openCode.adapter.sendPrompt).not.toHaveBeenCalled();
   });
 
+  it('does not clear a newly submitted OpenCode turn before it becomes active', async () => {
+    seedSession('opencode-run', 'opencode', 'opencode-session');
+
+    await sendAgentMessage('opencode-run', 'Start a long task');
+    const snapshot = await getAgentSessionSnapshot('opencode-run');
+
+    expect(snapshot.session.status).toBe('busy');
+  });
+
   it('looks up models by run ID through the persisted installation', async () => {
     seedSession('codex-run', 'codex', 'codex-thread');
 
@@ -496,6 +505,34 @@ describe('coding-agent service routing', () => {
     expect(mocks.database?.select().from(runOutputEvents).all()).toEqual([
       expect.objectContaining({ runId: 'codex-run', stream: 'codex' }),
     ]);
+  });
+
+  it('keeps a run busy when a provider streams message activity without a status event', () => {
+    seedSession('opencode-run', 'opencode', 'opencode-thread');
+
+    mocks.openCode.emit({
+      directory: process.cwd(),
+      sessionId: 'opencode-thread',
+      type: 'message.part.updated',
+      properties: {
+        part: {
+          id: 'part-1',
+          sessionID: 'opencode-thread',
+          messageID: 'message-1',
+          type: 'text',
+          text: 'Progress',
+        },
+        delta: 'Progress',
+      },
+    });
+
+    expect(
+      mocks.database
+        ?.select({ status: runs.status })
+        .from(runs)
+        .where(eq(runs.id, 'opencode-run'))
+        .get()?.status,
+    ).toBe('busy');
   });
 
   it('stops both harness adapters', async () => {

@@ -7,6 +7,7 @@ import {
   type Part,
   type SessionStatus,
 } from '@opencode-ai/sdk';
+import { createOpencodeClient as createOpencodeClientV2 } from '@opencode-ai/sdk/v2';
 import type {
   CodingAgentAdapter,
   CodingAgentDiff,
@@ -19,6 +20,7 @@ import { readOpenCodeSessionId, reserveLocalPort } from './opencode-utils';
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
+const EVENT_RECONNECT_MS = 250;
 const INTERNAL_DONE_MESSAGE = "*Done. I'll confirm to the user.*";
 const OPENCODE_COMMAND_APPROVAL_CONFIG = JSON.stringify({
   agent: {
@@ -38,6 +40,119 @@ const REASONING_VARIANT_IDS = new Set([
   'xhigh',
   'max',
 ]);
+
+type OpenCodePermissionReplyProtocol =
+  | 'deprecated-respond'
+  | 'request-reply'
+  | 'session-v2-reply';
+
+type NormalizedOpenCodePayload = {
+  type: string;
+  properties: unknown;
+  permission?: {
+    id: string;
+    protocol: OpenCodePermissionReplyProtocol;
+  };
+};
+
+const readRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const readStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+
+const normalizePermissionRequest = (
+  properties: unknown,
+  input: {
+    permissionKey: 'permission' | 'action';
+    resourcesKey: 'patterns' | 'resources';
+    protocol: OpenCodePermissionReplyProtocol;
+  },
+): NormalizedOpenCodePayload | null => {
+  const request = readRecord(properties);
+  if (!request) return null;
+  const id = typeof request.id === 'string' ? request.id : null;
+  const sessionID =
+    typeof request.sessionID === 'string' ? request.sessionID : null;
+  if (!id || !sessionID) return null;
+
+  const metadata = { ...(readRecord(request.metadata) ?? {}) };
+  const resources = readStringArray(request[input.resourcesKey]);
+  if (
+    (typeof metadata.command !== 'string' || !metadata.command.trim()) &&
+    resources[0]
+  ) {
+    metadata.command = resources[0];
+  }
+  const type =
+    typeof request[input.permissionKey] === 'string'
+      ? request[input.permissionKey]
+      : 'operation';
+  const title =
+    typeof metadata.title === 'string' && metadata.title.trim()
+      ? metadata.title
+      : 'OpenCode requests permission';
+
+  return {
+    type: 'permission.updated',
+    properties: {
+      id,
+      sessionID,
+      title,
+      type,
+      metadata,
+    },
+    permission: { id, protocol: input.protocol },
+  };
+};
+
+const normalizeOpenCodePayload = (
+  type: string,
+  properties: unknown,
+): NormalizedOpenCodePayload => {
+  if (type === 'message.part.delta') {
+    return { type: 'message.part.updated', properties };
+  }
+  if (type === 'permission.asked') {
+    return (
+      normalizePermissionRequest(properties, {
+        permissionKey: 'permission',
+        resourcesKey: 'patterns',
+        protocol: 'request-reply',
+      }) ?? { type, properties }
+    );
+  }
+  if (type === 'permission.v2.asked') {
+    return (
+      normalizePermissionRequest(properties, {
+        permissionKey: 'action',
+        resourcesKey: 'resources',
+        protocol: 'session-v2-reply',
+      }) ?? { type, properties }
+    );
+  }
+  if (type === 'permission.updated') {
+    const permission = readRecord(properties);
+    const id = typeof permission?.id === 'string' ? permission.id : null;
+    return {
+      type,
+      properties,
+      ...(id
+        ? {
+            permission: {
+              id,
+              protocol: 'deprecated-respond' as const,
+            },
+          }
+        : {}),
+    };
+  }
+  return { type, properties };
+};
 
 const readReasoningVariants = (model: unknown): string[] => {
   if (!model || typeof model !== 'object' || !('variants' in model)) return [];
@@ -162,11 +277,16 @@ const toMessage = (info: Message, parts: Part[]): CodingAgentMessage => ({
 export class OpenCodeAdapter implements CodingAgentAdapter {
   private process: ChildProcess | null = null;
   private client: ReturnType<typeof createOpencodeClient> | null = null;
+  private v2Client: ReturnType<typeof createOpencodeClientV2> | null = null;
   private baseUrl: string | null = null;
   private password: string | null = null;
   private version: string | null = null;
   private error: string | null = null;
   private eventAbortController: AbortController | null = null;
+  private readonly permissionReplyProtocols = new Map<
+    string,
+    OpenCodePermissionReplyProtocol
+  >();
   private readonly listeners = new Set<(event: CodingAgentEvent) => void>();
 
   getStatus() {
@@ -223,6 +343,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       if (this.process === child) {
         this.process = null;
         this.client = null;
+        this.v2Client = null;
+        this.permissionReplyProtocols.clear();
         this.eventAbortController?.abort();
         this.error =
           code === 0 ? null : `OpenCode exited (${signal ?? `code ${code}`}).`;
@@ -235,18 +357,32 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       }
     });
 
-    const authFetch = (request: Request): ReturnType<typeof fetch> => {
+    const authorization =
+      `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`;
+    const authFetch: typeof fetch = (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const request =
+        input instanceof Request ? input : new Request(input, init);
       const headers = new Headers(request.headers);
-      headers.set(
-        'Authorization',
-        `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`,
-      );
+      headers.set('Authorization', authorization);
       return fetch(new Request(request, { headers }));
     };
 
     this.client = createOpencodeClient({
       baseUrl,
       fetch: authFetch,
+      // The SDK's generated SSE transport calls global fetch directly instead
+      // of the custom fetch above, so stream authentication must also live in
+      // the static client headers.
+      headers: { Authorization: authorization },
+      throwOnError: true,
+    });
+    this.v2Client = createOpencodeClientV2({
+      baseUrl,
+      fetch: authFetch,
+      headers: { Authorization: authorization },
       throwOnError: true,
     });
 
@@ -288,8 +424,10 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     const child = this.process;
     this.process = null;
     this.client = null;
+    this.v2Client = null;
     this.baseUrl = null;
     this.password = null;
+    this.permissionReplyProtocols.clear();
     if (!child || child.exitCode !== null) return;
 
     child.kill('SIGTERM');
@@ -485,12 +623,37 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     permissionId: string,
     response: 'once' | 'always' | 'reject',
   ): Promise<void> {
-    await this.requireClient().postSessionIdPermissionsPermissionId({
-      path: { id: sessionId, permissionID: permissionId },
-      query: { directory },
-      body: { response },
-      throwOnError: true,
-    });
+    const protocol =
+      this.permissionReplyProtocols.get(permissionId) ?? 'deprecated-respond';
+    if (protocol === 'request-reply') {
+      if (!this.v2Client) throw new Error('OpenCode server is not running.');
+      await this.v2Client.permission.reply(
+        {
+          requestID: permissionId,
+          directory,
+          reply: response,
+        },
+        { throwOnError: true },
+      );
+    } else if (protocol === 'session-v2-reply') {
+      if (!this.v2Client) throw new Error('OpenCode server is not running.');
+      await this.v2Client.v2.session.permission.reply(
+        {
+          sessionID: sessionId,
+          requestID: permissionId,
+          reply: response,
+        },
+        { throwOnError: true },
+      );
+    } else {
+      await this.requireClient().postSessionIdPermissionsPermissionId({
+        path: { id: sessionId, permissionID: permissionId },
+        query: { directory },
+        body: { response },
+        throwOnError: true,
+      });
+    }
+    this.permissionReplyProtocols.delete(permissionId);
   }
 
   subscribe(listener: (event: CodingAgentEvent) => void): () => void {
@@ -507,32 +670,46 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     const controller = new AbortController();
     this.eventAbortController = controller;
     void (async () => {
-      try {
-        const events = await client.global.event({ signal: controller.signal });
-        for await (const event of events.stream) {
-          if (controller.signal.aborted) break;
-          this.forwardGlobalEvent(event);
+      while (!controller.signal.aborted) {
+        try {
+          const events = await client.global.event({ signal: controller.signal });
+          for await (const event of events.stream) {
+            if (controller.signal.aborted) break;
+            this.error = null;
+            this.forwardGlobalEvent(event);
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            this.error = error instanceof Error ? error.message : String(error);
+            this.emit({
+              directory: '',
+              sessionId: null,
+              type: 'server.event_error',
+              properties: { error: this.error },
+            });
+          }
         }
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          this.error = error instanceof Error ? error.message : String(error);
-          this.emit({
-            directory: '',
-            sessionId: null,
-            type: 'server.event_error',
-            properties: { error: this.error },
-          });
-        }
+        if (!controller.signal.aborted) await delay(EVENT_RECONNECT_MS);
       }
     })();
   }
 
   private forwardGlobalEvent(event: GlobalEvent): void {
+    const normalized = normalizeOpenCodePayload(
+      event.payload.type,
+      event.payload.properties,
+    );
+    if (normalized.permission) {
+      this.permissionReplyProtocols.set(
+        normalized.permission.id,
+        normalized.permission.protocol,
+      );
+    }
     this.emit({
       directory: event.directory,
-      sessionId: readOpenCodeSessionId(event.payload.properties),
-      type: event.payload.type,
-      properties: event.payload.properties,
+      sessionId: readOpenCodeSessionId(normalized.properties),
+      type: normalized.type,
+      properties: normalized.properties,
     });
   }
 }
