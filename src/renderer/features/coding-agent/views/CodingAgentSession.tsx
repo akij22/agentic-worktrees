@@ -20,6 +20,7 @@ import { SessionMessages } from "../components/SessionMessages";
 import { SessionStatusPopup } from "../components/SessionStatusPopup";
 import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
 import { getSessionWorkspaceColumns } from "../lib/dual-chat-layout";
+import { getLinkedDiffFile } from "../lib/file-links";
 import type { OpenCodeSlashCommandId } from "../lib/slash-commands";
 
 type EditorError = {
@@ -71,6 +72,19 @@ export const CodingAgentSession = ({
   const clearFocusedDiffFile = useCallback(
     () => sessionState.selectSummaryFile(undefined),
     [sessionState.selectSummaryFile],
+  );
+  const openLinkedDiffFile = useCallback(
+    (href: string): boolean => {
+      const file = getLinkedDiffFile(
+        href,
+        sessionState.snapshot?.diff.map((diff) => diff.file) ?? [],
+        sessionState.snapshot?.context.worktree.path ?? "",
+      );
+      if (!file) return false;
+      sessionState.selectSummaryFile(file);
+      return true;
+    },
+    [sessionState.selectSummaryFile, sessionState.snapshot],
   );
   useEffect(() => {
     if (!isResizing) return;
@@ -272,6 +286,7 @@ export const CodingAgentSession = ({
             onRespondPermission={(response) =>
               void sessionState.respondPermission(response)
             }
+            onOpenFile={openLinkedDiffFile}
           >
             {sessionState.changesSummary ? (
               <SessionChangesSummary

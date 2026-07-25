@@ -17,6 +17,7 @@ type Props = {
   permission: PendingPermission | undefined;
   error: string | undefined;
   onRespondPermission: (response: "once" | "always" | "reject") => void;
+  onOpenFile?: (href: string) => boolean;
   children?: ReactNode;
 };
 
@@ -32,6 +33,7 @@ export const SessionMessages = ({
   permission,
   error,
   onRespondPermission,
+  onOpenFile,
   children,
 }: Props) => {
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,7 @@ export const SessionMessages = ({
               agentName={agentName}
               content={message.content}
               isStreaming={message.completedAt === null}
+              onOpenFile={onOpenFile}
             />
           ) : null}
         </article>
