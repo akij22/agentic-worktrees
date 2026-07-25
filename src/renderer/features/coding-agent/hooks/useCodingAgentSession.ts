@@ -11,6 +11,7 @@ import {
 } from "../lib/changes-summary";
 import type { PendingPermission } from "../types";
 import { getAgentDisplay } from "../lib/agent-display";
+import { CoalescingTaskQueue } from "../lib/coalescing-task-queue";
 
 export const useCodingAgentSession = (runId: string) => {
   const [snapshot, setSnapshot] = useState<CodingAgentSessionSnapshotDto>();
@@ -27,11 +28,18 @@ export const useCodingAgentSession = (runId: string) => {
   const [activity, setActivity] = useState<string>();
   const [changesSummary, setChangesSummary] = useState<CodingAgentDiffDto[]>();
   const [selectedSummaryFile, setSelectedSummaryFile] = useState<string>();
-  const refreshSequence = useRef(0);
   const wasBusyRef = useRef(false);
   const agentRef = useRef({ kind: "", name: "coding agent" });
+  const runIdRef = useRef(runId);
+  const performLoadRef = useRef<() => Promise<void>>(async () => undefined);
+  const refreshQueueRef = useRef<CoalescingTaskQueue | null>(null);
+  runIdRef.current = runId;
+  if (!refreshQueueRef.current) {
+    refreshQueueRef.current = new CoalescingTaskQueue(() =>
+      performLoadRef.current(),
+    );
+  }
   useEffect(() => {
-    refreshSequence.current += 1;
     wasBusyRef.current = false;
     agentRef.current = { kind: "", name: "coding agent" };
     setSnapshot(undefined);
@@ -49,11 +57,13 @@ export const useCodingAgentSession = (runId: string) => {
     setChangesSummary(undefined);
     setSelectedSummaryFile(undefined);
   }, [runId]);
-  const load = useCallback(async () => {
-    const sequence = ++refreshSequence.current;
+  performLoadRef.current = async () => {
+    const requestedRunId = runIdRef.current;
     try {
-      const next = await window.api.codingAgent.getSession({ runId });
-      if (sequence !== refreshSequence.current) return;
+      const next = await window.api.codingAgent.getSession({
+        runId: requestedRunId,
+      });
+      if (requestedRunId !== runIdRef.current) return;
       setSnapshot(next);
       agentRef.current = {
         kind: next.session.agentKind,
@@ -62,15 +72,19 @@ export const useCodingAgentSession = (runId: string) => {
       if (!isBusyLikeStatus(next.session.status)) setActivity(undefined);
       setError(undefined);
     } catch (cause) {
-      if (sequence !== refreshSequence.current) return;
+      if (requestedRunId !== runIdRef.current) return;
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      if (sequence === refreshSequence.current) {
+      if (requestedRunId === runIdRef.current) {
         setLoading(false);
         setSending(false);
       }
     }
-  }, [runId]);
+  };
+  const load = useCallback(
+    () => refreshQueueRef.current?.request() ?? Promise.resolve(),
+    [],
+  );
   useEffect(() => {
     void load();
     return window.api.codingAgent.onEvent((event) => {

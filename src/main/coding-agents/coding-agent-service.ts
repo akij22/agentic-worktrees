@@ -17,6 +17,7 @@ import {
   worktrees,
 } from '../../shared/db/schema';
 import { CodexAdapter } from './codex-adapter';
+import { CoalescingTaskScheduler } from './coalescing-task-scheduler';
 import { calculateDiffStats } from './diff-stats';
 import {
   findCodexInSystem,
@@ -40,6 +41,7 @@ import type {
 } from './types';
 
 const execFileAsync = promisify(execFile);
+const STATUS_ACTIVATION_GRACE_MS = 2_000;
 
 export interface AgentInstallationStatus {
   kind: CodingAgentKind;
@@ -117,7 +119,6 @@ const harnesses: Record<CodingAgentKind, CodingAgentHarness> = {
 const harnessKinds = Object.keys(harnesses) as CodingAgentKind[];
 const startupPromises = new Map<CodingAgentKind, Promise<void>>();
 const listeners = new Set<(event: AgentUiEvent) => void>();
-const reconcileTimers = new Map<string, NodeJS.Timeout>();
 const reasoningByRun = new Map<string, Map<string, string>>();
 
 const persistSessionDiffs = (
@@ -727,7 +728,13 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
       row.agent.externalSessionId,
     );
     if (externalSession.status) {
-      setRunStatus(runId, externalSession.status, null);
+      const isStartingOrStreaming =
+        row.run.status === 'busy' &&
+        externalSession.status === 'idle' &&
+        Date.now() - row.run.updatedAt.getTime() < STATUS_ACTIVATION_GRACE_MS;
+      if (!isStartingOrStreaming) {
+        setRunStatus(runId, externalSession.status, null);
+      }
     }
     const messages = await harness.adapter.listMessages(
       context.worktree.path,
@@ -932,24 +939,24 @@ export const subscribeToAgentEvents = (
   return () => listeners.delete(listener);
 };
 
+const reconcileScheduler = new CoalescingTaskScheduler<string>(
+  120,
+  async (runId) => {
+    try {
+      await reconcileAgentSession(runId);
+      emit({ runId, type: 'messages.updated', payload: null });
+    } catch (error) {
+      emit({
+        runId,
+        type: 'session.error',
+        payload: { error: error instanceof Error ? error.message : String(error) },
+      });
+    }
+  },
+);
+
 const scheduleReconcile = (runId: string): void => {
-  const existing = reconcileTimers.get(runId);
-  if (existing) clearTimeout(existing);
-  reconcileTimers.set(
-    runId,
-    setTimeout(() => {
-      reconcileTimers.delete(runId);
-      void reconcileAgentSession(runId)
-        .then(() => emit({ runId, type: 'messages.updated', payload: null }))
-        .catch((error) =>
-          emit({
-            runId,
-            type: 'session.error',
-            payload: { error: error instanceof Error ? error.message : String(error) },
-          }),
-        );
-    }, 120),
-  );
+  reconcileScheduler.request(runId);
 };
 
 const handleAdapterEvent = (
@@ -977,6 +984,10 @@ const handleAdapterEvent = (
 
   appendOutputEvent(runId, kind, event);
   if (event.type === 'message.updated' || event.type === 'message.part.updated') {
+    // Some providers do not publish a separate busy status before their first
+    // message delta. Message activity itself is definitive evidence that the
+    // turn is active.
+    setRunStatus(runId, 'busy', null);
     scheduleReconcile(runId);
   } else if (event.type === 'session.idle') {
     setRunStatus(runId, 'idle', null);
@@ -1004,6 +1015,7 @@ harnessKinds.forEach((kind) => {
 });
 
 export const stopCodingAgents = async (): Promise<void> => {
+  reconcileScheduler.clear();
   await Promise.all(harnessKinds.map((kind) => harnesses[kind].adapter.stop()));
 };
 
