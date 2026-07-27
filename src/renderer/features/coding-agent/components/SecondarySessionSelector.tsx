@@ -130,11 +130,6 @@ export const SecondarySessionSelector = ({
                 chat.
               </p>
             </div>
-            {allOptions.length > 0 ? (
-              <span className="shrink-0 rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[11px] text-muted-foreground">
-                {visibleOptions.length}/{allOptions.length}
-              </span>
-            ) : null}
           </div>
 
           {unavailableMessage ? (
