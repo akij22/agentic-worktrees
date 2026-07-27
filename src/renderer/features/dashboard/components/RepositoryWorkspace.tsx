@@ -9,12 +9,15 @@ import {
   MapPin,
 } from 'lucide-react';
 import type { Repository, Worktree } from '../../../../shared/db/schema';
+import type { CodingAgentSessionDto } from '../../../../shared/ipc/schemas';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { cn } from '../../../lib/utils';
 import {
   getRepositoryLabel,
+  getDashboardChatStatus,
   isLocalRepository,
+  type DashboardChatStatus,
 } from '../dashboard-state';
 import type { WorktreeChatSummaryState } from '../hooks/use-worktree-chat-summary';
 
@@ -22,6 +25,7 @@ interface RepositoryWorkspaceProps {
   repository?: Repository;
   worktrees: Worktree[];
   selectedWorktreeId?: string;
+  sessionsByWorktreeId: Record<string, CodingAgentSessionDto | undefined>;
   chatSummary: WorktreeChatSummaryState;
   onCreateWorktree: (repository: Repository) => void;
   onOpenCodingAgent: (worktree: Worktree) => void;
@@ -31,10 +35,21 @@ interface RepositoryWorkspaceProps {
 const statusLabel = (status: string): string =>
   status.replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
 
+const CHAT_STATUS_PRESENTATION: Record<
+  DashboardChatStatus,
+  { label: string; dotClassName: string }
+> = {
+  ready: { label: 'Ready', dotClassName: 'bg-muted-foreground/50' },
+  running: { label: 'Running', dotClassName: 'bg-primary' },
+  completed: { label: 'Completed', dotClassName: 'bg-emerald-500' },
+  error: { label: 'Error', dotClassName: 'bg-destructive' },
+};
+
 export const RepositoryWorkspace = ({
   repository,
   worktrees,
   selectedWorktreeId,
+  sessionsByWorktreeId,
   chatSummary,
   onCreateWorktree,
   onOpenCodingAgent,
@@ -147,12 +162,16 @@ export const RepositoryWorkspace = ({
                 <span>Worktree / branch</span>
                 <span>Base branch</span>
                 <span>Status</span>
-                <span>Session</span>
+                <span>Chat status</span>
                 <span />
               </div>
               <div className="min-w-[650px] py-1.5">
                 {worktrees.map((worktree) => {
                   const selected = worktree.id === selectedWorktree?.id;
+                  const chatStatus = getDashboardChatStatus(
+                    sessionsByWorktreeId[worktree.id],
+                  );
+                  const chatPresentation = CHAT_STATUS_PRESENTATION[chatStatus];
                   return (
                     <button
                       key={worktree.id}
@@ -180,14 +199,17 @@ export const RepositoryWorkspace = ({
                       <Badge variant="outline" className="w-fit">
                         {statusLabel(worktree.status)}
                       </Badge>
-                      <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span
+                        aria-label={`Chat status: ${chatPresentation.label}`}
+                        className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                      >
                         <span
                           className={cn(
                             'size-1.5 rounded-full',
-                            worktree.activeRunId ? 'bg-primary' : 'bg-muted-foreground/50',
+                            chatPresentation.dotClassName,
                           )}
                         />
-                        {worktree.activeRunId ? 'Active' : 'Ready'}
+                        {chatPresentation.label}
                       </span>
                       <ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" />
                     </button>

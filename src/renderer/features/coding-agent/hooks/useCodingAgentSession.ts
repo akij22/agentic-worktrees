@@ -24,6 +24,8 @@ export const useCodingAgentSession = (runId: string) => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
+  const [viewAcknowledgementError, setViewAcknowledgementError] =
+    useState<string>();
   const [permission, setPermission] = useState<PendingPermission>();
   const [activity, setActivity] = useState<string>();
   const [changesSummary, setChangesSummary] = useState<CodingAgentDiffDto[]>();
@@ -52,10 +54,27 @@ export const useCodingAgentSession = (runId: string) => {
     setLoading(true);
     setSending(false);
     setError(undefined);
+    setViewAcknowledgementError(undefined);
     setPermission(undefined);
     setActivity(undefined);
     setChangesSummary(undefined);
     setSelectedSummaryFile(undefined);
+  }, [runId]);
+  useEffect(() => {
+    let cancelled = false;
+    setViewAcknowledgementError(undefined);
+    void window.api.codingAgent
+      .markSessionViewed({ runId })
+      .catch(() => {
+        if (!cancelled) {
+          setViewAcknowledgementError(
+            "Could not update the chat status. Please try reopening this session.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [runId]);
   performLoadRef.current = async () => {
     const requestedRunId = runIdRef.current;
@@ -291,7 +310,7 @@ export const useCodingAgentSession = (runId: string) => {
     compacting,
     loading,
     sending,
-    error,
+    error: error ?? viewAcknowledgementError,
     permission,
     activity,
     changesSummary,

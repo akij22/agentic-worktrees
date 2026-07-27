@@ -4,6 +4,7 @@ import {
   codingAgentKindSchema,
   codingAgentModelsRequestSchema,
   codingAgentSessionCreateRequestSchema,
+  codingAgentSessionViewedRequestSchema,
   editorOpenRequestSchema,
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
@@ -121,5 +122,13 @@ describe('coding agent IPC schemas', () => {
       .toEqual({ runId: 'run-1' });
     expect(() => codingAgentModelsRequestSchema.parse({ worktreeId: 'worktree-1' }))
       .toThrow();
+  });
+
+  it('validates the session viewed acknowledgement by run ID', () => {
+    expect(codingAgentSessionViewedRequestSchema.parse({ runId: 'run-1' }))
+      .toEqual({ runId: 'run-1' });
+    expect(() =>
+      codingAgentSessionViewedRequestSchema.parse({ runId: '  ' }),
+    ).toThrow();
   });
 });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from './shared/ipc/channels';
 
 const mocks = vi.hoisted(() => ({
@@ -25,6 +26,7 @@ describe('preload GitHub auth status subscription', () => {
     vi.resetModules();
     mocks.listener = null;
     mocks.removeListener.mockClear();
+    vi.mocked(ipcRenderer.invoke).mockClear();
     await import('./preload');
   });
 
@@ -47,6 +49,21 @@ describe('preload GitHub auth status subscription', () => {
     expect(mocks.removeListener).toHaveBeenCalledWith(
       IPC_CHANNELS.GITHUB_AUTH_STATUS_CHANGED,
       registered,
+    );
+  });
+
+  it('forwards a session viewed acknowledgement on its dedicated channel', async () => {
+    const api = mocks.exposed as {
+      codingAgent: {
+        markSessionViewed: (request: { runId: string }) => Promise<void>;
+      };
+    };
+
+    await api.codingAgent.markSessionViewed({ runId: 'run-1' });
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED,
+      { runId: 'run-1' },
     );
   });
 });

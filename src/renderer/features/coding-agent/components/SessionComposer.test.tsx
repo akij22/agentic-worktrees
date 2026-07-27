@@ -15,6 +15,7 @@ const createSession = (
   title: "Session",
   status: "idle",
   errorMessage: null,
+  hasUnviewedChanges: false,
   providerId: "provider",
   modelId: "model",
   createdAt: new Date(0),

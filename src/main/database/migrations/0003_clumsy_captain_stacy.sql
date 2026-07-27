@@ -1,0 +1,1 @@
+ALTER TABLE `coding_agent_sessions` ADD `last_viewed_at` integer;
