@@ -84,9 +84,27 @@ interface ClassifiedAuthError {
   recoverable: boolean;
 }
 
+const GITHUB_NETWORK_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+]);
+
 const getErrorStatus = (error: unknown): number | undefined => {
   if (!isRecord(error)) return undefined;
   return typeof error.status === 'number' ? error.status : undefined;
+};
+
+export const isGitHubOperationError = (error: unknown): boolean => {
+  const record = isRecord(error) ? error : null;
+  return (
+    error instanceof TypeError ||
+    typeof getErrorStatus(error) === 'number' ||
+    (typeof record?.code === 'string' &&
+      GITHUB_NETWORK_ERROR_CODES.has(record.code))
+  );
 };
 
 const classifyAuthError = (error: unknown): ClassifiedAuthError => {
@@ -97,11 +115,10 @@ const classifyAuthError = (error: unknown): ClassifiedAuthError => {
   const headers = record && isRecord(record.response) && isRecord(record.response.headers)
     ? record.response.headers
     : null;
-  const networkCodes = new Set([
-    'ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH', 'ENOTFOUND', 'ETIMEDOUT',
-  ]);
   if (error instanceof TypeError ||
-      (record && typeof record.code === 'string' && networkCodes.has(record.code))) {
+      (record &&
+        typeof record.code === 'string' &&
+        GITHUB_NETWORK_ERROR_CODES.has(record.code))) {
     return {
       code: 'network',
       message: 'GitHub is temporarily unreachable. Check your connection and retry.',

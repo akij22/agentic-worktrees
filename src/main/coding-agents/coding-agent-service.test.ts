@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '../../shared/db/schema';
 import {
   codingAgentInstallations,
+  codingAgentSessionDiffs,
   codingAgentSessions,
   repositories,
   runOutputEvents,
@@ -129,6 +130,7 @@ import {
   getAgentSessionUsage,
   listAgentModels,
   listAgentSessions,
+  markAgentSessionViewed,
   reconcileAgentSession,
   sendAgentMessage,
   stopCodingAgents,
@@ -240,6 +242,20 @@ const seedSession = (
     modelId: installationId === 'codex' ? 'gpt-5.4' : 'claude-sonnet',
     createdAt: now,
     updatedAt: now,
+  }).run();
+};
+
+const seedSessionDiff = (runId: string): void => {
+  if (!mocks.database) throw new Error('Test database is not initialized.');
+  mocks.database.insert(codingAgentSessionDiffs).values({
+    id: `${runId}:src/example.ts`,
+    runId,
+    file: 'src/example.ts',
+    before: 'const value = 1;',
+    after: 'const value = 2;',
+    additions: 1,
+    deletions: 1,
+    updatedAt: new Date('2026-07-21T12:01:00.000Z'),
   }).run();
 };
 
@@ -431,6 +447,62 @@ describe('coding-agent service routing', () => {
         agentName: 'Codex',
       }),
     ]);
+  });
+
+  it('reports completed changes until the session is viewed', () => {
+    seedSession('opencode-run', 'opencode', 'opencode-session', 'busy');
+    seedSessionDiff('opencode-run');
+
+    mocks.openCode.emit({
+      directory: process.cwd(),
+      sessionId: 'opencode-session',
+      type: 'session.idle',
+      properties: null,
+    });
+
+    expect(listAgentSessions()[0]?.hasUnviewedChanges).toBe(true);
+
+    markAgentSessionViewed('opencode-run');
+
+    expect(listAgentSessions()[0]?.hasUnviewedChanges).toBe(false);
+  });
+
+  it('persists completed changes during idle reconciliation', async () => {
+    seedSession('opencode-run', 'opencode', 'opencode-session', 'busy');
+    mocks.openCode.adapter.getDiff.mockResolvedValueOnce([
+      {
+        file: 'src/completed.ts',
+        before: '',
+        after: 'export const completed = true;',
+        additions: 1,
+        deletions: 0,
+      },
+    ]);
+
+    mocks.openCode.emit({
+      directory: process.cwd(),
+      sessionId: 'opencode-session',
+      type: 'session.idle',
+      properties: null,
+    });
+    await reconcileAgentSession('opencode-run');
+
+    expect(listAgentSessions()[0]?.hasUnviewedChanges).toBe(true);
+    expect(
+      mocks.database
+        ?.select()
+        .from(codingAgentSessionDiffs)
+        .where(eq(codingAgentSessionDiffs.runId, 'opencode-run'))
+        .all(),
+    ).toEqual([
+      expect.objectContaining({ file: 'src/completed.ts' }),
+    ]);
+  });
+
+  it('does not report an idle session without changes as completed', () => {
+    seedSession('opencode-run', 'opencode', 'opencode-session');
+
+    expect(listAgentSessions()[0]?.hasUnviewedChanges).toBe(false);
   });
 
   it('reconciles a persisted run status after restarting its harness', async () => {

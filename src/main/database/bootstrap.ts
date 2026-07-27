@@ -157,6 +157,7 @@ const bootstrapStatements = [
       external_session_id TEXT NOT NULL,
       provider_id TEXT NOT NULL,
       model_id TEXT NOT NULL,
+      last_viewed_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,

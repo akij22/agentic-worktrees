@@ -217,7 +217,7 @@ export const Dashboard = () => {
       ) ?? selectedRepositoryWorktrees[0],
     [selectedRepositoryWorktrees, selectedWorktreeId],
   );
-  const branchChatStatuses = useMemo(() => {
+  const sessionsByWorktreeId = useMemo(() => {
     const sessionsById = new Map(
       codingAgentSessions.map((session) => [session.id, session]),
     );
@@ -230,13 +230,24 @@ export const Dashboard = () => {
     });
 
     return Object.values(createdWorktrees).reduce<
-      Record<string, Record<string, BranchChatStatus | undefined>>
-    >((statuses, worktrees) => {
+      Record<string, CodingAgentSessionDto | undefined>
+    >((sessions, worktrees) => {
       worktrees.forEach((worktree) => {
         const session =
           (worktree.activeRunId
             ? sessionsById.get(worktree.activeRunId)
             : undefined) ?? latestSessionByWorktree.get(worktree.id);
+        sessions[worktree.id] = session;
+      });
+      return sessions;
+    }, {});
+  }, [codingAgentSessions, createdWorktrees]);
+  const branchChatStatuses = useMemo(() => {
+    return Object.values(createdWorktrees).reduce<
+      Record<string, Record<string, BranchChatStatus | undefined>>
+    >((statuses, worktrees) => {
+      worktrees.forEach((worktree) => {
+        const session = sessionsByWorktreeId[worktree.id];
         if (!session) return;
         statuses[worktree.repositoryId] ??= {};
         statuses[worktree.repositoryId][worktree.branchName] = {
@@ -246,7 +257,7 @@ export const Dashboard = () => {
       });
       return statuses;
     }, {});
-  }, [codingAgentSessions, createdWorktrees]);
+  }, [createdWorktrees, sessionsByWorktreeId]);
   const worktreeChatSummary = useWorktreeChatSummary(selectedWorktree);
 
   const openAddRepositoryDialog = useCallback(() => {
@@ -592,6 +603,7 @@ export const Dashboard = () => {
             repository={selectedRepository}
             worktrees={selectedRepositoryWorktrees}
             selectedWorktreeId={selectedWorktreeId}
+            sessionsByWorktreeId={sessionsByWorktreeId}
             chatSummary={worktreeChatSummary}
             onCreateWorktree={openCreateDialog}
             onSelectWorktree={setSelectedWorktreeId}

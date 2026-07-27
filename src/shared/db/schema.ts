@@ -181,6 +181,7 @@ export const codingAgentSessions = sqliteTable(
     externalSessionId: text('external_session_id').notNull(),
     providerId: text('provider_id').notNull(),
     modelId: text('model_id').notNull(),
+    lastViewedAt: integer('last_viewed_at', { mode: 'timestamp_ms' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },

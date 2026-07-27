@@ -4,7 +4,10 @@ import type {
   GitHubCredentialPayload,
   GitHubCredentialStore,
 } from './credential-store';
-import { createGitHubAuthService } from './auth-service';
+import {
+  createGitHubAuthService,
+  isGitHubOperationError,
+} from './auth-service';
 
 const now = 1_800_000_000_000;
 
@@ -115,6 +118,19 @@ describe('GitHub authentication service', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('does not classify SQLite failures as GitHub operation errors', () => {
+    expect(
+      isGitHubOperationError(
+        Object.assign(new Error('no such column'), { code: 'SQLITE_ERROR' }),
+      ),
+    ).toBe(false);
+    expect(
+      isGitHubOperationError(
+        Object.assign(new Error('getaddrinfo failed'), { code: 'ENOTFOUND' }),
+      ),
+    ).toBe(true);
   });
 
   it('uses a cached authenticated assertion without repeating profile discovery', async () => {

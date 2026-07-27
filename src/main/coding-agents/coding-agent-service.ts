@@ -66,6 +66,7 @@ export interface AgentSessionSummary {
   title: string;
   status: string;
   errorMessage: string | null;
+  hasUnviewedChanges: boolean;
   providerId: string;
   modelId: string;
   createdAt: Date;
@@ -301,20 +302,38 @@ const getSessionRecord = (runId: string) => {
   return row;
 };
 
-const toSummary = (row: ReturnType<typeof getSessionRecord>): AgentSessionSummary => ({
-  id: row.run.id,
-  agentKind: getHarnessForInstallation(row.installation).installationId,
-  agentName: row.installation.name,
-  worktreeId: row.run.worktreeId,
-  repositoryId: row.run.repositoryId,
-  title: row.run.title,
-  status: row.run.status,
-  errorMessage: row.run.errorMessage,
-  providerId: row.agent.providerId,
-  modelId: row.agent.modelId,
-  createdAt: row.run.createdAt,
-  updatedAt: row.run.updatedAt,
-});
+const toSummary = (
+  row: ReturnType<typeof getSessionRecord>,
+): AgentSessionSummary => {
+  const hasChanges = Boolean(
+    getDatabase()
+      .select({ id: codingAgentSessionDiffs.id })
+      .from(codingAgentSessionDiffs)
+      .where(eq(codingAgentSessionDiffs.runId, row.run.id))
+      .get(),
+  );
+  const hasUnviewedChanges =
+    hasChanges &&
+    row.run.finishedAt !== null &&
+    (row.agent.lastViewedAt === null ||
+      row.run.finishedAt > row.agent.lastViewedAt);
+
+  return {
+    id: row.run.id,
+    agentKind: getHarnessForInstallation(row.installation).installationId,
+    agentName: row.installation.name,
+    worktreeId: row.run.worktreeId,
+    repositoryId: row.run.repositoryId,
+    title: row.run.title,
+    status: row.run.status,
+    errorMessage: row.run.errorMessage,
+    hasUnviewedChanges,
+    providerId: row.agent.providerId,
+    modelId: row.agent.modelId,
+    createdAt: row.run.createdAt,
+    updatedAt: row.run.updatedAt,
+  };
+};
 
 const emit = (event: AgentUiEvent): void => {
   for (const listener of listeners) listener(event);
@@ -325,18 +344,30 @@ const setRunStatus = (
   status: CodingAgentRunStatus,
   errorMessage?: string | null,
 ): void => {
+  const current = getDatabase()
+    .select({ status: runs.status, finishedAt: runs.finishedAt })
+    .from(runs)
+    .where(eq(runs.id, runId))
+    .get();
+  const now = new Date();
   getDatabase()
     .update(runs)
     .set({
       status,
       errorMessage,
+      finishedAt:
+        status === 'busy'
+          ? null
+          : status === 'idle' && current?.status !== 'idle'
+            ? now
+            : current?.finishedAt,
       outputStatus:
         status === 'busy' ||
         status === 'waiting_permission' ||
         status === 'aborting'
           ? 'streaming'
           : 'idle',
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(eq(runs.id, runId))
     .run();
@@ -625,6 +656,15 @@ export const listAgentSessions = (worktreeId?: string): AgentSessionSummary[] =>
   return rows.map((row) => toSummary(row));
 };
 
+export const markAgentSessionViewed = (runId: string): void => {
+  getSessionRecord(runId);
+  getDatabase()
+    .update(codingAgentSessions)
+    .set({ lastViewedAt: new Date(), updatedAt: new Date() })
+    .where(eq(codingAgentSessions.runId, runId))
+    .run();
+};
+
 export const createAgentSession = async (input: {
   agentKind: CodingAgentKind;
   worktreeId: string;
@@ -741,6 +781,15 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
       row.agent.externalSessionId,
     );
     replaceProjectedMessages(runId, messages);
+    const sessionDiff = await harness.adapter.getDiff(
+      context.worktree.path,
+      row.agent.externalSessionId,
+    );
+    const hydratedDiff = await hydrateDiffContent(
+      context.worktree.path,
+      sessionDiff,
+    );
+    persistSessionDiffs(runId, hydratedDiff);
   } catch (error) {
     setRunStatus(
       runId,

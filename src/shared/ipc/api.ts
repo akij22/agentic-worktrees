@@ -89,6 +89,7 @@ export interface Api {
     getSession: (request: {
       runId: string;
     }) => Promise<CodingAgentSessionSnapshotDto>;
+    markSessionViewed: (request: { runId: string }) => Promise<void>;
     getSessionUsage: (request: {
       runId: string;
     }) => Promise<CodingAgentSessionUsageDto>;

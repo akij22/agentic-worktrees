@@ -87,6 +87,8 @@ const api: Api = {
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE, request),
     getSession: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
+    markSessionViewed: (request) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED, request),
     getSessionUsage: (request) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_USAGE, request),
     sendMessage: (request) =>

@@ -1,4 +1,30 @@
 import type { Repository, Worktree } from '../../../shared/db/schema';
+import type { CodingAgentSessionDto } from '../../../shared/ipc/schemas';
+
+export type DashboardChatStatus = 'ready' | 'running' | 'completed' | 'error';
+
+type DashboardChatSession = Pick<
+  CodingAgentSessionDto,
+  'status' | 'errorMessage' | 'hasUnviewedChanges'
+>;
+
+const RUNNING_CHAT_STATUSES = new Set([
+  'creating',
+  'busy',
+  'aborting',
+  'waiting_permission',
+]);
+
+export const getDashboardChatStatus = (
+  session?: DashboardChatSession,
+): DashboardChatStatus => {
+  if (session?.errorMessage || session?.status === 'error') return 'error';
+  if (session && RUNNING_CHAT_STATUSES.has(session.status)) return 'running';
+  if (session?.status === 'idle' && session.hasUnviewedChanges) {
+    return 'completed';
+  }
+  return 'ready';
+};
 
 export const isLocalRepository = (repository: Repository): boolean =>
   repository.githubRepoId < 0;

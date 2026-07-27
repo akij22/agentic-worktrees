@@ -216,6 +216,7 @@ export const codingAgentSessionSchema = z.object({
   title: z.string(),
   status: z.string(),
   errorMessage: z.string().nullable(),
+  hasUnviewedChanges: z.boolean(),
   providerId: z.string(),
   modelId: z.string(),
   createdAt: z.date(),
@@ -297,6 +298,10 @@ export const codingAgentSessionModelUpdateSchema = z.object({
 
 export const codingAgentSessionGetRequestSchema = z.object({
   runId: z.string().min(1),
+});
+
+export const codingAgentSessionViewedRequestSchema = z.object({
+  runId: z.string().trim().min(1),
 });
 
 export const codingAgentSessionUsageRequestSchema = z.object({

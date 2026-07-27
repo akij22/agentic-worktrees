@@ -18,6 +18,7 @@ import {
   codingAgentSessionListRequestSchema,
   codingAgentSessionSendRequestSchema,
   codingAgentSessionUsageRequestSchema,
+  codingAgentSessionViewedRequestSchema,
   codingAgentSessionModelUpdateSchema,
   codingAgentSelectExecutableRequestSchema,
   createLocalBranchRequestSchema,
@@ -33,7 +34,10 @@ import {
 import { listAvailableEditors, openEditor } from '../editors/editor-service';
 import { listRemoteRepositories } from '../github/repos';
 import { listBranches } from '../github/branches';
-import { githubAuthService } from '../github/auth-service';
+import {
+  githubAuthService,
+  isGitHubOperationError,
+} from '../github/auth-service';
 import { GITHUB_CONFIG } from '../github/config';
 import { listLocalBranches, createLocalBranch } from '../git/local-branches';
 import {
@@ -61,6 +65,7 @@ import {
   listAgentModels,
   listAgentSessions,
   listAgentWorktrees,
+  markAgentSessionViewed,
   respondToAgentPermission,
   sendAgentMessage,
   setAgentSessionModel,
@@ -75,14 +80,7 @@ const requireAuthenticated = <Arguments extends unknown[], Result>(
     try {
       return await handler(...args);
     } catch (error) {
-      const record = typeof error === 'object' && error !== null
-        ? error as Record<string, unknown>
-        : null;
-      if (
-        error instanceof TypeError ||
-        typeof record?.status === 'number' ||
-        typeof record?.code === 'string'
-      ) {
+      if (isGitHubOperationError(error)) {
         return githubAuthService.handleOperationError(error);
       }
       throw error;
@@ -300,6 +298,22 @@ const handleCodingAgentSessionGet = async (
   return getAgentSessionSnapshot(request.runId);
 };
 
+const handleCodingAgentSessionViewed = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = codingAgentSessionViewedRequestSchema.parse(rawRequest);
+  try {
+    markAgentSessionViewed(request.runId);
+  } catch (error) {
+    console.error(
+      `Failed to mark coding-agent session as viewed: ${request.runId}`,
+      error,
+    );
+    throw error;
+  }
+};
+
 const handleCodingAgentSessionUsage = async (
   _event: IpcMainInvokeEvent,
   rawRequest: unknown,
@@ -426,6 +440,10 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_GET,
     requireAuthenticated(handleCodingAgentSessionGet),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED,
+    requireAuthenticated(handleCodingAgentSessionViewed),
   );
   ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SESSION_USAGE,

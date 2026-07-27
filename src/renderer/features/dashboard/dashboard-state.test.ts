@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Repository, Worktree } from '../../../shared/db/schema';
 import {
   filterRepositories,
+  getDashboardChatStatus,
   getRepositoryLabel,
   resolveSelectedRepositoryId,
   resolveSelectedWorktreeId,
@@ -88,5 +89,29 @@ describe('Dashboard repository workspace state', () => {
   it('uses the local name only for local repositories', () => {
     expect(getRepositoryLabel(local)).toBe(local.name);
     expect(getRepositoryLabel(alpha)).toBe(alpha.fullName);
+  });
+
+  it.each([
+    [undefined, 'ready'],
+    [{ status: 'idle', errorMessage: null, hasUnviewedChanges: false }, 'ready'],
+    [{ status: 'busy', errorMessage: null, hasUnviewedChanges: false }, 'running'],
+    [
+      {
+        status: 'waiting_permission',
+        errorMessage: null,
+        hasUnviewedChanges: false,
+      },
+      'running',
+    ],
+    [
+      { status: 'idle', errorMessage: null, hasUnviewedChanges: true },
+      'completed',
+    ],
+    [
+      { status: 'error', errorMessage: 'failed', hasUnviewedChanges: true },
+      'error',
+    ],
+  ] as const)('maps chat session %j to %s', (session, expected) => {
+    expect(getDashboardChatStatus(session)).toBe(expected);
   });
 });

@@ -52,6 +52,7 @@ const chatSummary: WorktreeChatSummaryState = {
       title: 'Dashboard work',
       status: 'busy',
       errorMessage: null,
+      hasUnviewedChanges: false,
       providerId: 'provider',
       modelId: 'model',
       createdAt: new Date(0),
@@ -161,6 +162,9 @@ describe('Dashboard repository workspace components', () => {
         repository={repository}
         worktrees={[worktree]}
         selectedWorktreeId={worktree.id}
+        sessionsByWorktreeId={{
+          [worktree.id]: chatSummary.snapshot.session,
+        }}
         chatSummary={chatSummary}
         onCreateWorktree={() => undefined}
         onOpenCodingAgent={() => undefined}
@@ -177,5 +181,62 @@ describe('Dashboard repository workspace components', () => {
     expect(markup).toContain('Changed files');
     expect(markup).toContain('src/renderer/pages/Dashboard.tsx');
     expect(markup).toContain('aria-current="true"');
+  });
+
+  it('renders the four chat states in the worktree table', () => {
+    const readyWorktree = {
+      ...worktree,
+      id: 'ready-worktree',
+      name: 'ready-worktree',
+      activeRunId: null,
+    };
+    const completedWorktree = {
+      ...worktree,
+      id: 'completed-worktree',
+      name: 'completed-worktree',
+      activeRunId: 'completed-run',
+    };
+    const errorWorktree = {
+      ...worktree,
+      id: 'error-worktree',
+      name: 'error-worktree',
+      activeRunId: 'error-run',
+    };
+    const session = chatSummary.snapshot.session;
+    const markup = renderToStaticMarkup(
+      <RepositoryWorkspace
+        repository={repository}
+        worktrees={[readyWorktree, worktree, completedWorktree, errorWorktree]}
+        selectedWorktreeId={worktree.id}
+        sessionsByWorktreeId={{
+          [worktree.id]: session,
+          [completedWorktree.id]: {
+            ...session,
+            id: 'completed-run',
+            worktreeId: completedWorktree.id,
+            status: 'idle',
+            hasUnviewedChanges: true,
+          },
+          [errorWorktree.id]: {
+            ...session,
+            id: 'error-run',
+            worktreeId: errorWorktree.id,
+            status: 'error',
+            errorMessage: 'Agent failed.',
+          },
+        }}
+        chatSummary={chatSummary}
+        onCreateWorktree={() => undefined}
+        onOpenCodingAgent={() => undefined}
+        onSelectWorktree={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('Chat status');
+    expect(markup).toContain('Ready');
+    expect(markup).toContain('Running');
+    expect(markup).toContain('Completed');
+    expect(markup).toContain('Error');
+    expect(markup).not.toContain('>Active<');
   });
 });
