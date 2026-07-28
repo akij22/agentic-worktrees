@@ -10,7 +10,7 @@ type Props = {
   onFocusedFileConsumed?: () => void;
 };
 
-export const InspectionPanel = ({
+export const ReviewPanel = ({
   diff,
   focusedFile,
   onFocusedFileConsumed,
@@ -64,8 +64,8 @@ export const InspectionPanel = ({
   };
 
   return (
-    <aside className="flex min-h-0 flex-col bg-muted/20 xl:overflow-hidden">
-      <div className="shrink-0 border-b border-border px-5 py-4">
+    <div className="flex min-h-0 flex-1 flex-col bg-muted/20 xl:overflow-hidden">
+      <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold">Inspection</h3>
@@ -128,6 +128,6 @@ export const InspectionPanel = ({
           </div>
         </div>
       )}
-    </aside>
+    </div>
   );
 };

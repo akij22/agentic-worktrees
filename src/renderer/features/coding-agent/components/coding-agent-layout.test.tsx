@@ -7,8 +7,9 @@ import type {
 import type { SessionGridDetail } from "../types";
 import { buildSecondarySessionOptions } from "../lib/secondary-session-options";
 import { CodingAgentLayoutControls } from "./CodingAgentLayoutControls";
-import { InspectionPanel } from "./InspectionPanel";
+import { ReviewPanel } from "./ReviewPanel";
 import { SecondarySessionSelector } from "./SecondarySessionSelector";
+import { WorkspacePanel } from "./WorkspacePanel";
 
 const createSession = (
   id: string,
@@ -72,9 +73,26 @@ const createContext = (
 });
 
 describe("coding agent layout components", () => {
+  it("renders the workspace modes with review selected by default", () => {
+    const markup = renderToStaticMarkup(
+      <WorkspacePanel
+        runId="run-1"
+        worktreeId="worktree-1"
+        worktreePath="/workspace/agentic-worktrees"
+        diff={[]}
+      />,
+    );
+
+    expect(markup).toContain("Revisione");
+    expect(markup).toContain("Terminale");
+    expect(markup).toContain("File");
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain("/workspace/agentic-worktrees");
+  });
+
   it("renders file diffs as independently expandable sections", () => {
     const markup = renderToStaticMarkup(
-      <InspectionPanel
+      <ReviewPanel
         diff={[
           {
             file: "src/first.ts",
