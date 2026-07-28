@@ -8,6 +8,7 @@ import { useState } from 'react';
 import type { CodingAgentDiffDto } from '../../../../shared/ipc/schemas';
 import { FileBrowserPanel } from './FileBrowserPanel';
 import { ReviewPanel } from './ReviewPanel';
+import { TerminalPanel } from './TerminalPanel';
 import {
   getWorkspaceModeLabel,
   type WorkspacePanelMode,
@@ -77,23 +78,24 @@ export const WorkspacePanel = ({
         </p>
       </header>
 
-      {mode === 'review' ? (
+      <div
+        className={mode === 'review' ? 'flex min-h-0 flex-1' : 'hidden'}
+        data-run-id={runId}
+      >
         <ReviewPanel
           diff={diff}
           focusedFile={focusedFile}
           onFocusedFileConsumed={onFocusedFileConsumed}
         />
-      ) : mode === 'files' ? (
+      </div>
+      <div
+        className={mode === 'terminal' ? 'flex min-h-0 flex-1' : 'hidden'}
+      >
+        <TerminalPanel worktreeId={worktreeId} active={mode === 'terminal'} />
+      </div>
+      {mode === 'files' ? (
         <FileBrowserPanel worktreeId={worktreeId} />
-      ) : (
-        <div
-          className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-sm text-muted-foreground"
-          data-run-id={runId}
-          data-worktree-id={worktreeId}
-        >
-          {getWorkspaceModeLabel(mode)}
-        </div>
-      )}
+      ) : null}
     </aside>
   );
 };
