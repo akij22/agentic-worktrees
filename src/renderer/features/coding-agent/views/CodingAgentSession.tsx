@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
@@ -57,9 +58,13 @@ const editorIconSources: Record<EditorId, string> = {
 export const CodingAgentSession = ({
   runId,
   showInspection = true,
+  headerTitle,
+  headerActions,
 }: {
   runId: string;
   showInspection?: boolean;
+  headerTitle?: string;
+  headerActions?: ReactNode;
 }) => {
   const sessionState = useCodingAgentSession(runId);
   const [draft, setDraft] = useState("");
@@ -222,21 +227,31 @@ export const CodingAgentSession = ({
   };
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <section className="shrink-0 border-b border-border bg-gradient-to-r from-card via-card to-muted/30 px-6 py-4">
-        <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h2 className="font-mono text-base font-semibold">
+      <section className="flex min-h-16 shrink-0 items-center border-b border-border bg-gradient-to-r from-card via-card to-muted/30 px-6 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-6">
+          {headerTitle ? (
+            <h1 className="shrink-0 text-base font-semibold tracking-tight">
+              {headerTitle}
+            </h1>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-3">
+              <h2 className="shrink-0 font-mono text-base font-semibold">
                 {context.worktree.name}
               </h2>
-              <span className="font-mono text-sm text-muted-foreground">
+              <span className="shrink-0 font-mono text-sm text-muted-foreground">
                 {context.worktree.branchName}
               </span>
-              <Badge variant="outline" className="font-mono text-[11px]">
+              <Badge
+                variant="outline"
+                className="min-w-0 max-w-full truncate font-mono text-[11px]"
+                title={context.repository.fullName}
+              >
                 {context.repository.fullName}
               </Badge>
               <DropdownMenu
                 label="Open in editor"
+                className="shrink-0"
                 items={editors.map((editor) => ({
                   id: editor.id,
                   label: editor.name,
@@ -250,12 +265,15 @@ export const CodingAgentSession = ({
                 }}
               />
             </div>
-            {editorError && (
-              <p className="mt-2 text-sm text-destructive" role="alert">
+            {editorError ? (
+              <p className="mt-1 truncate text-xs text-destructive" role="alert">
                 {editorError.message}
               </p>
-            )}
+            ) : null}
           </div>
+          {headerActions ? (
+            <div className="shrink-0">{headerActions}</div>
+          ) : null}
         </div>
       </section>
       <div

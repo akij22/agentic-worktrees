@@ -128,9 +128,6 @@ export const CodingAgentWorkspace = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <div className="flex shrink-0 justify-end border-b border-border bg-card px-4 py-2">
-        <CodingAgentLayoutControls mode={mode} onModeChange={setMode} />
-      </div>
       <div
         ref={workspaceRef}
         style={
@@ -148,6 +145,10 @@ export const CodingAgentWorkspace = ({
           key={primaryRunId}
           runId={primaryRunId}
           showInspection={mode === "single"}
+          headerTitle="Coding Agent"
+          headerActions={
+            <CodingAgentLayoutControls mode={mode} onModeChange={setMode} />
+          }
         />
         {mode === "dual" ? (
           <>

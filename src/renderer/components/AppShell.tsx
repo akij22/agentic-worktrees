@@ -230,13 +230,15 @@ export const AppShell = () => {
           </div>
         ) : (
           <>
-            <header className="flex h-16 shrink-0 items-center border-b border-border px-6">
-              <h1 className="text-base font-semibold tracking-tight">
-                {navItems.find((i) =>
-                  i.end ? i.to === location.pathname : location.pathname.startsWith(i.to),
-                )?.label ?? 'Dashboard'}
-              </h1>
-            </header>
+            {!isCodingAgentSession ? (
+              <header className="flex h-16 shrink-0 items-center border-b border-border px-6">
+                <h1 className="text-base font-semibold tracking-tight">
+                  {navItems.find((i) =>
+                    i.end ? i.to === location.pathname : location.pathname.startsWith(i.to),
+                  )?.label ?? 'Dashboard'}
+                </h1>
+              </header>
+            ) : null}
             <div
               className={
                 isCodingAgentSession
