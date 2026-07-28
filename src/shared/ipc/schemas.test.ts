@@ -8,6 +8,10 @@ import {
   editorOpenRequestSchema,
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
+  workspaceCommitRequestSchema,
+  workspaceDirectoryRequestSchema,
+  workspacePullRequestRequestSchema,
+  workspaceTerminalResizeRequestSchema,
 } from './schemas';
 
 describe('GitHub authentication IPC schemas', () => {
@@ -130,5 +134,92 @@ describe('coding agent IPC schemas', () => {
     expect(() =>
       codingAgentSessionViewedRequestSchema.parse({ runId: '  ' }),
     ).toThrow();
+  });
+});
+
+describe('workspace IPC schemas', () => {
+  it('accepts worktree-relative directory requests', () => {
+    expect(
+      workspaceDirectoryRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        relativePath: 'src/renderer',
+      }),
+    ).toEqual({
+      worktreeId: 'worktree-1',
+      relativePath: 'src/renderer',
+    });
+  });
+
+  it.each([
+    '../outside',
+    'src/../../outside',
+    '/Users/example/project',
+    '\\\\server\\share',
+    'C:\\workspace',
+  ])('rejects unsafe workspace path %s', (relativePath) => {
+    expect(() =>
+      workspaceDirectoryRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        relativePath,
+      }),
+    ).toThrow();
+  });
+
+  it('bounds terminal dimensions', () => {
+    expect(() =>
+      workspaceTerminalResizeRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        terminalId: 'terminal-1',
+        cols: 0,
+        rows: 24,
+      }),
+    ).toThrow();
+    expect(
+      workspaceTerminalResizeRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        terminalId: 'terminal-1',
+        cols: 120,
+        rows: 32,
+      }),
+    ).toEqual({
+      worktreeId: 'worktree-1',
+      terminalId: 'terminal-1',
+      cols: 120,
+      rows: 32,
+    });
+  });
+
+  it('requires a non-empty commit message', () => {
+    expect(() =>
+      workspaceCommitRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        message: '   ',
+      }),
+    ).toThrow();
+    expect(
+      workspaceCommitRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        message: 'Add workspace panel',
+      }),
+    ).toEqual({
+      worktreeId: 'worktree-1',
+      message: 'Add workspace panel',
+    });
+  });
+
+  it('accepts editable pull request metadata', () => {
+    expect(
+      workspacePullRequestRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        title: 'Add workspace panel',
+        body: 'Implements integrated workspace tools.',
+        baseBranch: 'main',
+      }),
+    ).toEqual({
+      worktreeId: 'worktree-1',
+      title: 'Add workspace panel',
+      body: 'Implements integrated workspace tools.',
+      baseBranch: 'main',
+    });
   });
 });

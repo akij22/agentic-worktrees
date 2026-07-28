@@ -66,4 +66,28 @@ describe('preload GitHub auth status subscription', () => {
       { runId: 'run-1' },
     );
   });
+
+  it('forwards workspace directory requests on the dedicated channel', async () => {
+    const api = mocks.exposed as {
+      workspace: {
+        files: {
+          listDirectory: (request: {
+            worktreeId: string;
+            relativePath: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([]);
+
+    await api.workspace.files.listDirectory({
+      worktreeId: 'worktree-1',
+      relativePath: 'src',
+    });
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST,
+      { worktreeId: 'worktree-1', relativePath: 'src' },
+    );
+  });
 });
