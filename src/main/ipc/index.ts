@@ -28,6 +28,18 @@ import {
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
   repositoryImportRemoteRequestSchema,
+  workspaceCommitRequestSchema,
+  workspaceDirectoryRequestSchema,
+  workspaceFileReadRequestSchema,
+  workspaceGitRequestSchema,
+  workspacePullRequestRequestSchema,
+  workspacePullRequestResultSchema,
+  workspaceTerminalCreateRequestSchema,
+  workspaceTerminalDisposeRequestSchema,
+  workspaceTerminalEventSchema,
+  workspaceTerminalResizeRequestSchema,
+  workspaceTerminalRestartRequestSchema,
+  workspaceTerminalWriteRequestSchema,
   worktreeCreateRequestSchema,
   worktreeListRequestSchema,
 } from '../../shared/ipc/schemas';
@@ -53,6 +65,9 @@ import {
   upsertRepositoriesFromRemote,
 } from '../repositories/repository-service';
 import { importLocalRepository } from '../repositories/local-repository-service';
+import { workspaceFileService } from '../workspace/workspace-file-service';
+import { workspaceGitService } from '../workspace/workspace-git-service';
+import { workspaceTerminalService } from '../workspace/workspace-terminal-service';
 import {
   abortAgentSession,
   compactAgentSession,
@@ -243,6 +258,111 @@ const handleEditorOpen = async (
   await openEditor(request.editorId, worktreePath);
 };
 
+const handleWorkspaceDirectoryList = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = workspaceDirectoryRequestSchema.parse(rawRequest);
+  return workspaceFileService.listDirectory(
+    request.worktreeId,
+    request.relativePath,
+  );
+};
+
+const handleWorkspaceFileRead = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = workspaceFileReadRequestSchema.parse(rawRequest);
+  return workspaceFileService.readFile(
+    request.worktreeId,
+    request.relativePath,
+  );
+};
+
+const handleWorkspaceTerminalCreate = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) =>
+  workspaceTerminalService.create(
+    workspaceTerminalCreateRequestSchema.parse(rawRequest),
+  );
+
+const handleWorkspaceTerminalWrite = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  workspaceTerminalService.write(
+    workspaceTerminalWriteRequestSchema.parse(rawRequest),
+  );
+};
+
+const handleWorkspaceTerminalResize = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  workspaceTerminalService.resize(
+    workspaceTerminalResizeRequestSchema.parse(rawRequest),
+  );
+};
+
+const handleWorkspaceTerminalRestart = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) =>
+  workspaceTerminalService.restart(
+    workspaceTerminalRestartRequestSchema.parse(rawRequest),
+  );
+
+const handleWorkspaceTerminalDispose = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  workspaceTerminalService.dispose(
+    workspaceTerminalDisposeRequestSchema.parse(rawRequest),
+  );
+};
+
+const handleWorkspaceGitStatus = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = workspaceGitRequestSchema.parse(rawRequest);
+  return workspaceGitService.getStatus(request.worktreeId);
+};
+
+const handleWorkspaceGitCommit = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = workspaceCommitRequestSchema.parse(rawRequest);
+  return workspaceGitService.commit(request.worktreeId, request.message);
+};
+
+const handleWorkspaceGitPush = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = workspaceGitRequestSchema.parse(rawRequest);
+  return workspaceGitService.push(request.worktreeId);
+};
+
+const handleWorkspaceGitOpenPullRequest = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = workspacePullRequestRequestSchema.parse(rawRequest);
+  const result = workspacePullRequestResultSchema.parse(
+    await workspaceGitService.createPullRequest(request),
+  );
+  const url = new URL(result.url);
+  if (url.protocol !== 'https:' || url.hostname !== 'github.com') {
+    throw new Error('GitHub returned an unsupported pull request URL.');
+  }
+  await shell.openExternal(result.url);
+  return result;
+};
+
 const handleCodingAgentSelectExecutable = async (
   _event: IpcMainInvokeEvent,
   rawRequest: unknown,
@@ -415,6 +535,50 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.EDITOR_LIST_AVAILABLE, requireAuthenticated(() => listAvailableEditors()));
   ipcMain.handle(IPC_CHANNELS.EDITOR_OPEN, requireAuthenticated(handleEditorOpen));
   ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST,
+    requireAuthenticated(handleWorkspaceDirectoryList),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_FILE_READ,
+    requireAuthenticated(handleWorkspaceFileRead),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_TERMINAL_CREATE,
+    requireAuthenticated(handleWorkspaceTerminalCreate),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_TERMINAL_WRITE,
+    requireAuthenticated(handleWorkspaceTerminalWrite),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_TERMINAL_RESIZE,
+    requireAuthenticated(handleWorkspaceTerminalResize),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_TERMINAL_RESTART,
+    requireAuthenticated(handleWorkspaceTerminalRestart),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_TERMINAL_DISPOSE,
+    requireAuthenticated(handleWorkspaceTerminalDispose),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_GIT_STATUS,
+    requireAuthenticated(handleWorkspaceGitStatus),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_GIT_COMMIT,
+    requireAuthenticated(handleWorkspaceGitCommit),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_GIT_PUSH,
+    requireAuthenticated(handleWorkspaceGitPush),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_GIT_OPEN_PR,
+    requireAuthenticated(handleWorkspaceGitOpenPullRequest),
+  );
+  ipcMain.handle(
     IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE,
     requireAuthenticated(handleCodingAgentSelectExecutable),
   );
@@ -474,6 +638,15 @@ export const registerIpcHandlers = (): void => {
   subscribeToAgentEvents((event) => {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(IPC_CHANNELS.CODING_AGENT_EVENT, event);
+    }
+  });
+  workspaceTerminalService.subscribe((event) => {
+    const publicEvent = workspaceTerminalEventSchema.parse(event);
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(
+        IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT,
+        publicEvent,
+      );
     }
   });
 };

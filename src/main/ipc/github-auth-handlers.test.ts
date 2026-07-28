@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   assertAuthenticated: vi.fn(),
   subscribeStatus: vi.fn(),
   listRemoteRepositories: vi.fn(),
+  listDirectory: vi.fn(),
+  createPullRequest: vi.fn(),
+  subscribeTerminal: vi.fn(),
   windows: [] as Array<{ webContents: { send: ReturnType<typeof vi.fn> } }>,
 }));
 
@@ -60,6 +63,33 @@ vi.mock('../github/config', () => ({
     appSlug: 'agentic-worktrees-test',
     clientId: 'Iv1.test-client',
     webBaseUrl: 'https://github.com',
+  },
+}));
+
+vi.mock('../workspace/workspace-file-service', () => ({
+  workspaceFileService: {
+    listDirectory: mocks.listDirectory,
+    readFile: vi.fn(),
+  },
+}));
+
+vi.mock('../workspace/workspace-git-service', () => ({
+  workspaceGitService: {
+    getStatus: vi.fn(),
+    commit: vi.fn(),
+    push: vi.fn(),
+    createPullRequest: mocks.createPullRequest,
+  },
+}));
+
+vi.mock('../workspace/workspace-terminal-service', () => ({
+  workspaceTerminalService: {
+    create: vi.fn(),
+    write: vi.fn(),
+    resize: vi.fn(),
+    restart: vi.fn(),
+    dispose: vi.fn(),
+    subscribe: mocks.subscribeTerminal,
   },
 }));
 
@@ -142,6 +172,17 @@ describe('GitHub authentication IPC handlers', () => {
     IPC_CHANNELS.WORKTREE_LIST_ALL,
     IPC_CHANNELS.EDITOR_LIST_AVAILABLE,
     IPC_CHANNELS.EDITOR_OPEN,
+    IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST,
+    IPC_CHANNELS.WORKSPACE_FILE_READ,
+    IPC_CHANNELS.WORKSPACE_TERMINAL_CREATE,
+    IPC_CHANNELS.WORKSPACE_TERMINAL_WRITE,
+    IPC_CHANNELS.WORKSPACE_TERMINAL_RESIZE,
+    IPC_CHANNELS.WORKSPACE_TERMINAL_RESTART,
+    IPC_CHANNELS.WORKSPACE_TERMINAL_DISPOSE,
+    IPC_CHANNELS.WORKSPACE_GIT_STATUS,
+    IPC_CHANNELS.WORKSPACE_GIT_COMMIT,
+    IPC_CHANNELS.WORKSPACE_GIT_PUSH,
+    IPC_CHANNELS.WORKSPACE_GIT_OPEN_PR,
     IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE,
     IPC_CHANNELS.CODING_AGENT_STATUS,
     IPC_CHANNELS.CODING_AGENT_MODELS,
@@ -175,6 +216,70 @@ describe('GitHub authentication IPC handlers', () => {
     ]);
     expect(mocks.assertAuthenticated).toHaveBeenCalledOnce();
     expect(mocks.listRemoteRepositories).toHaveBeenCalledOnce();
+  });
+
+  it('validates and delegates workspace directory listing', async () => {
+    mocks.listDirectory.mockResolvedValueOnce([]);
+
+    await expect(
+      invoke(IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST, {
+        worktreeId: 'worktree-1',
+        relativePath: 'src',
+      }),
+    ).resolves.toEqual([]);
+
+    expect(mocks.listDirectory).toHaveBeenCalledWith('worktree-1', 'src');
+  });
+
+  it('opens only the pull request URL returned by the workspace service', async () => {
+    mocks.createPullRequest.mockResolvedValueOnce({
+      number: 41,
+      url: 'https://github.com/owner/repo/pull/41',
+    });
+    mocks.openExternal.mockResolvedValueOnce(undefined);
+
+    await expect(
+      invoke(IPC_CHANNELS.WORKSPACE_GIT_OPEN_PR, {
+        worktreeId: 'worktree-1',
+        title: 'Add workspace panel',
+        body: '',
+        baseBranch: 'main',
+        url: 'https://attacker.example',
+      }),
+    ).resolves.toEqual({
+      number: 41,
+      url: 'https://github.com/owner/repo/pull/41',
+    });
+
+    expect(mocks.openExternal).toHaveBeenCalledWith(
+      'https://github.com/owner/repo/pull/41',
+    );
+  });
+
+  it('broadcasts parsed terminal events to renderer windows', () => {
+    const send = vi.fn();
+    mocks.windows.push({ webContents: { send } });
+    const listener = mocks.subscribeTerminal.mock.calls[0]?.[0] as
+      | ((event: unknown) => void)
+      | undefined;
+
+    listener?.({
+      type: 'data',
+      worktreeId: 'worktree-1',
+      terminalId: 'terminal-1',
+      data: 'ready',
+      secret: 'strip-me',
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT,
+      {
+        type: 'data',
+        worktreeId: 'worktree-1',
+        terminalId: 'terminal-1',
+        data: 'ready',
+      },
+    );
   });
 
   it('broadcasts only parsed public authentication status changes', () => {

@@ -5,6 +5,9 @@ import { IPC_CHANNELS } from './shared/ipc/channels';
 const mocks = vi.hoisted(() => ({
   exposed: null as unknown,
   listener: null as ((event: unknown, payload: unknown) => void) | null,
+  terminalListener: null as
+    | ((event: unknown, payload: unknown) => void)
+    | null,
   removeListener: vi.fn(),
 }));
 
@@ -15,7 +18,11 @@ vi.mock('electron', () => ({
   ipcRenderer: {
     invoke: vi.fn(),
     on: vi.fn((_channel: string, listener: (event: unknown, payload: unknown) => void) => {
-      mocks.listener = listener;
+      if (_channel === IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT) {
+        mocks.terminalListener = listener;
+      } else {
+        mocks.listener = listener;
+      }
     }),
     removeListener: mocks.removeListener,
   },
@@ -25,6 +32,7 @@ describe('preload GitHub auth status subscription', () => {
   beforeEach(async () => {
     vi.resetModules();
     mocks.listener = null;
+    mocks.terminalListener = null;
     mocks.removeListener.mockClear();
     vi.mocked(ipcRenderer.invoke).mockClear();
     await import('./preload');
@@ -88,6 +96,39 @@ describe('preload GitHub auth status subscription', () => {
     expect(ipcRenderer.invoke).toHaveBeenCalledWith(
       IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST,
       { worktreeId: 'worktree-1', relativePath: 'src' },
+    );
+  });
+
+  it('parses workspace terminal events and removes the exact listener', () => {
+    const api = mocks.exposed as {
+      workspace: {
+        terminal: {
+          onEvent: (listener: (event: unknown) => void) => () => void;
+        };
+      };
+    };
+    const listener = vi.fn();
+    const cleanup = api.workspace.terminal.onEvent(listener);
+    const registered = mocks.terminalListener;
+
+    registered?.({}, {
+      type: 'data',
+      worktreeId: 'worktree-1',
+      terminalId: 'terminal-1',
+      data: 'ready',
+      secret: 'strip-me',
+    });
+
+    expect(listener).toHaveBeenCalledWith({
+      type: 'data',
+      worktreeId: 'worktree-1',
+      terminalId: 'terminal-1',
+      data: 'ready',
+    });
+    cleanup();
+    expect(mocks.removeListener).toHaveBeenCalledWith(
+      IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT,
+      registered,
     );
   });
 });
