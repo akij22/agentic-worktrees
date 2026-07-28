@@ -4,8 +4,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Api } from '../../../../shared/ipc/api';
+import type { WorkspaceGitStatusDto } from '../../../../shared/ipc/schemas';
 import { FileBrowserPanel } from './FileBrowserPanel';
 import { TerminalPanel } from './TerminalPanel';
+import { WorkspaceGitActions } from './WorkspaceGitActions';
 
 const mocks = vi.hoisted(() => ({
   listDirectory:
@@ -29,6 +31,11 @@ const mocks = vi.hoisted(() => ({
   xtermOpen: vi.fn(),
   xtermDispose: vi.fn(),
   fit: vi.fn(),
+  getGitStatus: vi.fn<Api['workspace']['git']['getStatus']>(),
+  commit: vi.fn<Api['workspace']['git']['commit']>(),
+  push: vi.fn<Api['workspace']['git']['push']>(),
+  openPullRequest:
+    vi.fn<Api['workspace']['git']['openPullRequest']>(),
 }));
 
 vi.mock('@xterm/xterm', () => ({
@@ -71,8 +78,31 @@ const api = {
         return vi.fn();
       },
     },
+    git: {
+      getStatus: mocks.getGitStatus,
+      commit: mocks.commit,
+      push: mocks.push,
+      openPullRequest: mocks.openPullRequest,
+    },
   },
 } as unknown as Api;
+
+const gitStatus = (
+  overrides: Partial<WorkspaceGitStatusDto> = {},
+): WorkspaceGitStatusDto => ({
+  hasChanges: true,
+  hasOrigin: true,
+  hasUpstream: false,
+  ahead: 1,
+  behind: 0,
+  hasUnpushedCommits: true,
+  currentBranch: 'feat/side-panel',
+  baseBranch: 'main',
+  githubLinked: true,
+  pullRequestEligible: false,
+  suggestedPullRequestTitle: 'Add workspace panel',
+  ...overrides,
+});
 
 describe('workspace file browser', () => {
   beforeEach(() => {
@@ -252,6 +282,117 @@ describe('workspace terminal panel', () => {
       terminalId: 'terminal-1',
       cols: 100,
       rows: 30,
+    });
+  });
+});
+
+describe('workspace Git actions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getGitStatus.mockResolvedValue(gitStatus());
+    mocks.commit.mockResolvedValue(
+      gitStatus({ hasChanges: false, ahead: 2 }),
+    );
+    mocks.push.mockResolvedValue(
+      gitStatus({
+        hasChanges: false,
+        hasUpstream: true,
+        ahead: 0,
+        hasUnpushedCommits: false,
+        pullRequestEligible: true,
+      }),
+    );
+    mocks.openPullRequest.mockResolvedValue({
+      number: 41,
+      url: 'https://github.com/owner/repo/pull/41',
+    });
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: api,
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  it('requires a commit message and commits all changes', async () => {
+    const user = userEvent.setup();
+    render(<WorkspaceGitActions worktreeId="worktree-1" />);
+    await waitFor(() =>
+      expect(mocks.getGitStatus).toHaveBeenCalledWith({
+        worktreeId: 'worktree-1',
+      }),
+    );
+
+    await user.click(screen.getByRole('button', { name: /^commit$/i }));
+    const submit = screen.getByRole('button', { name: /crea commit/i });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+
+    await user.type(
+      screen.getByLabelText(/messaggio di commit/i),
+      'Add workspace side panel',
+    );
+    await user.click(submit);
+
+    expect(mocks.commit).toHaveBeenCalledWith({
+      worktreeId: 'worktree-1',
+      message: 'Add workspace side panel',
+    });
+  });
+
+  it('pushes unpublished commits and refreshes availability', async () => {
+    const user = userEvent.setup();
+    render(<WorkspaceGitActions worktreeId="worktree-1" />);
+    const push = await screen.findByRole('button', { name: /^push$/i });
+
+    await user.click(push);
+
+    expect(mocks.push).toHaveBeenCalledWith({
+      worktreeId: 'worktree-1',
+    });
+  });
+
+  it('hides Open PR for repositories not linked to GitHub', async () => {
+    mocks.getGitStatus.mockResolvedValueOnce(
+      gitStatus({ githubLinked: false }),
+    );
+
+    render(<WorkspaceGitActions worktreeId="worktree-1" />);
+    await waitFor(() => expect(mocks.getGitStatus).toHaveBeenCalledOnce());
+
+    expect(
+      screen.queryByRole('button', { name: /open pr/i }),
+    ).toBeNull();
+  });
+
+  it('submits editable pull request metadata for an eligible branch', async () => {
+    mocks.getGitStatus.mockResolvedValueOnce(
+      gitStatus({
+        hasUpstream: true,
+        ahead: 0,
+        hasUnpushedCommits: false,
+        pullRequestEligible: true,
+      }),
+    );
+    const user = userEvent.setup();
+    render(<WorkspaceGitActions worktreeId="worktree-1" />);
+
+    await user.click(
+      await screen.findByRole('button', { name: /open pr/i }),
+    );
+    const title = screen.getByLabelText(/titolo/i);
+    await user.clear(title);
+    await user.type(title, 'Ship workspace tools');
+    await user.type(
+      screen.getByLabelText(/descrizione/i),
+      'Adds terminal and file explorer.',
+    );
+    await user.click(screen.getByRole('button', { name: /crea pr/i }));
+
+    expect(mocks.openPullRequest).toHaveBeenCalledWith({
+      worktreeId: 'worktree-1',
+      title: 'Ship workspace tools',
+      body: 'Adds terminal and file explorer.',
+      baseBranch: 'main',
     });
   });
 });

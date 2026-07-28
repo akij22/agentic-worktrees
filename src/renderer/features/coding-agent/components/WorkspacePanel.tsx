@@ -83,6 +83,7 @@ export const WorkspacePanel = ({
         data-run-id={runId}
       >
         <ReviewPanel
+          worktreeId={worktreeId}
           diff={diff}
           focusedFile={focusedFile}
           onFocusedFileConsumed={onFocusedFileConsumed}

@@ -93,6 +93,7 @@ describe("coding agent layout components", () => {
   it("renders file diffs as independently expandable sections", () => {
     const markup = renderToStaticMarkup(
       <ReviewPanel
+        worktreeId="worktree-1"
         diff={[
           {
             file: "src/first.ts",
