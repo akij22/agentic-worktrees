@@ -9,7 +9,7 @@ export const DiffPreview = ({ diff }: { diff: CodingAgentDiffDto }) => {
   );
   return (
     <div className="border-t border-border/70 bg-background">
-      <div className="max-h-[32rem] overflow-auto py-1 font-mono text-[11px] leading-5">
+      <div className="diff-code-font max-h-[32rem] overflow-auto py-1 text-[11px] leading-5">
         {lines.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-muted-foreground">
             No line changes to display.
@@ -22,12 +22,6 @@ export const DiffPreview = ({ diff }: { diff: CodingAgentDiffDto }) => {
                 : line.type === "deletion"
                   ? "border-l-2 border-rose-400 bg-rose-500/10 text-rose-100"
                   : "border-l-2 border-transparent text-muted-foreground hover:bg-muted/30";
-            const marker =
-              line.type === "addition"
-                ? "+"
-                : line.type === "deletion"
-                  ? "−"
-                  : " ";
             return (
               <div
                 key={`${line.type}-${line.oldLine ?? "new"}-${line.newLine ?? "old"}-${index}`}
@@ -38,9 +32,6 @@ export const DiffPreview = ({ diff }: { diff: CodingAgentDiffDto }) => {
                 </span>
                 <span className="w-10 shrink-0 select-none px-1 text-right text-muted-foreground/50">
                   {line.newLine ?? ""}
-                </span>
-                <span className="w-5 shrink-0 select-none text-center font-semibold opacity-80">
-                  {marker}
                 </span>
                 <span className="whitespace-pre px-2">
                   {line.content || " "}

@@ -7,6 +7,7 @@ import type {
 import type { SessionGridDetail } from "../types";
 import { buildSecondarySessionOptions } from "../lib/secondary-session-options";
 import { CodingAgentLayoutControls } from "./CodingAgentLayoutControls";
+import { DiffPreview } from "./DiffPreview";
 import { ReviewPanel } from "./ReviewPanel";
 import { SecondarySessionSelector } from "./SecondarySessionSelector";
 import { WorkspacePanel } from "./WorkspacePanel";
@@ -119,6 +120,26 @@ describe("coding agent layout components", () => {
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain("const value = 2;");
     expect(markup).not.toContain("export const secondFile = true;");
+  });
+
+  it("uses the dedicated code font and color alone for changed diff lines", () => {
+    const markup = renderToStaticMarkup(
+      <DiffPreview
+        diff={{
+          file: "src/example.ts",
+          before: "removed();",
+          after: "added();",
+          additions: 1,
+          deletions: 1,
+        }}
+      />,
+    );
+
+    expect(markup).toContain("diff-code-font");
+    expect(markup).toContain("removed();");
+    expect(markup).toContain("added();");
+    expect(markup).not.toContain(">+</span>");
+    expect(markup).not.toContain(">−</span>");
   });
 
   it("renders accessible single and dual layout controls", () => {
