@@ -200,3 +200,12 @@
     letter-spacing: var(--tracking-normal);
   }
 }
+
+@layer components {
+  .diff-code-font {
+    font-family:
+      ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas,
+      "Liberation Mono", monospace;
+    font-variant-ligatures: none;
+  }
+}
