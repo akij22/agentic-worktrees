@@ -3,7 +3,6 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {
   AlertCircle,
-  CircleDot,
   LoaderCircle,
   RotateCcw,
 } from 'lucide-react';
@@ -32,7 +31,6 @@ export const TerminalPanel = ({
   const startingRef = useRef(false);
   const disposedRef = useRef(false);
   const pendingEventsRef = useRef<WorkspaceTerminalEventDto[]>([]);
-  const [starting, setStarting] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [exitCode, setExitCode] = useState<number>();
   const [error, setError] = useState<string>();
@@ -145,7 +143,6 @@ export const TerminalPanel = ({
       return;
     }
     startingRef.current = true;
-    setStarting(true);
     setError(undefined);
     fitAddonRef.current?.fit();
     void window.api.workspace.terminal
@@ -165,7 +162,6 @@ export const TerminalPanel = ({
       .catch((cause) => setError(errorMessage(cause)))
       .finally(() => {
         startingRef.current = false;
-        setStarting(false);
       });
   }, [active, dimensions, processEvent, worktreeId]);
 
@@ -202,24 +198,12 @@ export const TerminalPanel = ({
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-[#0f1115]" aria-label="Terminale del worktree">
       <header className="flex min-h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3 text-gray-300">
-        <CircleDot
-          aria-hidden="true"
-          className={`size-3 ${
-            exitCode === undefined ? 'text-emerald-400' : 'text-amber-400'
-          }`}
-        />
-        <span className="flex-1 text-[11px] font-medium">
-          {starting
-            ? 'Avvio terminale…'
-            : exitCode === undefined
-              ? 'Shell attiva'
-              : `Processo terminato · codice ${exitCode}`}
-        </span>
         {exitCode !== undefined ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
+            aria-label={`Riavvia terminale · codice ${exitCode}`}
             disabled={restarting}
             onClick={() => void restart()}
             className="h-7 border-white/15 bg-white/5 px-2 text-[10px] text-gray-200 hover:bg-white/10 hover:text-white"

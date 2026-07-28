@@ -262,7 +262,7 @@ describe('workspace terminal panel', () => {
     expect(mocks.xtermDispose).toHaveBeenCalledOnce();
   });
 
-  it('shows terminal exit state and restarts with current dimensions', async () => {
+  it('exposes the terminal exit code on the restart action', async () => {
     const user = userEvent.setup();
     render(<TerminalPanel worktreeId="worktree-1" active />);
     await waitFor(() => expect(mocks.createTerminal).toHaveBeenCalledOnce());
@@ -274,8 +274,10 @@ describe('workspace terminal panel', () => {
       exitCode: 7,
     });
 
-    expect(await screen.findByText(/codice 7/i)).toBeDefined();
-    await user.click(screen.getByRole('button', { name: /riavvia/i }));
+    const restart = await screen.findByRole('button', {
+      name: /riavvia terminale.*codice 7/i,
+    });
+    await user.click(restart);
 
     expect(mocks.restartTerminal).toHaveBeenCalledWith({
       worktreeId: 'worktree-1',
