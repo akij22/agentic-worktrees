@@ -7,7 +7,7 @@ import type { Repository } from '../../shared/db/schema';
 
 const GIT_COMMAND_TIMEOUT_MS = 120_000;
 
-const createGitClient = (
+export const createAuthenticatedGitClient = (
   baseDir?: string,
   accessToken?: string,
 ): SimpleGit => {
@@ -90,7 +90,7 @@ export const ensureClone = async (repo: Repository): Promise<string> => {
     if (repo.githubRepoId < 0) {
       return repo.localRootPath;
     }
-    const git = createGitClient(repo.localRootPath, accessToken);
+    const git = createAuthenticatedGitClient(repo.localRootPath, accessToken);
     await git.fetch(['origin', '--prune']);
     return repo.localRootPath;
   }
@@ -99,7 +99,7 @@ export const ensureClone = async (repo: Repository): Promise<string> => {
   ensureDirFor(targetPath);
 
   if (existsSync(targetPath)) {
-    const git = createGitClient(targetPath, accessToken);
+    const git = createAuthenticatedGitClient(targetPath, accessToken);
     const isBareRepository =
       (await git.raw(['rev-parse', '--is-bare-repository'])).trim() === 'true';
     if (!isBareRepository) {
@@ -109,7 +109,7 @@ export const ensureClone = async (repo: Repository): Promise<string> => {
     return targetPath;
   }
 
-  await createGitClient(undefined, accessToken).clone(
+  await createAuthenticatedGitClient(undefined, accessToken).clone(
     repo.cloneUrl,
     targetPath,
     ['--bare'],
@@ -135,7 +135,7 @@ export const createWorktreeFromBranch = async (
   const sourcePath = await ensureClone(repo);
   const accessToken =
     repo.githubRepoId < 0 ? undefined : await getGitHubAccessToken();
-  const git = createGitClient(sourcePath, accessToken);
+  const git = createAuthenticatedGitClient(sourcePath, accessToken);
 
   const worktreeRoot = getWorktreeRootPath(repo);
   const worktreePath = path.join(worktreeRoot, sanitizeBranchName(worktreeName));
