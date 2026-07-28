@@ -158,14 +158,13 @@ export const RepositoryWorkspace = ({
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto px-4 pb-4">
-              <div className="sticky top-0 z-10 grid min-w-[650px] grid-cols-[minmax(220px,1.4fr)_minmax(120px,.7fr)_minmax(100px,.6fr)_minmax(110px,.65fr)_28px] items-center gap-3 border-b border-border bg-background px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              <div className="sticky top-0 z-10 grid min-w-[540px] grid-cols-[minmax(220px,1.4fr)_minmax(120px,.7fr)_minmax(110px,.65fr)_28px] items-center gap-3 border-b border-border bg-background px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
                 <span>Worktree / branch</span>
                 <span>Base branch</span>
-                <span>Status</span>
                 <span>Chat status</span>
                 <span />
               </div>
-              <div className="min-w-[650px] py-1.5">
+              <div className="min-w-[540px] py-1.5">
                 {worktrees.map((worktree) => {
                   const selected = worktree.id === selectedWorktree?.id;
                   const chatStatus = getDashboardChatStatus(
@@ -179,7 +178,7 @@ export const RepositoryWorkspace = ({
                       aria-current={selected ? 'true' : undefined}
                       onClick={() => onSelectWorktree(worktree.id)}
                       className={cn(
-                        'grid w-full grid-cols-[minmax(220px,1.4fr)_minmax(120px,.7fr)_minmax(100px,.6fr)_minmax(110px,.65fr)_28px] items-center gap-3 rounded-md border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        'grid w-full grid-cols-[minmax(220px,1.4fr)_minmax(120px,.7fr)_minmax(110px,.65fr)_28px] items-center gap-3 rounded-md border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         selected
                           ? 'border-primary/30 bg-accent text-accent-foreground'
                           : 'border-transparent hover:border-border hover:bg-muted/50',
@@ -196,9 +195,6 @@ export const RepositoryWorkspace = ({
                       <span className="truncate font-mono text-[11px] text-muted-foreground">
                         {worktree.baseBranchName ?? '—'}
                       </span>
-                      <Badge variant="outline" className="w-fit">
-                        {statusLabel(worktree.status)}
-                      </Badge>
                       <span
                         aria-label={`Chat status: ${chatPresentation.label}`}
                         className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"

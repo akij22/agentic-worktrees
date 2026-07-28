@@ -181,6 +181,7 @@ describe('Dashboard repository workspace components', () => {
     expect(markup).toContain('Changed files');
     expect(markup).toContain('src/renderer/pages/Dashboard.tsx');
     expect(markup).toContain('aria-current="true"');
+    expect(markup).not.toContain('<span>Status</span>');
   });
 
   it('renders the four chat states in the worktree table', () => {
