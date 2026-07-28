@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { CodingAgentDiffDto } from '../../../../shared/ipc/schemas';
+import { FileBrowserPanel } from './FileBrowserPanel';
 import { ReviewPanel } from './ReviewPanel';
 import {
   getWorkspaceModeLabel,
@@ -82,6 +83,8 @@ export const WorkspacePanel = ({
           focusedFile={focusedFile}
           onFocusedFileConsumed={onFocusedFileConsumed}
         />
+      ) : mode === 'files' ? (
+        <FileBrowserPanel worktreeId={worktreeId} />
       ) : (
         <div
           className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-sm text-muted-foreground"
