@@ -1,0 +1,20 @@
+.workspace-terminal {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 42%),
+    color-mix(in oklab, var(--background) 96%, black);
+}
+
+.workspace-terminal .xterm {
+  height: 100%;
+  padding: 0.75rem;
+}
+
+.workspace-terminal .xterm-viewport,
+.workspace-terminal .xterm-screen {
+  height: 100% !important;
+}
+
+.workspace-terminal .xterm-viewport {
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent)
+    transparent;
+}

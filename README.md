@@ -42,7 +42,10 @@
   - Create and resume coding sessions with independent, persistent context for a specific worktree.
   - Send natural-language coding requests and receive streamed agent activity.
   - Select the model and reasoning level available for the active harness.
-  - Review session messages, changed files, additions, deletions, and file-level diffs.
+  - Review session messages and inspect changed files, additions, deletions, and file-level diffs in the session side panel.
+  - Commit all current worktree changes, push unpublished commits, and open a non-draft pull request from the review panel when the repository is linked to GitHub.
+  - Open an integrated terminal rooted in the current worktree without leaving the coding session.
+  - Explore the current worktree through a recursive file tree and preview supported text files in read-only mode.
   - Handle interactive approval requests and abort an active session when needed.
   - Run Codex turns with explicit `workspace-write` sandboxing and `on-request` approval defaults.
   - Persist session metadata, messages, output events, and diffs in the local SQLite database.
@@ -63,6 +66,7 @@
 - **Backend communication:** Typed Electron IPC with Zod request and response validation
 - **Git integration:** `simple-git` and native Git commands
 - **GitHub integration:** Octokit
+- **Integrated terminal:** Xterm.js backed by `node-pty`
 - **AI coding agents:** OpenCode SDK/server and Codex `app-server`, both managed as local processes
 - **Persistence:** SQLite through `better-sqlite3`, Drizzle ORM, and Drizzle Kit migrations
 - **Testing:** Vitest
@@ -156,8 +160,10 @@ Database migrations are initialized by the application. When database schema def
 5. Select a repository, choose a base branch, enter a new branch name and worktree name, and create the worktree.
 6. Open the new worktree in one of the detected editors, or start a coding-agent session for it.
 7. Choose OpenCode or Codex explicitly when creating a chat. Each chat retains its own harness identity and conversation context.
-8. In a coding-agent session, choose an available model and reasoning level, describe the requested change, and review the streamed response and generated diff.
-9. Approve or reject interactive permission requests, and use the stop action to abort a running session. Codex uses `workspace-write` with `on-request` approvals by default.
-10. Use **Settings** to sign out of GitHub or select/change either local coding-agent executable. Codex reuses the authentication and configuration of the selected local CLI; the application does not request separate Codex credentials.
+8. In a coding-agent session, choose an available model and reasoning level, describe the requested change, and review the streamed response.
+9. Use the session side panel to switch between **Review**, **Terminal**, and **Files**. Review shows the generated diff and the available Git publishing actions, Terminal starts in the current worktree, and Files provides recursive navigation with read-only text previews.
+10. From **Review**, create a commit for all current changes and push unpublished commits. For GitHub-linked repositories, open a non-draft pull request after the branch has been pushed.
+11. Approve or reject interactive permission requests, and use the stop action to abort a running session. Codex uses `workspace-write` with `on-request` approvals by default.
+12. Use **Settings** to sign out of GitHub or select/change either local coding-agent executable. Codex reuses the authentication and configuration of the selected local CLI; the application does not request separate Codex credentials.
 
 The application stores its local database and encrypted credentials in Electron's application data directory. Keep the worktree workspace path backed up if the local worktree metadata is important to your workflow.

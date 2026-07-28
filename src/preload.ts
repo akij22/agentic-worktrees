@@ -4,6 +4,12 @@ import type { Api } from './shared/ipc/api';
 import {
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
+  workspaceDirectoryResponseSchema,
+  workspaceFilePreviewSchema,
+  workspaceGitStatusSchema,
+  workspacePullRequestResultSchema,
+  workspaceTerminalCreateResponseSchema,
+  workspaceTerminalEventSchema,
 } from './shared/ipc/schemas';
 
 const api: Api = {
@@ -70,6 +76,69 @@ const api: Api = {
   editors: {
     listAvailable: () => ipcRenderer.invoke(IPC_CHANNELS.EDITOR_LIST_AVAILABLE),
     open: (request) => ipcRenderer.invoke(IPC_CHANNELS.EDITOR_OPEN, request),
+  },
+  workspace: {
+    files: {
+      listDirectory: async (request) =>
+        workspaceDirectoryResponseSchema.parse(
+          await ipcRenderer.invoke(
+            IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST,
+            request,
+          ),
+        ),
+      readFile: async (request) =>
+        workspaceFilePreviewSchema.parse(
+          await ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_FILE_READ, request),
+        ),
+    },
+    terminal: {
+      create: async (request) =>
+        workspaceTerminalCreateResponseSchema.parse(
+          await ipcRenderer.invoke(
+            IPC_CHANNELS.WORKSPACE_TERMINAL_CREATE,
+            request,
+          ),
+        ),
+      write: (request) =>
+        ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_TERMINAL_WRITE, request),
+      resize: (request) =>
+        ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_TERMINAL_RESIZE, request),
+      restart: (request) =>
+        ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_TERMINAL_RESTART, request),
+      dispose: (request) =>
+        ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_TERMINAL_DISPOSE, request),
+      onEvent: (listener) => {
+        const handler = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+          listener(workspaceTerminalEventSchema.parse(payload));
+        ipcRenderer.on(IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT, handler);
+        return () =>
+          ipcRenderer.removeListener(
+            IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT,
+            handler,
+          );
+      },
+    },
+    git: {
+      getStatus: async (request) =>
+        workspaceGitStatusSchema.parse(
+          await ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_GIT_STATUS, request),
+        ),
+      commit: async (request) =>
+        workspaceGitStatusSchema.parse(
+          await ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_GIT_COMMIT, request),
+        ),
+      push: async (request) =>
+        workspaceGitStatusSchema.parse(
+          await ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_GIT_PUSH, request),
+        ),
+      openPullRequest: async (request) =>
+        workspacePullRequestResultSchema.parse(
+          await ipcRenderer.invoke(
+            IPC_CHANNELS.WORKSPACE_GIT_OPEN_PR,
+            request,
+          ),
+        ),
+    },
   },
   codingAgent: {
     selectExecutable: (request) =>

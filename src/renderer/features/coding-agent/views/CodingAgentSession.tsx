@@ -13,7 +13,7 @@ import type {
   CodingAgentSessionUsageDto,
   EditorId,
 } from "../../../../shared/ipc/schemas";
-import { InspectionPanel } from "../components/InspectionPanel";
+import { WorkspacePanel } from "../components/WorkspacePanel";
 import { SessionChangesSummary } from "../components/SessionChangesSummary";
 import { SessionComposer } from "../components/SessionComposer";
 import { SessionMessages } from "../components/SessionMessages";
@@ -358,8 +358,11 @@ export const CodingAgentSession = ({
                 className={`h-8 w-px rounded-full transition-all ${isResizing ? "h-12 bg-primary" : "bg-border group-hover:h-12 group-hover:bg-primary/70"}`}
               />
             </div>
-            <InspectionPanel
+            <WorkspacePanel
               key={runId}
+              runId={runId}
+              worktreeId={context.worktree.id}
+              worktreePath={context.worktree.path}
               diff={diff}
               focusedFile={sessionState.selectedSummaryFile}
               onFocusedFileConsumed={clearFocusedDiffFile}

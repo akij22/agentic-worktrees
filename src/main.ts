@@ -9,6 +9,7 @@ import {
   getAgentInstallationStatus,
   stopCodingAgents,
 } from './main/coding-agents/coding-agent-service';
+import { workspaceTerminalService } from './main/workspace/workspace-terminal-service';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -86,6 +87,7 @@ app.on('window-all-closed', () => {
 
 let codingAgentsStopped = false;
 app.on('before-quit', (event) => {
+  workspaceTerminalService.disposeAll();
   if (codingAgentsStopped) return;
   event.preventDefault();
   codingAgentsStopped = true;

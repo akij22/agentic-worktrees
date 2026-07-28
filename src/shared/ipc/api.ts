@@ -14,6 +14,11 @@ import type {
   GitHubAuthStatusDto,
   GitHubDeviceChallengeDto,
   RemoteRepositoryDto,
+  WorkspaceEntryDto,
+  WorkspaceFilePreviewDto,
+  WorkspaceGitStatusDto,
+  WorkspacePullRequestResultDto,
+  WorkspaceTerminalEventDto,
 } from './schemas';
 
 export interface Api {
@@ -63,6 +68,67 @@ export interface Api {
       editorId: EditorId;
       worktreeId: string;
     }) => Promise<void>;
+  };
+  workspace: {
+    files: {
+      listDirectory: (request: {
+        worktreeId: string;
+        relativePath: string;
+      }) => Promise<WorkspaceEntryDto[]>;
+      readFile: (request: {
+        worktreeId: string;
+        relativePath: string;
+      }) => Promise<WorkspaceFilePreviewDto>;
+    };
+    terminal: {
+      create: (request: {
+        worktreeId: string;
+        cols: number;
+        rows: number;
+      }) => Promise<{ terminalId: string }>;
+      write: (request: {
+        worktreeId: string;
+        terminalId: string;
+        data: string;
+      }) => Promise<void>;
+      resize: (request: {
+        worktreeId: string;
+        terminalId: string;
+        cols: number;
+        rows: number;
+      }) => Promise<void>;
+      restart: (request: {
+        worktreeId: string;
+        terminalId: string;
+        cols: number;
+        rows: number;
+      }) => Promise<void>;
+      dispose: (request: {
+        worktreeId: string;
+        terminalId: string;
+      }) => Promise<void>;
+      onEvent: (
+        listener: (event: WorkspaceTerminalEventDto) => void,
+      ) => () => void;
+    };
+    git: {
+      getStatus: (request: {
+        worktreeId: string;
+      }) => Promise<WorkspaceGitStatusDto>;
+      commit: (request: {
+        worktreeId: string;
+        message: string;
+      }) => Promise<WorkspaceGitStatusDto>;
+      push: (request: {
+        worktreeId: string;
+      }) => Promise<WorkspaceGitStatusDto>;
+      openPullRequest: (request: {
+        worktreeId: string;
+        title: string;
+        body: string;
+        baseBranch: string;
+      }) => Promise<WorkspacePullRequestResultDto>;
+    };
   };
   codingAgent: {
     selectExecutable: (request: {

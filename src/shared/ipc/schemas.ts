@@ -163,6 +163,151 @@ export const editorOpenRequestSchema = z.object({
 
 export type EditorOpenRequest = z.infer<typeof editorOpenRequestSchema>;
 
+const workspaceIdSchema = z.string().trim().min(1).max(256);
+const workspaceRelativePathSchema = z
+  .string()
+  .max(4096)
+  .refine(
+    (value) => !/^(?:[A-Za-z]:[\\/]|[\\/]{1,2})/.test(value),
+    'Path must be relative to the worktree.',
+  )
+  .refine(
+    (value) => !value.split(/[\\/]+/).includes('..'),
+    'Path must stay inside the worktree.',
+  );
+
+export const workspaceDirectoryRequestSchema = z.object({
+  worktreeId: workspaceIdSchema,
+  relativePath: workspaceRelativePathSchema.default(''),
+});
+
+export const workspaceFileReadRequestSchema = z.object({
+  worktreeId: workspaceIdSchema,
+  relativePath: workspaceRelativePathSchema.min(1),
+});
+
+export const workspaceEntrySchema = z.object({
+  name: z.string(),
+  relativePath: z.string(),
+  kind: z.enum(['file', 'directory']),
+  size: z.number().int().nonnegative().nullable(),
+  hidden: z.boolean(),
+});
+
+export type WorkspaceEntryDto = z.infer<typeof workspaceEntrySchema>;
+
+export const workspaceDirectoryResponseSchema = z.array(workspaceEntrySchema);
+
+export const workspaceFilePreviewSchema = z.object({
+  relativePath: z.string(),
+  size: z.number().int().nonnegative(),
+  kind: z.enum(['text', 'empty', 'binary', 'too_large']),
+  content: z.string().optional(),
+});
+
+export type WorkspaceFilePreviewDto = z.infer<
+  typeof workspaceFilePreviewSchema
+>;
+
+const workspaceTerminalIdentitySchema = z.object({
+  worktreeId: workspaceIdSchema,
+  terminalId: z.string().trim().min(1).max(256),
+});
+
+const terminalDimensionsSchema = z.object({
+  cols: z.number().int().min(1).max(500),
+  rows: z.number().int().min(1).max(300),
+});
+
+export const workspaceTerminalCreateRequestSchema = z
+  .object({ worktreeId: workspaceIdSchema })
+  .extend(terminalDimensionsSchema.shape);
+
+export const workspaceTerminalCreateResponseSchema = z.object({
+  terminalId: z.string().min(1),
+});
+
+export const workspaceTerminalWriteRequestSchema =
+  workspaceTerminalIdentitySchema.extend({
+    data: z.string().max(65_536),
+  });
+
+export const workspaceTerminalResizeRequestSchema =
+  workspaceTerminalIdentitySchema.extend(terminalDimensionsSchema.shape);
+
+export const workspaceTerminalRestartRequestSchema =
+  workspaceTerminalIdentitySchema.extend(terminalDimensionsSchema.shape);
+
+export const workspaceTerminalDisposeRequestSchema =
+  workspaceTerminalIdentitySchema;
+
+export const workspaceTerminalEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('data'),
+    worktreeId: workspaceIdSchema,
+    terminalId: z.string().min(1),
+    data: z.string(),
+  }),
+  z.object({
+    type: z.literal('exit'),
+    worktreeId: workspaceIdSchema,
+    terminalId: z.string().min(1),
+    exitCode: z.number().int(),
+  }),
+  z.object({
+    type: z.literal('error'),
+    worktreeId: workspaceIdSchema,
+    terminalId: z.string().min(1),
+    message: z.string(),
+  }),
+]);
+
+export type WorkspaceTerminalEventDto = z.infer<
+  typeof workspaceTerminalEventSchema
+>;
+
+export const workspaceGitRequestSchema = z.object({
+  worktreeId: workspaceIdSchema,
+});
+
+export const workspaceCommitRequestSchema = workspaceGitRequestSchema.extend({
+  message: z.string().trim().min(1).max(10_000),
+});
+
+export const workspacePullRequestRequestSchema =
+  workspaceGitRequestSchema.extend({
+    title: z.string().trim().min(1).max(256),
+    body: z.string().max(65_536),
+    baseBranch: z.string().trim().min(1).max(256),
+  });
+
+export const workspaceGitStatusSchema = z.object({
+  hasChanges: z.boolean(),
+  hasOrigin: z.boolean(),
+  hasUpstream: z.boolean(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  hasUnpushedCommits: z.boolean(),
+  currentBranch: z.string(),
+  baseBranch: z.string().nullable(),
+  githubLinked: z.boolean(),
+  pullRequestEligible: z.boolean(),
+  suggestedPullRequestTitle: z.string(),
+});
+
+export type WorkspaceGitStatusDto = z.infer<
+  typeof workspaceGitStatusSchema
+>;
+
+export const workspacePullRequestResultSchema = z.object({
+  number: z.number().int().positive(),
+  url: z.string().url(),
+});
+
+export type WorkspacePullRequestResultDto = z.infer<
+  typeof workspacePullRequestResultSchema
+>;
+
 export const codingAgentWorktreeContextSchema = z.object({
   worktree: z.custom<Worktree>(),
   repository: z.custom<Repository>(),

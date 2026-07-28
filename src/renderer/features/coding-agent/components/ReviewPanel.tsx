@@ -3,14 +3,17 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { CodingAgentDiffDto } from "../../../../shared/ipc/schemas";
 import { Badge } from "../../../components/ui/badge";
 import { DiffPreview } from "./DiffPreview";
+import { WorkspaceGitActions } from "./WorkspaceGitActions";
 
 type Props = {
+  worktreeId: string;
   diff: CodingAgentDiffDto[];
   focusedFile?: string;
   onFocusedFileConsumed?: () => void;
 };
 
-export const InspectionPanel = ({
+export const ReviewPanel = ({
+  worktreeId,
   diff,
   focusedFile,
   onFocusedFileConsumed,
@@ -64,16 +67,17 @@ export const InspectionPanel = ({
   };
 
   return (
-    <aside className="flex min-h-0 flex-col bg-muted/20 xl:overflow-hidden">
-      <div className="shrink-0 border-b border-border px-5 py-4">
+    <div className="flex min-h-0 flex-1 flex-col bg-muted/20 xl:overflow-hidden">
+      <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold">Inspection</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">Session diff</p>
+            <h3 className="text-sm font-semibold">Revisione</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Diff sessione</p>
           </div>
           <Badge variant="outline">{diff.length} files</Badge>
         </div>
       </div>
+      <WorkspaceGitActions worktreeId={worktreeId} />
       {diff.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-muted-foreground">
           No changes to inspect yet.
@@ -128,6 +132,6 @@ export const InspectionPanel = ({
           </div>
         </div>
       )}
-    </aside>
+    </div>
   );
 };
