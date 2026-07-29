@@ -33,7 +33,7 @@ export const buildSessionMessageEntries = (
       } else {
         openThought = {
           kind: "thought",
-          key: message.id,
+          key: `thought:${message.id}`,
           text: message.reasoning,
         };
         entries.push(openThought);

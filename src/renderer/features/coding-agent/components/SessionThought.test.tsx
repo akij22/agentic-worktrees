@@ -245,6 +245,20 @@ describe("SessionThought", () => {
     expect(markup).toContain('aria-expanded="false"');
   });
 
+  it("renders thought formatting as Markdown", () => {
+    const markup = renderToStaticMarkup(
+      <SessionThought
+        agentName="Codex"
+        text="**Focusing on global font changes**"
+      />,
+    );
+
+    expect(markup).toContain(
+      "<strong>Focusing on global font changes</strong>",
+    );
+    expect(markup).not.toContain("**Focusing on global font changes**");
+  });
+
   it("expands, compacts, and stays expanded while the same long thought streams", async () => {
     await renderThought("x".repeat(481));
     const expand = findControl("Expand thinking");
