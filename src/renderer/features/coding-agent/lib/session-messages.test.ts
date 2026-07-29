@@ -23,7 +23,7 @@ describe("buildSessionMessageEntries", () => {
     ]);
     expect(entries).toEqual([
       { kind: "user", message: user },
-      { kind: "thought", key: "a1", text: "Second thought" },
+      { kind: "thought", key: "thought:a1", text: "Second thought" },
     ]);
   });
 
@@ -35,9 +35,9 @@ describe("buildSessionMessageEntries", () => {
       message({ id: "a3", reasoning: "Next thought" }),
     ]);
     expect(entries).toEqual([
-      { kind: "thought", key: "a1", text: "First thought" },
+      { kind: "thought", key: "thought:a1", text: "First thought" },
       { kind: "assistant", message: persistent },
-      { kind: "thought", key: "a3", text: "Next thought" },
+      { kind: "thought", key: "thought:a3", text: "Next thought" },
     ]);
   });
 
@@ -53,9 +53,22 @@ describe("buildSessionMessageEntries", () => {
       message({ id: "a3", reasoning: "Next thought" }),
     ]);
     expect(entries).toEqual([
-      { kind: "thought", key: "a1", text: "Final thought" },
+      { kind: "thought", key: "thought:a1", text: "Final thought" },
       { kind: "assistant", message: persistent },
-      { kind: "thought", key: "a3", text: "Next thought" },
+      { kind: "thought", key: "thought:a3", text: "Next thought" },
+    ]);
+  });
+
+  it("namespaces a thought key when one message has reasoning and content", () => {
+    const persistent = message({
+      id: "a1",
+      reasoning: "Final thought",
+      content: "Answer",
+    });
+
+    expect(buildSessionMessageEntries([persistent])).toEqual([
+      { kind: "thought", key: "thought:a1", text: "Final thought" },
+      { kind: "assistant", message: persistent },
     ]);
   });
 
@@ -67,9 +80,9 @@ describe("buildSessionMessageEntries", () => {
       message({ id: "a2", reasoning: "Next thought" }),
     ]);
     expect(entries).toEqual([
-      { kind: "thought", key: "a1", text: "Thinking" },
+      { kind: "thought", key: "thought:a1", text: "Thinking" },
       { kind: "user", message: user },
-      { kind: "thought", key: "a2", text: "Next thought" },
+      { kind: "thought", key: "thought:a2", text: "Next thought" },
     ]);
   });
 

@@ -1,5 +1,7 @@
 import { useId, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "../../../lib/utils";
 
 type Props = {
@@ -41,7 +43,9 @@ export const SessionThought = ({ agentName, text }: Props) => {
           hidden={!expanded}
           className="border-t border-border/50 px-3 py-2.5 font-mono text-[11px] leading-5"
         >
-          <div className="whitespace-pre-wrap">{text}</div>
+          <div className="whitespace-pre-wrap">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+          </div>
         </div>
       </div>
     </article>
