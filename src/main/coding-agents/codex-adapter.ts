@@ -198,6 +198,7 @@ export class CodexAdapter implements CodingAgentAdapter {
       cwd: directory,
       model: input.modelId,
       ...(input.reasoningVariant ? { effort: input.reasoningVariant } : {}),
+      summary: 'detailed',
     });
     const turnId = readCodexTurnId(result);
     if (!turnId) throw new Error('Codex returned a turn without an ID.');

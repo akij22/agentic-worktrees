@@ -1,12 +1,11 @@
 import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../../../components/ui/button";
 import { AIMessage } from "./AIMessage";
 import { SessionThought } from "./SessionThought";
 import { CommandApprovalCard } from "./CommandApprovalCard";
 import { buildSessionMessageEntries } from "../lib/session-messages";
-import type { ThoughtEntry } from "../lib/session-messages";
 import type { PendingPermission } from "../types";
 
 type Props = {
@@ -20,10 +19,6 @@ type Props = {
   onOpenFile?: (href: string) => boolean;
   children?: ReactNode;
 };
-
-type ThoughtState = { entry: ThoughtEntry; exiting: boolean } | null;
-
-const THOUGHT_EXIT_DURATION_MS = 300;
 
 export const SessionMessages = ({
   agentName,
@@ -40,39 +35,6 @@ export const SessionMessages = ({
   const hasMountedRef = useRef(false);
   const lastMessageIdRef = useRef<string | undefined>(undefined);
   const entries = useMemo(() => buildSessionMessageEntries(messages), [messages]);
-  const thoughtEntry = entries.find(
-    (entry): entry is ThoughtEntry => entry.kind === "thought",
-  );
-  const [thought, setThought] = useState<ThoughtState>(null);
-
-  // An open thought is always the last entry; once it closes, it is kept
-  // mounted right before the persistent message that replaced it, so it can
-  // animate out instead of disappearing abruptly.
-  const displayEntries = [...entries];
-  if (thought && !thoughtEntry) {
-    displayEntries.splice(Math.max(displayEntries.length - 1, 0), 0, thought.entry);
-  }
-
-  // Keeps the chain of thoughts mounted while it leaves, so it can animate
-  // out instead of disappearing abruptly when a persistent message arrives.
-  useEffect(() => {
-    if (thoughtEntry) {
-      setThought({ entry: thoughtEntry, exiting: false });
-      return;
-    }
-    setThought((current) =>
-      current ? { ...current, exiting: true } : null,
-    );
-  }, [thoughtEntry]);
-
-  useEffect(() => {
-    if (!thought?.exiting) return;
-    const timeout = setTimeout(
-      () => setThought(null),
-      THOUGHT_EXIT_DURATION_MS,
-    );
-    return () => clearTimeout(timeout);
-  }, [thought?.exiting]);
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -106,14 +68,13 @@ export const SessionMessages = ({
         Ask {agentName} to make a change in this worktree.
       </div>
     ) : null}
-    {displayEntries.map((entry) => {
+    {entries.map((entry) => {
       if (entry.kind === "thought") {
         return (
           <SessionThought
             agentName={agentName}
             key={entry.key}
             text={entry.text}
-            exiting={thought?.exiting === true && thought.entry.key === entry.key}
           />
         );
       }

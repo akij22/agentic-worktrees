@@ -87,7 +87,7 @@ describe('Codex protocol projection', () => {
     ]);
   });
 
-  it('projects each turn into one user and one assistant message with reasoning', () => {
+  it('projects every reasoning and permanent-message sequence separately', () => {
     const messages = readCodexMessages(
       threadWithTurns([
         {
@@ -104,6 +104,18 @@ describe('Codex protocol projection', () => {
         {
           type: 'agentMessage',
           id: 'a1',
+          text: 'I found the affected module.',
+          phase: 'commentary',
+        },
+        {
+          type: 'reasoning',
+          id: 'r2',
+          summary: ['Implementing', 'Verifying'],
+          content: [],
+        },
+        {
+          type: 'agentMessage',
+          id: 'a2',
           text: 'Fixed',
           phase: 'final_answer',
         },
@@ -118,18 +130,51 @@ describe('Codex protocol projection', () => {
       })),
     ).toEqual([
       { role: 'user', content: 'Fix it', reasoning: '' },
-      { role: 'assistant', content: 'Fixed', reasoning: 'Inspecting' },
+      {
+        role: 'assistant',
+        content: 'I found the affected module.',
+        reasoning: 'Inspecting',
+      },
+      {
+        role: 'assistant',
+        content: 'Fixed',
+        reasoning: 'Implementing\nVerifying',
+      },
     ]);
     expect(messages[0]).toMatchObject({
       id: 'u1',
       createdAt: 10_000,
       completedAt: null,
     });
-    expect(messages[1]).toMatchObject({
-      id: 'a1',
+    expect(messages[2]).toMatchObject({
+      id: 'a2',
       createdAt: 10_000,
       completedAt: 12_000,
     });
+  });
+
+  it('keeps trailing reasoning visible and falls back to reasoning content', () => {
+    const messages = readCodexMessages(
+      threadWithTurns([
+        {
+          type: 'reasoning',
+          id: 'r1',
+          summary: [],
+          content: ['Running the final verification'],
+        },
+      ]),
+    );
+
+    expect(messages).toEqual([
+      {
+        id: 'r1',
+        role: 'assistant',
+        content: '',
+        reasoning: 'Running the final verification',
+        createdAt: 10_000,
+        completedAt: 12_000,
+      },
+    ]);
   });
 
   it('limits turn diff files to the last turn while retaining all session files', () => {

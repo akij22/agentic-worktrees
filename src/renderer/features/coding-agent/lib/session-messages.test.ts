@@ -27,7 +27,7 @@ describe("buildSessionMessageEntries", () => {
     ]);
   });
 
-  it("drops the thought entry once a persistent assistant message is shown", () => {
+  it("keeps the thought entry next to the persistent assistant message", () => {
     const persistent = message({ id: "a2", content: "Done." });
     const entries = buildSessionMessageEntries([
       message({ id: "a1", reasoning: "First thought" }),
@@ -35,12 +35,13 @@ describe("buildSessionMessageEntries", () => {
       message({ id: "a3", reasoning: "Next thought" }),
     ]);
     expect(entries).toEqual([
+      { kind: "thought", key: "a1", text: "First thought" },
       { kind: "assistant", message: persistent },
       { kind: "thought", key: "a3", text: "Next thought" },
     ]);
   });
 
-  it("drops the thought entry when a message has both reasoning and content", () => {
+  it("keeps the latest thought when a message has reasoning and content", () => {
     const persistent = message({
       id: "a2",
       reasoning: "Final thought",
@@ -52,12 +53,13 @@ describe("buildSessionMessageEntries", () => {
       message({ id: "a3", reasoning: "Next thought" }),
     ]);
     expect(entries).toEqual([
+      { kind: "thought", key: "a1", text: "Final thought" },
       { kind: "assistant", message: persistent },
       { kind: "thought", key: "a3", text: "Next thought" },
     ]);
   });
 
-  it("drops the thought entry once a user message is shown", () => {
+  it("keeps completed thoughts when a later user message is shown", () => {
     const user = message({ id: "u1", role: "user", content: "Thanks" });
     const entries = buildSessionMessageEntries([
       message({ id: "a1", reasoning: "Thinking" }),
@@ -65,6 +67,7 @@ describe("buildSessionMessageEntries", () => {
       message({ id: "a2", reasoning: "Next thought" }),
     ]);
     expect(entries).toEqual([
+      { kind: "thought", key: "a1", text: "Thinking" },
       { kind: "user", message: user },
       { kind: "thought", key: "a2", text: "Next thought" },
     ]);

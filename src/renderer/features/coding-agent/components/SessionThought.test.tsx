@@ -224,21 +224,23 @@ describe("SessionThought", () => {
     await act(async () => root.unmount());
   });
 
-  it("renders a short thought directly without a disclosure", () => {
+  it("renders every thought as a collapsed thinking disclosure", () => {
     const markup = renderToStaticMarkup(
       <SessionThought agentName="OpenCode" text="Inspecting the repository." />,
     );
 
+    expect(markup).toContain("Thinking...");
     expect(markup).toContain("Inspecting the repository.");
-    expect(markup).not.toContain('aria-label="Expand thinking"');
+    expect(markup).toContain('aria-label="Expand thinking"');
+    expect(markup).toContain('aria-expanded="false"');
   });
 
-  it("starts a long thought collapsed with an accessible Thinking control", () => {
+  it("starts a long thought collapsed with an accessible control", () => {
     const markup = renderToStaticMarkup(
       <SessionThought agentName="OpenCode" text={"x".repeat(481)} />,
     );
 
-    expect(markup).toContain("Thinking");
+    expect(markup).toContain("Thinking...");
     expect(markup).toContain('aria-label="Expand thinking"');
     expect(markup).toContain('aria-expanded="false"');
   });

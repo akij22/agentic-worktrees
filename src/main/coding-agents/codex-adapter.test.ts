@@ -150,6 +150,7 @@ describe('Codex adapter', () => {
       cwd: '/repo',
       model: 'gpt-5.4',
       effort: 'high',
+      summary: 'detailed',
     });
     expect(client.requestFor('turn/interrupt').params).toEqual({
       threadId: 'thread-1',
