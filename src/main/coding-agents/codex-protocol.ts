@@ -48,7 +48,9 @@ const codexThreadItemSchema = z
   .object({
     type: z.string(),
     id: z.string().optional(),
-    content: z.array(codexUserInputSchema).optional(),
+    content: z
+      .array(z.union([codexUserInputSchema, z.string()]))
+      .optional(),
     text: z.string().optional(),
     phase: z.string().nullable().optional(),
     summary: z.array(z.string()).optional(),
@@ -265,11 +267,6 @@ export const readCodexMessages = (
 
   for (const turn of thread.turns) {
     const userItems = turn.items.filter((item) => item.type === 'userMessage');
-    const agentItems = turn.items.filter((item) => item.type === 'agentMessage');
-    const reasoning = turn.items
-      .filter((item) => item.type === 'reasoning')
-      .flatMap((item) => item.summary ?? [])
-      .join('\n');
 
     if (userItems.length > 0) {
       const firstUserItem = userItems[0];
@@ -280,7 +277,9 @@ export const readCodexMessages = (
           .flatMap((item) => item.content ?? [])
           .filter(
             (input): input is typeof input & { text: string } =>
-              input.type === 'text' && input.text !== undefined,
+              typeof input !== 'string' &&
+              input.type === 'text' &&
+              input.text !== undefined,
           )
           .map((input) => input.text)
           .join('\n'),
@@ -290,23 +289,56 @@ export const readCodexMessages = (
       });
     }
 
-    if (agentItems.length > 0) {
-      const lastAgentItem = agentItems.at(-1);
-      messages.push({
-        id: lastAgentItem?.id ?? `${turn.id}:assistant`,
+    const assistantMessages: CodingAgentMessage[] = [];
+    let pendingReasoning: string[] = [];
+    let pendingReasoningId: string | undefined;
+
+    for (const item of turn.items) {
+      if (item.type === 'reasoning') {
+        const summary = item.summary ?? [];
+        const content = (item.content ?? []).filter(
+          (part): part is string => typeof part === 'string',
+        );
+        pendingReasoning.push(...(summary.length > 0 ? summary : content));
+        pendingReasoningId ??= item.id;
+        continue;
+      }
+      if (item.type !== 'agentMessage') continue;
+
+      assistantMessages.push({
+        id: item.id ?? `${turn.id}:assistant:${assistantMessages.length}`,
         role: 'assistant',
-        content: agentItems
-          .map((item) => item.text ?? '')
-          .filter(Boolean)
-          .join('\n'),
-        reasoning,
+        content: item.text ?? '',
+        reasoning: pendingReasoning.join('\n'),
         createdAt: toMilliseconds(turn.startedAt),
-        completedAt:
-          turn.completedAt === null
-            ? null
-            : toMilliseconds(turn.completedAt),
+        completedAt: null,
+      });
+      pendingReasoning = [];
+      pendingReasoningId = undefined;
+    }
+
+    if (pendingReasoning.length > 0) {
+      assistantMessages.push({
+        id:
+          pendingReasoningId ??
+          `${turn.id}:reasoning:${assistantMessages.length}`,
+        role: 'assistant',
+        content: '',
+        reasoning: pendingReasoning.join('\n'),
+        createdAt: toMilliseconds(turn.startedAt),
+        completedAt: null,
       });
     }
+
+    const completedAt =
+      turn.completedAt === null ? null : toMilliseconds(turn.completedAt);
+    assistantMessages.forEach((message, index) => {
+      message.completedAt =
+        completedAt ?? (index < assistantMessages.length - 1
+          ? message.createdAt
+          : null);
+      messages.push(message);
+    });
   }
 
   return messages;

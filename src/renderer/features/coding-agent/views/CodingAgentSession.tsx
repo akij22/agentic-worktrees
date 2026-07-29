@@ -152,8 +152,7 @@ export const CodingAgentSession = ({
     );
   const { session, context, messages, diff } = sessionState.snapshot;
   const busy = ["busy", "creating", "aborting"].includes(session.status);
-  const lastFinalAssistantMessageIndex = messages.length - 1;
-  const lastMessage = messages[lastFinalAssistantMessageIndex];
+  const lastMessage = messages.at(-1);
   const agentFinished =
     lastMessage?.role === "assistant" && lastMessage.completedAt !== null;
   const agentRunning = [
@@ -162,13 +161,6 @@ export const CodingAgentSession = ({
     "waiting_permission",
     "aborting",
   ].includes(session.status);
-  const visibleMessages = messages.map((message, index) =>
-    session.status === "idle" &&
-    agentFinished &&
-    index === lastFinalAssistantMessageIndex
-      ? { ...message, reasoning: "" }
-      : message,
-  );
   const composerLocked =
     sessionState.sending ||
     session.status === "creating" ||
@@ -296,7 +288,7 @@ export const CodingAgentSession = ({
           </div>
           <SessionMessages
             agentName={session.agentName}
-            messages={visibleMessages}
+            messages={messages}
             busy={agentRunning}
             activity={busy && !agentFinished ? sessionState.activity : undefined}
             permission={sessionState.permission}
