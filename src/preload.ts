@@ -6,6 +6,7 @@ import {
   githubDeviceChallengeSchema,
   workspaceDirectoryResponseSchema,
   workspaceFilePreviewSchema,
+  workspaceFileSearchResponseSchema,
   workspaceGitStatusSchema,
   workspacePullRequestResultSchema,
   workspaceTerminalCreateResponseSchema,
@@ -89,6 +90,13 @@ const api: Api = {
       readFile: async (request) =>
         workspaceFilePreviewSchema.parse(
           await ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_FILE_READ, request),
+        ),
+      search: async (request) =>
+        workspaceFileSearchResponseSchema.parse(
+          await ipcRenderer.invoke(
+            IPC_CHANNELS.WORKSPACE_FILE_SEARCH,
+            request,
+          ),
         ),
     },
     terminal: {

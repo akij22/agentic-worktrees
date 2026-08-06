@@ -15,6 +15,7 @@ import type {
   GitHubDeviceChallengeDto,
   RemoteRepositoryDto,
   WorkspaceEntryDto,
+  WorkspaceFileSearchResultDto,
   WorkspaceFilePreviewDto,
   WorkspaceGitStatusDto,
   WorkspacePullRequestResultDto,
@@ -79,6 +80,11 @@ export interface Api {
         worktreeId: string;
         relativePath: string;
       }) => Promise<WorkspaceFilePreviewDto>;
+      search: (request: {
+        worktreeId: string;
+        query: string;
+        limit?: number;
+      }) => Promise<WorkspaceFileSearchResultDto>;
     };
     terminal: {
       create: (request: {

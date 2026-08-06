@@ -10,6 +10,8 @@ import {
   githubDeviceChallengeSchema,
   workspaceCommitRequestSchema,
   workspaceDirectoryRequestSchema,
+  workspaceFileSearchRequestSchema,
+  workspaceFileSearchResponseSchema,
   workspacePullRequestRequestSchema,
   workspaceTerminalResizeRequestSchema,
 } from './schemas';
@@ -138,6 +140,46 @@ describe('coding agent IPC schemas', () => {
 });
 
 describe('workspace IPC schemas', () => {
+  it('validates bounded worktree file searches', () => {
+    expect(
+      workspaceFileSearchRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        query: 'composer',
+        limit: 20,
+      }),
+    ).toEqual({
+      worktreeId: 'worktree-1',
+      query: 'composer',
+      limit: 20,
+    });
+    expect(() =>
+      workspaceFileSearchRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        query: 'x'.repeat(513),
+        limit: 20,
+      }),
+    ).toThrow();
+    expect(() =>
+      workspaceFileSearchRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        query: '',
+        limit: 101,
+      }),
+    ).toThrow();
+  });
+
+  it('accepts only safe relative file-search results', () => {
+    expect(
+      workspaceFileSearchResponseSchema.parse([
+        'src/renderer/App.tsx',
+        'README.md',
+      ]),
+    ).toEqual(['src/renderer/App.tsx', 'README.md']);
+    expect(() =>
+      workspaceFileSearchResponseSchema.parse(['/tmp/secret.txt']),
+    ).toThrow();
+  });
+
   it('accepts worktree-relative directory requests', () => {
     expect(
       workspaceDirectoryRequestSchema.parse({

@@ -31,6 +31,7 @@ import {
   workspaceCommitRequestSchema,
   workspaceDirectoryRequestSchema,
   workspaceFileReadRequestSchema,
+  workspaceFileSearchRequestSchema,
   workspaceGitRequestSchema,
   workspacePullRequestRequestSchema,
   workspacePullRequestResultSchema,
@@ -277,6 +278,18 @@ const handleWorkspaceFileRead = async (
   return workspaceFileService.readFile(
     request.worktreeId,
     request.relativePath,
+  );
+};
+
+const handleWorkspaceFileSearch = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = workspaceFileSearchRequestSchema.parse(rawRequest);
+  return workspaceFileService.searchFiles(
+    request.worktreeId,
+    request.query,
+    request.limit,
   );
 };
 
@@ -541,6 +554,10 @@ export const registerIpcHandlers = (): void => {
   ipcMain.handle(
     IPC_CHANNELS.WORKSPACE_FILE_READ,
     requireAuthenticated(handleWorkspaceFileRead),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.WORKSPACE_FILE_SEARCH,
+    requireAuthenticated(handleWorkspaceFileSearch),
   );
   ipcMain.handle(
     IPC_CHANNELS.WORKSPACE_TERMINAL_CREATE,

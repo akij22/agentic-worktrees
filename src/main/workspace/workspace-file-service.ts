@@ -1,5 +1,7 @@
+import { execFile } from 'node:child_process';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import type {
   WorkspaceEntryDto,
   WorkspaceFilePreviewDto,
@@ -12,8 +14,14 @@ import {
 
 const PREVIEW_LIMIT_BYTES = 1_048_576;
 const BINARY_SCAN_BYTES = 8_192;
+const execFileAsync = promisify(execFile);
 
 export interface WorkspaceFileService {
+  searchFiles(
+    worktreeId: string,
+    query: string,
+    limit: number,
+  ): Promise<string[]>;
   listDirectory(
     worktreeId: string,
     relativePath: string,
@@ -24,7 +32,51 @@ export interface WorkspaceFileService {
   ): Promise<WorkspaceFilePreviewDto>;
 }
 
-type WorkspaceFileServiceDependencies = WorkspacePathDependencies;
+type ListWorkspaceFiles = (worktreePath: string) => Promise<string[]>;
+
+type WorkspaceFileServiceDependencies = WorkspacePathDependencies & {
+  listFiles?: ListWorkspaceFiles;
+};
+
+const listGitVisibleFiles: ListWorkspaceFiles = async (worktreePath) => {
+  const { stdout } = await execFileAsync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+    {
+      cwd: worktreePath,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
+  return stdout.split('\0').filter(Boolean);
+};
+
+const normalizeSearchCandidate = (candidate: string): string | undefined => {
+  const normalized = candidate.replaceAll('\\', '/');
+  const segments = normalized.split('/');
+  if (
+    !normalized ||
+    /^(?:[A-Za-z]:\/|\/)/.test(normalized) ||
+    segments.includes('..')
+  ) {
+    return undefined;
+  }
+  return segments.filter(Boolean).join('/');
+};
+
+const matchScore = (candidate: string, query: string): number | undefined => {
+  if (!query) return 0;
+  const normalizedPath = candidate.toLocaleLowerCase();
+  const basename = path.posix.basename(normalizedPath);
+  if (basename === query) return 0;
+  if (basename.startsWith(query)) return 1;
+  if (normalizedPath.split('/').some((segment) => segment.startsWith(query))) {
+    return 2;
+  }
+  if (basename.includes(query)) return 3;
+  if (normalizedPath.includes(query)) return 4;
+  return undefined;
+};
 
 const relativeEntryPath = (
   parentRelativePath: string,
@@ -43,7 +95,51 @@ const isSafeWorkspaceError = (error: unknown): boolean =>
 
 export const createWorkspaceFileService = (
   dependencies: WorkspaceFileServiceDependencies,
-): WorkspaceFileService => ({
+): WorkspaceFileService => {
+  const listFiles = dependencies.listFiles ?? listGitVisibleFiles;
+  return {
+  async searchFiles(worktreeId, query, limit) {
+    try {
+      const { targetPath } = await resolveWorkspacePath(
+        worktreeId,
+        '',
+        dependencies,
+      );
+      const normalizedQuery = query.trim().toLocaleLowerCase();
+      const candidates = [
+        ...new Set(
+          (await listFiles(targetPath))
+            .map(normalizeSearchCandidate)
+            .filter((candidate): candidate is string => candidate !== undefined),
+        ),
+      ];
+      return candidates
+        .map((candidate) => ({
+          candidate,
+          score: matchScore(candidate, normalizedQuery),
+        }))
+        .filter(
+          (match): match is { candidate: string; score: number } =>
+            match.score !== undefined,
+        )
+        .sort(
+          (left, right) =>
+            left.score - right.score ||
+            left.candidate.localeCompare(right.candidate, undefined, {
+              sensitivity: 'base',
+            }),
+        )
+        .slice(0, limit)
+        .map(({ candidate }) => candidate);
+    } catch (error) {
+      if (isSafeWorkspaceError(error)) throw error;
+      console.error(
+        `Failed to search workspace files for worktree ${worktreeId}`,
+        error,
+      );
+      throw new Error('File search is unavailable.', { cause: error });
+    }
+  },
   async listDirectory(worktreeId, relativePath) {
     try {
       const { targetPath } = await resolveWorkspacePath(
@@ -151,7 +247,8 @@ export const createWorkspaceFileService = (
       throw new Error('File is unavailable.', { cause: error });
     }
   },
-});
+};
+};
 
 export const workspaceFileService = createWorkspaceFileService({
   getWorktree: getWorktreeById,
