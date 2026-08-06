@@ -226,4 +226,29 @@ describe("SessionStatusPopup", () => {
     expect(markup).toContain("absolute bottom-full right-4");
     expect(markup).not.toContain("fixed bottom-5 right-5");
   });
+
+  it("renders Codex usage without any cost copy", () => {
+    const markup = renderToStaticMarkup(
+      <SessionStatusPopup
+        session={createSession("codex")}
+        usage={{
+          contextTokens: 40_000,
+          contextWindow: 200_000,
+          contextPercentage: 20,
+          providerId: "openai",
+          modelId: "gpt-5.4",
+        }}
+        loading={false}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Codex status");
+    expect(markup).toContain("20.0%");
+    expect(markup).toContain("openai/gpt-5.4");
+    expect(markup).not.toContain("Spent");
+    expect(markup).not.toContain("$");
+    expect(markup.toLowerCase()).not.toContain("unavailable");
+    expect(markup.toLowerCase()).not.toContain("not available");
+  });
 });

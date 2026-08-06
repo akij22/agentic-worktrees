@@ -421,7 +421,7 @@ export const codingAgentSessionUsageSchema = z.object({
   contextTokens: z.number().nonnegative(),
   contextWindow: z.number().positive(),
   contextPercentage: z.number().min(0).max(100),
-  totalCost: z.number().nonnegative(),
+  totalCost: z.number().nonnegative().optional(),
   providerId: z.string(),
   modelId: z.string(),
 });
