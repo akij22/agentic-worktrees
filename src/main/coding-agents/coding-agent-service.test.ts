@@ -18,6 +18,7 @@ import type {
   CodingAgentDiff,
   CodingAgentEvent,
   CodingAgentModel,
+  CodingAgentSessionUsage,
 } from './types';
 
 type AppDatabase = BetterSQLite3Database<typeof schema>;
@@ -54,7 +55,7 @@ const mocks = vi.hoisted(() => {
       >(async () => []),
       sendPrompt: vi.fn(async () => undefined),
       compact: vi.fn(async () => undefined),
-      getUsage: vi.fn(async () => ({
+      getUsage: vi.fn<() => Promise<CodingAgentSessionUsage>>(async () => ({
         contextTokens: 50_000,
         contextWindow: 200_000,
         contextPercentage: 25,
@@ -405,13 +406,50 @@ describe('coding-agent service routing', () => {
     );
   });
 
-  it('rejects compaction for non-OpenCode sessions', async () => {
+  it('keeps a Codex session busy until compaction emits a terminal event', async () => {
     seedSession('codex-run', 'codex', 'codex-thread');
 
-    await expect(compactAgentSession('codex-run')).rejects.toThrow(
-      'only available for OpenCode',
+    await compactAgentSession('codex-run');
+
+    expect(mocks.codex.adapter.compact).toHaveBeenCalledWith(
+      process.cwd(),
+      'codex-thread',
+      { providerId: 'openai', modelId: 'gpt-5.4' },
     );
-    expect(mocks.codex.adapter.compact).not.toHaveBeenCalled();
+    expect(mocks.database?.select().from(runs).get()?.status).toBe('busy');
+
+    mocks.codex.emit({
+      directory: process.cwd(),
+      sessionId: 'codex-thread',
+      type: 'session.idle',
+      properties: null,
+    });
+
+    expect(mocks.database?.select().from(runs).get()?.status).toBe('idle');
+  });
+
+  it('reads Codex usage without adding cost data', async () => {
+    seedSession('codex-run', 'codex', 'codex-thread');
+    mocks.codex.adapter.getUsage.mockResolvedValueOnce({
+      contextTokens: 40_000,
+      contextWindow: 200_000,
+      contextPercentage: 20,
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+    });
+
+    await expect(getAgentSessionUsage('codex-run')).resolves.toEqual({
+      contextTokens: 40_000,
+      contextWindow: 200_000,
+      contextPercentage: 20,
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+    });
+    expect(mocks.codex.adapter.getUsage).toHaveBeenCalledWith(
+      process.cwd(),
+      'codex-thread',
+      { providerId: 'openai', modelId: 'gpt-5.4' },
+    );
   });
 
   it('calculates missing line statistics when Codex returns file content only', async () => {

@@ -25,6 +25,7 @@ export const IPC_CHANNELS = {
   EDITOR_OPEN: 'editor:open',
   WORKSPACE_DIRECTORY_LIST: 'workspace:directory-list',
   WORKSPACE_FILE_READ: 'workspace:file-read',
+  WORKSPACE_FILE_SEARCH: 'workspace:file-search',
   WORKSPACE_TERMINAL_CREATE: 'workspace:terminal-create',
   WORKSPACE_TERMINAL_WRITE: 'workspace:terminal-write',
   WORKSPACE_TERMINAL_RESIZE: 'workspace:terminal-resize',

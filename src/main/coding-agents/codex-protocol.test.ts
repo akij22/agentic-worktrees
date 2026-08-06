@@ -4,6 +4,7 @@ import {
   readCodexDiffs,
   readCodexMessages,
   readCodexModels,
+  readCodexNotification,
   readCodexThread,
   readCodexThreadId,
 } from './codex-protocol';
@@ -49,6 +50,83 @@ const threadWithFileChanges = (turnFiles: string[][]) =>
   });
 
 describe('Codex protocol projection', () => {
+  it('parses thread token usage notifications', () => {
+    expect(
+      readCodexNotification('thread/tokenUsage/updated', {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        tokenUsage: {
+          total: {
+            totalTokens: 60_000,
+            inputTokens: 50_000,
+            cachedInputTokens: 10_000,
+            cacheWriteInputTokens: 0,
+            outputTokens: 10_000,
+            reasoningOutputTokens: 2_000,
+          },
+          last: {
+            totalTokens: 40_000,
+            inputTokens: 35_000,
+            cachedInputTokens: 8_000,
+            cacheWriteInputTokens: 0,
+            outputTokens: 5_000,
+            reasoningOutputTokens: 1_000,
+          },
+          modelContextWindow: 200_000,
+        },
+      }),
+    ).toMatchObject({
+      type: 'tokenUsage',
+      params: {
+        threadId: 'thread-1',
+        tokenUsage: {
+          last: { totalTokens: 40_000 },
+          modelContextWindow: 200_000,
+        },
+      },
+    });
+  });
+
+  it('rejects malformed thread token usage notifications', () => {
+    const usage = {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      tokenUsage: {
+        total: {
+          totalTokens: -1,
+          inputTokens: 0,
+          cachedInputTokens: 0,
+          cacheWriteInputTokens: 0,
+          outputTokens: 0,
+          reasoningOutputTokens: 0,
+        },
+        last: {
+          totalTokens: 0,
+          inputTokens: 0,
+          cachedInputTokens: 0,
+          cacheWriteInputTokens: 0,
+          outputTokens: 0,
+          reasoningOutputTokens: 0,
+        },
+        modelContextWindow: 200_000,
+      },
+    };
+
+    expect(() =>
+      readCodexNotification('thread/tokenUsage/updated', usage),
+    ).toThrow();
+    expect(() =>
+      readCodexNotification('thread/tokenUsage/updated', {
+        ...usage,
+        threadId: undefined,
+        tokenUsage: {
+          ...usage.tokenUsage,
+          total: { ...usage.tokenUsage.total, totalTokens: 1 },
+        },
+      }),
+    ).toThrow();
+  });
+
   it('maps Codex models and supported reasoning efforts', () => {
     expect(
       readCodexModels({

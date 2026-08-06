@@ -7,7 +7,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWorkspaceFileService } from './workspace-file-service';
 
 describe('workspace file service', () => {
@@ -36,6 +36,7 @@ describe('workspace file service', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     rmSync(fixtureRoot, { recursive: true, force: true });
     rmSync(outsideRoot, { recursive: true, force: true });
   });
@@ -47,6 +48,61 @@ describe('workspace file service', () => {
           ? { id: worktreeId, path: fixtureRoot }
           : undefined,
     });
+
+  const listedFiles = [
+    'README.md',
+    'src/renderer/App.tsx',
+    'src/renderer/features/coding-agent/components/SessionComposer.tsx',
+    'docs/Session Composer notes.md',
+  ];
+
+  const createSearchService = (listFiles = async () => listedFiles) =>
+    createWorkspaceFileService({
+      getWorktree: (worktreeId) =>
+        worktreeId === 'worktree-1'
+          ? { id: worktreeId, path: fixtureRoot }
+          : undefined,
+      listFiles,
+    });
+
+  it('ranks case-insensitive basename and path matches', async () => {
+    const service = createSearchService();
+
+    await expect(
+      service.searchFiles('worktree-1', 'session', 20),
+    ).resolves.toEqual([
+      'docs/Session Composer notes.md',
+      'src/renderer/features/coding-agent/components/SessionComposer.tsx',
+    ]);
+    await expect(service.searchFiles('worktree-1', 'app', 1)).resolves.toEqual([
+      'src/renderer/App.tsx',
+    ]);
+  });
+
+  it('sorts and bounds results for an empty query', async () => {
+    await expect(
+      createSearchService().searchFiles('worktree-1', '', 2),
+    ).resolves.toEqual(['docs/Session Composer notes.md', 'README.md']);
+  });
+
+  it('returns safe file-search errors with their original cause', async () => {
+    const gitFailure = new Error('git failed');
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      createSearchService().searchFiles('missing-worktree', '', 20),
+    ).rejects.toThrow('Worktree not found.');
+
+    const failure = await createSearchService(async () =>
+      Promise.reject(gitFailure),
+    )
+      .searchFiles('worktree-1', '', 20)
+      .catch((cause: unknown) => cause);
+    expect(failure).toMatchObject({
+      message: 'File search is unavailable.',
+      cause: gitFailure,
+    });
+  });
 
   it('lists directories before files and omits internal Git metadata', async () => {
     const entries = await createService().listDirectory('worktree-1', '');

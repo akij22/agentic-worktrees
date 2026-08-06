@@ -186,6 +186,20 @@ export const workspaceFileReadRequestSchema = z.object({
   relativePath: workspaceRelativePathSchema.min(1),
 });
 
+export const workspaceFileSearchRequestSchema = z.object({
+  worktreeId: workspaceIdSchema,
+  query: z.string().max(512),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+
+export const workspaceFileSearchResponseSchema = z.array(
+  workspaceRelativePathSchema.min(1),
+);
+
+export type WorkspaceFileSearchResultDto = z.infer<
+  typeof workspaceFileSearchResponseSchema
+>;
+
 export const workspaceEntrySchema = z.object({
   name: z.string(),
   relativePath: z.string(),
@@ -407,7 +421,7 @@ export const codingAgentSessionUsageSchema = z.object({
   contextTokens: z.number().nonnegative(),
   contextWindow: z.number().positive(),
   contextPercentage: z.number().min(0).max(100),
-  totalCost: z.number().nonnegative(),
+  totalCost: z.number().nonnegative().optional(),
   providerId: z.string(),
   modelId: z.string(),
 });

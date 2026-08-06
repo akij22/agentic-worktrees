@@ -22,7 +22,7 @@ import { SessionStatusPopup } from "../components/SessionStatusPopup";
 import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
 import { getSessionWorkspaceColumns } from "../lib/dual-chat-layout";
 import { getLinkedDiffFile } from "../lib/file-links";
-import type { OpenCodeSlashCommandId } from "../lib/slash-commands";
+import type { SlashCommandId } from "../lib/slash-commands";
 
 type EditorError = {
   source: "discovery" | "open";
@@ -190,7 +190,7 @@ export const CodingAgentSession = ({
       });
     }
   };
-  const executeSlashCommand = (command: OpenCodeSlashCommandId) => {
+  const executeSlashCommand = (command: SlashCommandId) => {
     if (command === "status") {
       void showStatus();
       return;
@@ -291,6 +291,9 @@ export const CodingAgentSession = ({
             messages={messages}
             busy={agentRunning}
             activity={busy && !agentFinished ? sessionState.activity : undefined}
+            transientThought={
+              sessionState.compacting ? "Compacting context..." : undefined
+            }
             permission={sessionState.permission}
             error={sessionState.error}
             onRespondPermission={(response) =>

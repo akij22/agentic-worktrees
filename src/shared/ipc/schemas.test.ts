@@ -4,12 +4,15 @@ import {
   codingAgentKindSchema,
   codingAgentModelsRequestSchema,
   codingAgentSessionCreateRequestSchema,
+  codingAgentSessionUsageSchema,
   codingAgentSessionViewedRequestSchema,
   editorOpenRequestSchema,
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
   workspaceCommitRequestSchema,
   workspaceDirectoryRequestSchema,
+  workspaceFileSearchRequestSchema,
+  workspaceFileSearchResponseSchema,
   workspacePullRequestRequestSchema,
   workspaceTerminalResizeRequestSchema,
 } from './schemas';
@@ -105,6 +108,18 @@ describe('editor IPC schemas', () => {
 });
 
 describe('coding agent IPC schemas', () => {
+  it('accepts Codex session usage without provider cost data', () => {
+    expect(
+      codingAgentSessionUsageSchema.parse({
+        contextTokens: 40_000,
+        contextWindow: 200_000,
+        contextPercentage: 20,
+        providerId: 'openai',
+        modelId: 'gpt-5.4',
+      }),
+    ).not.toHaveProperty('totalCost');
+  });
+
   it.each(['opencode', 'codex'] as const)('accepts the %s harness', (agentKind) => {
     expect(codingAgentKindSchema.parse(agentKind)).toBe(agentKind);
   });
@@ -138,6 +153,46 @@ describe('coding agent IPC schemas', () => {
 });
 
 describe('workspace IPC schemas', () => {
+  it('validates bounded worktree file searches', () => {
+    expect(
+      workspaceFileSearchRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        query: 'composer',
+        limit: 20,
+      }),
+    ).toEqual({
+      worktreeId: 'worktree-1',
+      query: 'composer',
+      limit: 20,
+    });
+    expect(() =>
+      workspaceFileSearchRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        query: 'x'.repeat(513),
+        limit: 20,
+      }),
+    ).toThrow();
+    expect(() =>
+      workspaceFileSearchRequestSchema.parse({
+        worktreeId: 'worktree-1',
+        query: '',
+        limit: 101,
+      }),
+    ).toThrow();
+  });
+
+  it('accepts only safe relative file-search results', () => {
+    expect(
+      workspaceFileSearchResponseSchema.parse([
+        'src/renderer/App.tsx',
+        'README.md',
+      ]),
+    ).toEqual(['src/renderer/App.tsx', 'README.md']);
+    expect(() =>
+      workspaceFileSearchResponseSchema.parse(['/tmp/secret.txt']),
+    ).toThrow();
+  });
+
   it('accepts worktree-relative directory requests', () => {
     expect(
       workspaceDirectoryRequestSchema.parse({

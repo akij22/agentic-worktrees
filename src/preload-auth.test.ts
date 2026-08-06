@@ -99,6 +99,34 @@ describe('preload GitHub auth status subscription', () => {
     );
   });
 
+  it('forwards workspace file searches on the dedicated channel', async () => {
+    const api = mocks.exposed as {
+      workspace: {
+        files: {
+          search: (request: {
+            worktreeId: string;
+            query: string;
+            limit: number;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([
+      'src/renderer/App.tsx',
+    ]);
+
+    await api.workspace.files.search({
+      worktreeId: 'worktree-1',
+      query: 'app',
+      limit: 20,
+    });
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.WORKSPACE_FILE_SEARCH,
+      { worktreeId: 'worktree-1', query: 'app', limit: 20 },
+    );
+  });
+
   it('parses workspace terminal events and removes the exact listener', () => {
     const api = mocks.exposed as {
       workspace: {

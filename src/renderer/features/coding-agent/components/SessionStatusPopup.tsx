@@ -45,13 +45,13 @@ export const SessionStatusPopup = ({
   <aside
     role="status"
     aria-live="polite"
-    aria-label="OpenCode session status"
+    aria-label={`${session.agentName} session status`}
     className="absolute bottom-full right-4 z-50 mb-3 w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-lg border border-border bg-popover shadow-2xl"
   >
     <div className="flex items-start justify-between border-b border-border bg-muted/35 px-4 py-3">
       <div>
         <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em]">
-          OpenCode status
+          {session.agentName} status
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {loading ? "Reading runtime details…" : "Current session snapshot"}
@@ -90,11 +90,15 @@ export const SessionStatusPopup = ({
         />
       </div>
     </div>
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3">
-      <Detail
-        label="Spent"
-        value={loading || !usage ? "Loading…" : costFormat.format(usage.totalCost)}
-      />
+    <dl
+      className={`grid gap-x-4 gap-y-3 px-4 py-3 ${usage?.totalCost === undefined ? "grid-cols-1" : "grid-cols-2"}`}
+    >
+      {usage?.totalCost !== undefined ? (
+        <Detail
+          label="Spent"
+          value={loading ? "Loading…" : costFormat.format(usage.totalCost)}
+        />
+      ) : null}
       <Detail
         label="Current model"
         value={`${usage?.providerId ?? session.providerId}/${usage?.modelId ?? session.modelId}`}

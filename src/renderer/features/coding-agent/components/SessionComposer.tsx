@@ -12,9 +12,14 @@ import type {
 import { Button } from "../../../components/ui/button";
 import { Select } from "../../../components/ui/select";
 import {
-  filterOpenCodeSlashCommands,
-  type OpenCodeSlashCommandId,
+  filterSlashCommands,
+  type SlashCommandId,
 } from "../lib/slash-commands";
+import {
+  findActiveFileMention,
+  insertFileMention,
+} from "../lib/file-mentions";
+import { useFileMentionSuggestions } from "../hooks/useFileMentionSuggestions";
 
 type Props = {
   session: CodingAgentSessionDto;
@@ -32,7 +37,7 @@ type Props = {
   onReasoningChange: (variant: string) => void;
   onSend: () => void;
   onStop: () => void;
-  onSlashCommand: (command: OpenCodeSlashCommandId) => void;
+  onSlashCommand: (command: SlashCommandId) => void;
 };
 
 export const SessionComposer = ({
@@ -54,13 +59,45 @@ export const SessionComposer = ({
   onSlashCommand,
 }: Props) => {
   const modelSelectRef = useRef<HTMLSelectElement>(null);
-  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
-  const slashCommands =
-    session.agentKind === "opencode"
-      ? filterOpenCodeSlashCommands(draft)
-      : [];
-  useEffect(() => setSelectedCommandIndex(0), [draft]);
-  const executeSlashCommand = (command: OpenCodeSlashCommandId) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pendingCaretRef = useRef<number | undefined>(undefined);
+  const [caret, setCaret] = useState(draft.length);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [dismissedMentionKey, setDismissedMentionKey] = useState<string>();
+  const slashCommands = filterSlashCommands(draft);
+  const detectedMention =
+    slashCommands.length === 0
+      ? findActiveFileMention(draft, caret)
+      : undefined;
+  const mentionKey = detectedMention
+    ? `${detectedMention.start}:${detectedMention.end}:${detectedMention.query}`
+    : undefined;
+  const activeMention =
+    mentionKey && mentionKey !== dismissedMentionKey
+      ? detectedMention
+      : undefined;
+  const fileSuggestions = useFileMentionSuggestions({
+    worktreeId: session.worktreeId,
+    mention: activeMention,
+  });
+  const filePaletteOpen = Boolean(activeMention);
+  const selectableCount =
+    slashCommands.length > 0 ? slashCommands.length : fileSuggestions.paths.length;
+
+  useEffect(
+    () => setSelectedSuggestionIndex(0),
+    [draft, fileSuggestions.paths.join("\0")],
+  );
+  useEffect(() => {
+    const nextCaret = pendingCaretRef.current;
+    if (nextCaret === undefined) return;
+    const textarea = textareaRef.current;
+    textarea?.focus();
+    textarea?.setSelectionRange(nextCaret, nextCaret);
+    setCaret(nextCaret);
+    pendingCaretRef.current = undefined;
+  }, [draft]);
+  const executeSlashCommand = (command: SlashCommandId) => {
     onDraftChange("");
     if (command === "model") {
       const select = modelSelectRef.current;
@@ -76,25 +113,39 @@ export const SessionComposer = ({
     }
     onSlashCommand(command);
   };
+  const selectFile = (path: string) => {
+    if (!activeMention) return;
+    const next = insertFileMention(draft, activeMention, path);
+    pendingCaretRef.current = next.caret;
+    setDismissedMentionKey(undefined);
+    onDraftChange(next.draft);
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (slashCommands.length > 0) {
+    if (slashCommands.length > 0 || filePaletteOpen) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (selectableCount === 0) return;
         event.preventDefault();
         const direction = event.key === "ArrowDown" ? 1 : -1;
-        setSelectedCommandIndex((current) =>
-          (current + direction + slashCommands.length) % slashCommands.length,
+        setSelectedSuggestionIndex((current) =>
+          (current + direction + selectableCount) % selectableCount,
         );
         return;
       }
       if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
         event.preventDefault();
-        const selected = slashCommands[selectedCommandIndex];
-        if (selected) executeSlashCommand(selected.id);
+        const selectedCommand = slashCommands[selectedSuggestionIndex];
+        if (selectedCommand) executeSlashCommand(selectedCommand.id);
+        const selectedPath = fileSuggestions.paths[selectedSuggestionIndex];
+        if (slashCommands.length === 0 && selectedPath) selectFile(selectedPath);
         return;
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        onDraftChange("");
+        if (slashCommands.length > 0) {
+          onDraftChange("");
+        } else if (mentionKey) {
+          setDismissedMentionKey(mentionKey);
+        }
         return;
       }
     }
@@ -106,9 +157,14 @@ export const SessionComposer = ({
   const onModelSelect = (event: ChangeEvent<HTMLSelectElement>) =>
     onModelChange(event.target.value);
   const submit = () => {
-    const selected = slashCommands[selectedCommandIndex];
-    if (selected) {
-      executeSlashCommand(selected.id);
+    const selectedCommand = slashCommands[selectedSuggestionIndex];
+    if (selectedCommand) {
+      executeSlashCommand(selectedCommand.id);
+      return;
+    }
+    const selectedPath = fileSuggestions.paths[selectedSuggestionIndex];
+    if (filePaletteOpen && selectedPath) {
+      selectFile(selectedPath);
       return;
     }
     onSend();
@@ -118,7 +174,7 @@ export const SessionComposer = ({
       {slashCommands.length > 0 ? (
         <div
           role="listbox"
-          aria-label="OpenCode slash commands"
+          aria-label="Session slash commands"
           className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-xl"
         >
           {slashCommands.map((command, index) => (
@@ -126,14 +182,14 @@ export const SessionComposer = ({
               key={command.id}
               type="button"
               role="option"
-              aria-selected={index === selectedCommandIndex}
+              aria-selected={index === selectedSuggestionIndex}
               className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${
-                index === selectedCommandIndex
+                index === selectedSuggestionIndex
                   ? "bg-accent text-accent-foreground"
                   : "text-foreground hover:bg-muted"
               }`}
               onMouseDown={(event) => event.preventDefault()}
-              onMouseEnter={() => setSelectedCommandIndex(index)}
+              onMouseEnter={() => setSelectedSuggestionIndex(index)}
               onClick={() => executeSlashCommand(command.id)}
             >
               <span className="w-20 shrink-0 font-mono text-xs font-semibold">
@@ -148,11 +204,66 @@ export const SessionComposer = ({
             ↑↓ navigate · Enter select · Esc close
           </p>
         </div>
+      ) : filePaletteOpen ? (
+        <div
+          role="listbox"
+          aria-label="Worktree files"
+          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 max-h-72 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+        >
+          {fileSuggestions.loading ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              Searching worktree files…
+            </p>
+          ) : fileSuggestions.error ? (
+            <p
+              className="px-3 py-2 text-xs text-destructive"
+              title={fileSuggestions.error}
+            >
+              Could not search worktree files.
+            </p>
+          ) : fileSuggestions.paths.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              No matching files
+            </p>
+          ) : (
+            fileSuggestions.paths.map((path, index) => (
+              <button
+                key={path}
+                type="button"
+                role="option"
+                aria-label={path}
+                aria-selected={index === selectedSuggestionIndex}
+                className={`block w-full truncate rounded-md px-3 py-2 text-left font-mono text-xs transition-colors ${
+                  index === selectedSuggestionIndex
+                    ? "bg-accent text-accent-foreground"
+                    : "text-foreground hover:bg-muted"
+                }`}
+                title={path}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                onClick={() => selectFile(path)}
+              >
+                {path}
+              </button>
+            ))
+          )}
+          <p className="border-t border-border px-3 pb-1 pt-2 text-[10px] text-muted-foreground">
+            ↑↓ navigate · Enter select · Esc close
+          </p>
+        </div>
       ) : null}
       <div className="rounded-xl border border-input bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
         <textarea
+          ref={textareaRef}
           value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
+          onChange={(event) => {
+            setCaret(event.target.selectionStart);
+            setDismissedMentionKey(undefined);
+            onDraftChange(event.target.value);
+          }}
+          onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+          onClick={(event) => setCaret(event.currentTarget.selectionStart)}
+          onKeyUp={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           placeholder={`Describe the change you want ${session.agentName} to make…`}
           rows={3}

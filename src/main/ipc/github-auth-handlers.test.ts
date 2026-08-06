@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   subscribeStatus: vi.fn(),
   listRemoteRepositories: vi.fn(),
   listDirectory: vi.fn(),
+  searchFiles: vi.fn(),
   createPullRequest: vi.fn(),
   subscribeTerminal: vi.fn(),
   windows: [] as Array<{ webContents: { send: ReturnType<typeof vi.fn> } }>,
@@ -69,6 +70,7 @@ vi.mock('../github/config', () => ({
 vi.mock('../workspace/workspace-file-service', () => ({
   workspaceFileService: {
     listDirectory: mocks.listDirectory,
+    searchFiles: mocks.searchFiles,
     readFile: vi.fn(),
   },
 }));
@@ -174,6 +176,7 @@ describe('GitHub authentication IPC handlers', () => {
     IPC_CHANNELS.EDITOR_OPEN,
     IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST,
     IPC_CHANNELS.WORKSPACE_FILE_READ,
+    IPC_CHANNELS.WORKSPACE_FILE_SEARCH,
     IPC_CHANNELS.WORKSPACE_TERMINAL_CREATE,
     IPC_CHANNELS.WORKSPACE_TERMINAL_WRITE,
     IPC_CHANNELS.WORKSPACE_TERMINAL_RESIZE,
@@ -229,6 +232,24 @@ describe('GitHub authentication IPC handlers', () => {
     ).resolves.toEqual([]);
 
     expect(mocks.listDirectory).toHaveBeenCalledWith('worktree-1', 'src');
+  });
+
+  it('validates and delegates workspace file search', async () => {
+    mocks.searchFiles.mockResolvedValueOnce(['src/renderer/App.tsx']);
+
+    await expect(
+      invoke(IPC_CHANNELS.WORKSPACE_FILE_SEARCH, {
+        worktreeId: 'worktree-1',
+        query: 'app',
+        limit: 20,
+      }),
+    ).resolves.toEqual(['src/renderer/App.tsx']);
+
+    expect(mocks.searchFiles).toHaveBeenCalledWith(
+      'worktree-1',
+      'app',
+      20,
+    );
   });
 
   it('opens only the pull request URL returned by the workspace service', async () => {
