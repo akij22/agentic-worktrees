@@ -15,6 +15,7 @@ import {
   readCodexThreadId,
   readCodexTurnId,
   type CodexApprovalRequest,
+  type CodexNotification,
   type CodexThreadSnapshot,
 } from './codex-protocol';
 import type {
@@ -24,6 +25,7 @@ import type {
   CodingAgentMessage,
   CodingAgentModel,
   CodingAgentPermission,
+  CodingAgentSessionUsage,
   CodingAgentSessionOptions,
 } from './types';
 
@@ -79,6 +81,10 @@ export class CodexAdapter implements CodingAgentAdapter {
   private readonly directoryByThread = new Map<string, string>();
   private readonly activeTurnByThread = new Map<string, string>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly usageByThread = new Map<
+    string,
+    Extract<CodexNotification, { type: 'tokenUsage' }>['params']['tokenUsage']
+  >();
 
   constructor(
     private readonly client: CodexClient = new CodexAppServerClient(),
@@ -109,6 +115,7 @@ export class CodexAdapter implements CodingAgentAdapter {
     this.directoryByThread.clear();
     this.activeTurnByThread.clear();
     this.pendingApprovals.clear();
+    this.usageByThread.clear();
   }
 
   async listModels(directory: string): Promise<CodingAgentModel[]> {
@@ -216,12 +223,48 @@ export class CodexAdapter implements CodingAgentAdapter {
     this.activeTurnByThread.delete(sessionId);
   }
 
-  async compact(): Promise<void> {
-    throw new Error('Session compaction is only available for OpenCode.');
+  async compact(
+    directory: string,
+    sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<void> {
+    if (input.providerId !== 'openai') {
+      throw new Error(`Codex does not support provider ${input.providerId}.`);
+    }
+    this.directoryByThread.set(sessionId, directory);
+    await this.client.request<unknown>('thread/compact/start', {
+      threadId: sessionId,
+    });
   }
 
-  async getUsage(): Promise<never> {
-    throw new Error('Session usage is only available for OpenCode.');
+  async getUsage(
+    directory: string,
+    sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<CodingAgentSessionUsage> {
+    if (input.providerId !== 'openai') {
+      throw new Error(`Codex does not support provider ${input.providerId}.`);
+    }
+    this.directoryByThread.set(sessionId, directory);
+    const usage = this.usageByThread.get(sessionId);
+    if (!usage) {
+      throw new Error('Codex token usage is not available yet.');
+    }
+    if (usage.modelContextWindow === null) {
+      throw new Error('Codex context window is not available yet.');
+    }
+    const contextTokens = usage.last.totalTokens;
+    const contextWindow = usage.modelContextWindow;
+    return {
+      contextTokens,
+      contextWindow,
+      contextPercentage: Math.min(
+        100,
+        Math.max(0, (contextTokens / contextWindow) * 100),
+      ),
+      providerId: input.providerId,
+      modelId: input.modelId,
+    };
   }
 
   async respondPermission(
@@ -305,6 +348,14 @@ export class CodexAdapter implements CodingAgentAdapter {
     try {
       const notification = readCodexNotification(message.method, message.params);
       if (!notification) return;
+
+      if (notification.type === 'tokenUsage') {
+        this.usageByThread.set(
+          notification.params.threadId,
+          notification.params.tokenUsage,
+        );
+        return;
+      }
 
       if (notification.type === 'messageDelta') {
         const { threadId, turnId, itemId, delta } = notification.params;

@@ -620,9 +620,6 @@ export const getAgentSessionUsage = async (
   runId: string,
 ): Promise<CodingAgentSessionUsage> => {
   const row = getSessionRecord(runId);
-  if (row.installation.kind !== 'opencode') {
-    throw new Error('Session usage is only available for OpenCode.');
-  }
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
   await ensureStarted(harness);
@@ -918,9 +915,6 @@ export const sendAgentMessage = async (
 
 export const compactAgentSession = async (runId: string): Promise<void> => {
   const row = getSessionRecord(runId);
-  if (row.installation.kind !== 'opencode') {
-    throw new Error('Session compaction is only available for OpenCode.');
-  }
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
   await ensureStarted(harness);
@@ -934,8 +928,12 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
         modelId: row.agent.modelId,
       },
     );
-    setRunStatus(runId, 'idle', null);
-    scheduleReconcile(runId);
+    // OpenCode resolves only after compaction completes. Codex acknowledges
+    // immediately and reports completion through the regular turn events.
+    if (row.installation.kind === 'opencode') {
+      setRunStatus(runId, 'idle', null);
+      scheduleReconcile(runId);
+    }
   } catch (error) {
     setRunStatus(
       runId,

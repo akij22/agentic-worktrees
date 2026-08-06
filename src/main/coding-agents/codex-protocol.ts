@@ -157,6 +157,25 @@ const codexFailedNotificationSchema = z.object({
   error: z.object({ message: z.string() }).passthrough(),
 }).passthrough();
 
+const codexTokenBreakdownSchema = z.object({
+  totalTokens: z.number().int().nonnegative(),
+  inputTokens: z.number().int().nonnegative(),
+  cachedInputTokens: z.number().int().nonnegative(),
+  cacheWriteInputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  reasoningOutputTokens: z.number().int().nonnegative(),
+});
+
+const codexTokenUsageNotificationSchema = z.object({
+  threadId: z.string(),
+  turnId: z.string(),
+  tokenUsage: z.object({
+    total: codexTokenBreakdownSchema,
+    last: codexTokenBreakdownSchema,
+    modelContextWindow: z.number().int().positive().nullable(),
+  }),
+});
+
 const codexCommandApprovalSchema = z.object({
   threadId: z.string(),
   turnId: z.string(),
@@ -220,6 +239,10 @@ export type CodexNotification =
   | {
       type: 'turnFailed';
       params: z.infer<typeof codexFailedNotificationSchema>;
+    }
+  | {
+      type: 'tokenUsage';
+      params: z.infer<typeof codexTokenUsageNotificationSchema>;
     };
 
 export type CodexApprovalRequest =
@@ -391,6 +414,12 @@ export const readCodexNotification = (
   method: string,
   params: unknown,
 ): CodexNotification | null => {
+  if (method === 'thread/tokenUsage/updated') {
+    return {
+      type: 'tokenUsage',
+      params: codexTokenUsageNotificationSchema.parse(params),
+    };
+  }
   if (method === 'item/agentMessage/delta') {
     return {
       type: 'messageDelta',

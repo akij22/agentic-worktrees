@@ -58,7 +58,7 @@ export interface CodingAgentSessionUsage {
   contextTokens: number;
   contextWindow: number;
   contextPercentage: number;
-  totalCost: number;
+  totalCost?: number;
   providerId: string;
   modelId: string;
 }

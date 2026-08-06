@@ -91,7 +91,110 @@ const createAdapter = () => {
   return { adapter, client };
 };
 
+const emitTokenUsage = (
+  client: FakeCodexClient,
+  threadId: string,
+  modelContextWindow: number | null = 200_000,
+) =>
+  client.emit({
+    method: 'thread/tokenUsage/updated',
+    params: {
+      threadId,
+      turnId: 'turn-1',
+      tokenUsage: {
+        total: {
+          totalTokens: 60_000,
+          inputTokens: 50_000,
+          cachedInputTokens: 10_000,
+          cacheWriteInputTokens: 0,
+          outputTokens: 10_000,
+          reasoningOutputTokens: 2_000,
+        },
+        last: {
+          totalTokens: 40_000,
+          inputTokens: 35_000,
+          cachedInputTokens: 8_000,
+          cacheWriteInputTokens: 0,
+          outputTokens: 5_000,
+          reasoningOutputTokens: 1_000,
+        },
+        modelContextWindow,
+      },
+    },
+  });
+
 describe('Codex adapter', () => {
+  it('starts manual thread compaction', async () => {
+    const { adapter, client } = createAdapter();
+    client.reply('thread/compact/start', {});
+
+    await adapter.compact('/repo', 'thread-1', {
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+    });
+
+    expect(client.requestFor('thread/compact/start').params).toEqual({
+      threadId: 'thread-1',
+    });
+  });
+
+  it('returns the latest context usage for a Codex thread', async () => {
+    const { adapter, client } = createAdapter();
+    emitTokenUsage(client, 'thread-1');
+
+    await expect(
+      adapter.getUsage('/repo', 'thread-1', {
+        providerId: 'openai',
+        modelId: 'gpt-5.4',
+      }),
+    ).resolves.toEqual({
+      contextTokens: 40_000,
+      contextWindow: 200_000,
+      contextPercentage: 20,
+      providerId: 'openai',
+      modelId: 'gpt-5.4',
+    });
+  });
+
+  it('reports when Codex usage details are not available yet', async () => {
+    const { adapter, client } = createAdapter();
+
+    await expect(
+      adapter.getUsage('/repo', 'thread-1', {
+        providerId: 'openai',
+        modelId: 'gpt-5.4',
+      }),
+    ).rejects.toThrow('Codex token usage is not available yet.');
+
+    emitTokenUsage(client, 'thread-1', null);
+    await expect(
+      adapter.getUsage('/repo', 'thread-1', {
+        providerId: 'openai',
+        modelId: 'gpt-5.4',
+      }),
+    ).rejects.toThrow('Codex context window is not available yet.');
+  });
+
+  it('scopes usage by thread and clears it when stopped', async () => {
+    const { adapter, client } = createAdapter();
+    emitTokenUsage(client, 'thread-1');
+
+    await expect(
+      adapter.getUsage('/repo', 'thread-2', {
+        providerId: 'openai',
+        modelId: 'gpt-5.4',
+      }),
+    ).rejects.toThrow('Codex token usage is not available yet.');
+
+    await adapter.stop();
+    await expect(
+      adapter.getUsage('/repo', 'thread-1', {
+        providerId: 'openai',
+        modelId: 'gpt-5.4',
+      }),
+    ).rejects.toThrow('Codex token usage is not available yet.');
+  });
+
   it('starts a persistent thread with untrusted command approvals and gives it a name', async () => {
     const { adapter, client } = createAdapter();
     client.reply('thread/start', { thread: { id: 'thread-1' } });
