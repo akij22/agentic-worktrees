@@ -130,6 +130,7 @@ export const useCodingAgentSession = (runId: string) => {
       if (event.runId !== runId) return;
       if (["session.idle", "session.error"].includes(event.type)) {
         setActivity(undefined);
+        setCompacting(false);
       }
       const nextActivity = readToolActivity(event);
       if (nextActivity) setActivity(nextActivity);
@@ -273,7 +274,6 @@ export const useCodingAgentSession = (runId: string) => {
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
       setCompacting(false);
     }
   }, [load, runId]);

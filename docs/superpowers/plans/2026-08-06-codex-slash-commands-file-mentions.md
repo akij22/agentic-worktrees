@@ -930,3 +930,49 @@ git log --oneline -6
 ```
 
 Expected: no whitespace errors, no secret/generated artifact, and only scoped feature changes.
+
+---
+
+### Task 7: Show temporary context-compaction thought
+
+**Files:**
+- Modify: `src/renderer/features/coding-agent/hooks/useCodingAgentSession.ts`
+- Modify: `src/renderer/features/coding-agent/views/CodingAgentSession.tsx`
+- Modify: `src/renderer/features/coding-agent/components/SessionMessages.tsx`
+- Test: `src/renderer/features/coding-agent/components/SessionMessages.test.tsx`
+
+**Interfaces:**
+- `useCodingAgentSession` keeps `compacting` true until a matching `session.idle` or `session.error` event; failed IPC requests clear it immediately.
+- `SessionMessages` accepts an optional transient thought string and renders it with the existing `SessionThought` component.
+
+- [ ] **Step 1: Write the failing renderer test**
+
+Add a `SessionMessages` test that passes `transientThought="Compacting context..."` and asserts the rendered output contains that exact text.
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+```bash
+npm test -- src/renderer/features/coding-agent/components/SessionMessages.test.tsx
+```
+
+Expected: FAIL because `SessionMessages` does not yet accept or render a transient thought.
+
+- [ ] **Step 3: Implement the transient thought and lifecycle**
+
+Render the optional thought through `SessionThought` and pass `sessionState.compacting ? "Compacting context..." : undefined` from `CodingAgentSession`. Clear `compacting` on `session.idle`/`session.error`; leave it active after a successful compact acknowledgement so it covers the provider operation.
+
+- [ ] **Step 4: Run focused tests and typecheck**
+
+```bash
+npm test -- src/renderer/features/coding-agent/components/SessionMessages.test.tsx src/renderer/features/coding-agent/components/SessionComposer.test.tsx
+npm run typecheck
+```
+
+Expected: all tests pass and TypeScript reports no diagnostics.
+
+- [ ] **Step 5: Commit the UI feedback slice**
+
+```bash
+git add src/renderer/features/coding-agent/components/SessionMessages.tsx src/renderer/features/coding-agent/components/SessionMessages.test.tsx src/renderer/features/coding-agent/hooks/useCodingAgentSession.ts src/renderer/features/coding-agent/views/CodingAgentSession.tsx docs/superpowers/plans/2026-08-06-codex-slash-commands-file-mentions.md
+git commit -m "fix(chat): show context compaction progress" -m "Render a transient chain-of-thought style message while context compaction is active, and clear it only after the session reaches a terminal state."
+```

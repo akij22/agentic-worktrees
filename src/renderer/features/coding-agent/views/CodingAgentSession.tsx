@@ -291,6 +291,9 @@ export const CodingAgentSession = ({
             messages={messages}
             busy={agentRunning}
             activity={busy && !agentFinished ? sessionState.activity : undefined}
+            transientThought={
+              sessionState.compacting ? "Compacting context..." : undefined
+            }
             permission={sessionState.permission}
             error={sessionState.error}
             onRespondPermission={(response) =>
