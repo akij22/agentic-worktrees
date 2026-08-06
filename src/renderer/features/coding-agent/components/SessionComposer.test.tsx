@@ -1,5 +1,17 @@
+// @vitest-environment jsdom
+
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
+import { useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Api } from "../../../../shared/ipc/api";
 import type { CodingAgentSessionDto } from "../../../../shared/ipc/schemas";
 import { SessionComposer } from "./SessionComposer";
 import { SessionStatusPopup } from "./SessionStatusPopup";
@@ -44,21 +56,148 @@ const renderComposer = (agentKind: CodingAgentSessionDto["agentKind"]) =>
     />,
   );
 
-describe("SessionComposer slash commands", () => {
-  it("renders the OpenCode command palette", () => {
-    const markup = renderComposer("opencode");
+const InteractiveComposer = ({
+  initialDraft,
+  onSend = () => undefined,
+}: {
+  initialDraft: string;
+  onSend?: () => void;
+}) => {
+  const [draft, setDraft] = useState(initialDraft);
+  return (
+    <SessionComposer
+      session={createSession("codex")}
+      draft={draft}
+      models={[]}
+      modelKey="provider::model"
+      reasoningVariant=""
+      reasoningVariants={[]}
+      loadingModels={false}
+      changingModel={false}
+      busy={false}
+      locked={false}
+      onDraftChange={setDraft}
+      onModelChange={() => undefined}
+      onReasoningChange={() => undefined}
+      onSend={onSend}
+      onStop={() => undefined}
+      onSlashCommand={() => undefined}
+    />
+  );
+};
 
-    expect(markup).toContain('aria-label="OpenCode slash commands"');
-    expect(markup).toContain("/status");
-    expect(markup).toContain("/compact");
-    expect(markup).toContain("/model");
-    expect(markup).toContain("/stop");
+describe("SessionComposer slash commands", () => {
+  it.each(["opencode", "codex"] as const)(
+    "renders the command palette for %s",
+    (agentKind) => {
+      const markup = renderComposer(agentKind);
+
+      expect(markup).toContain('aria-label="Session slash commands"');
+      expect(markup).toContain("/status");
+      expect(markup).toContain("/compact");
+      expect(markup).toContain("/model");
+      expect(markup).toContain("/stop");
+    },
+  );
+});
+
+describe("SessionComposer file mentions", () => {
+  const search = vi.fn<Api["workspace"]["files"]["search"]>();
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    search.mockReset();
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: {
+        workspace: { files: { search } },
+      } as unknown as Api,
+    });
   });
 
-  it("does not expose OpenCode commands in Codex sessions", () => {
-    expect(renderComposer("codex")).not.toContain(
-      'aria-label="OpenCode slash commands"',
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  const openFilePalette = async () => {
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+    return screen.getByRole("listbox", { name: "Worktree files" });
+  };
+
+  it("selects a worktree file at the caret with the keyboard", async () => {
+    search.mockResolvedValueOnce([
+      "src/Session.tsx",
+      "src/SessionCard.tsx",
+    ]);
+    render(<InteractiveComposer initialDraft="Fix @Ses" />);
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    const palette = await openFilePalette();
+
+    expect(within(palette).getByText("src/Session.tsx")).toBeTruthy();
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(textarea.value).toBe("Fix @src/SessionCard.tsx ");
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+  });
+
+  it("selects a worktree file with the mouse", async () => {
+    search.mockResolvedValueOnce(["src/Session.tsx"]);
+    render(<InteractiveComposer initialDraft="Fix @Ses" />);
+    await openFilePalette();
+
+    fireEvent.click(screen.getByRole("option", { name: "src/Session.tsx" }));
+
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+      "Fix @src/Session.tsx ",
     );
+  });
+
+  it("dismisses file suggestions without clearing the draft", async () => {
+    search.mockResolvedValueOnce(["src/Session.tsx"]);
+    render(<InteractiveComposer initialDraft="Fix @Ses" />);
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    await openFilePalette();
+
+    fireEvent.keyDown(textarea, { key: "Escape" });
+
+    expect(textarea.value).toBe("Fix @Ses");
+    expect(screen.queryByRole("listbox", { name: "Worktree files" })).toBeNull();
+  });
+
+  it("shows empty and error states while leaving the textarea usable", async () => {
+    search.mockResolvedValueOnce([]);
+    const { unmount } = render(
+      <InteractiveComposer initialDraft="Review @missing" />,
+    );
+    await openFilePalette();
+    expect(screen.getByText("No matching files")).toBeTruthy();
+    unmount();
+
+    search.mockRejectedValueOnce(new Error("git failed"));
+    render(<InteractiveComposer initialDraft="Review @broken" />);
+    await openFilePalette();
+    expect(screen.getByText("Could not search worktree files.")).toBeTruthy();
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(
+      false,
+    );
+  });
+
+  it("keeps Shift+Enter as a newline gesture instead of selecting", async () => {
+    const onSend = vi.fn();
+    search.mockResolvedValueOnce(["src/Session.tsx"]);
+    render(<InteractiveComposer initialDraft="Fix @Ses" onSend={onSend} />);
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    await openFilePalette();
+
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
+
+    expect(textarea.value).toBe("Fix @Ses");
+    expect(onSend).not.toHaveBeenCalled();
   });
 });
 

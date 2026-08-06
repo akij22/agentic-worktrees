@@ -1,20 +1,20 @@
-export type OpenCodeSlashCommandId =
+export type SlashCommandId =
   | "status"
   | "compact"
   | "model"
   | "stop";
 
-export type OpenCodeSlashCommand = {
-  id: OpenCodeSlashCommandId;
+export type SlashCommand = {
+  id: SlashCommandId;
   label: string;
   description: string;
 };
 
-export const OPEN_CODE_SLASH_COMMANDS: OpenCodeSlashCommand[] = [
+export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: "status",
     label: "/status",
-    description: "Show session and OpenCode runtime status",
+    description: "Show session and runtime status",
   },
   {
     id: "compact",
@@ -29,16 +29,16 @@ export const OPEN_CODE_SLASH_COMMANDS: OpenCodeSlashCommand[] = [
   {
     id: "stop",
     label: "/stop",
-    description: "Stop the active OpenCode turn",
+    description: "Stop the active agent turn",
   },
 ];
 
-export const filterOpenCodeSlashCommands = (
+export const filterSlashCommands = (
   draft: string,
-): OpenCodeSlashCommand[] => {
+): SlashCommand[] => {
   if (!draft.startsWith("/") || draft.includes(" ")) return [];
   const query = draft.slice(1).toLocaleLowerCase();
-  return OPEN_CODE_SLASH_COMMANDS.filter((command) =>
+  return SLASH_COMMANDS.filter((command) =>
     command.id.startsWith(query),
   );
 };
