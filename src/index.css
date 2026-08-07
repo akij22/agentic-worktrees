@@ -208,4 +208,22 @@
       "Liberation Mono", monospace;
     font-variant-ligatures: none;
   }
+
+  @keyframes route-screen-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .route-screen-enter {
+      animation: route-screen-enter 170ms cubic-bezier(0.22, 1, 0.36, 1)
+        both;
+    }
+  }
 }

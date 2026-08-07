@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTheme } from '../lib/use-theme';
 import appLogo from '../assets/agentic-worktrees-logo.png';
+import { RouteTransition } from './RouteTransition';
 import {
   clampDashboardSidebarWidth,
   DASHBOARD_SIDEBAR_DEFAULT_WIDTH,
@@ -226,7 +227,9 @@ export const AppShell = () => {
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {isDashboard ? (
           <div className="min-h-0 flex-1 overflow-hidden">
-            <Outlet />
+            <RouteTransition pathname={location.pathname} className="h-full">
+              <Outlet />
+            </RouteTransition>
           </div>
         ) : (
           <>
@@ -246,7 +249,9 @@ export const AppShell = () => {
                   : 'flex-1 overflow-auto p-6'
               }
             >
-              <Outlet />
+              <RouteTransition pathname={location.pathname} className="h-full">
+                <Outlet />
+              </RouteTransition>
             </div>
           </>
         )}
