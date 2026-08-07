@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { Button } from "../../../components/ui/button";
 
 export type CodingAgentLayoutMode = "single" | "dual";
@@ -5,6 +6,7 @@ export type CodingAgentLayoutMode = "single" | "dual";
 type Props = {
   mode: CodingAgentLayoutMode;
   onModeChange: (mode: CodingAgentLayoutMode) => void;
+  dualButtonRef?: Ref<HTMLButtonElement>;
 };
 
 const SinglePanelIcon = () => (
@@ -20,7 +22,11 @@ const DualPanelIcon = () => (
   </svg>
 );
 
-export const CodingAgentLayoutControls = ({ mode, onModeChange }: Props) => (
+export const CodingAgentLayoutControls = ({
+  mode,
+  onModeChange,
+  dualButtonRef,
+}: Props) => (
   <div
     role="group"
     aria-label="Chat layout"
@@ -39,9 +45,11 @@ export const CodingAgentLayoutControls = ({ mode, onModeChange }: Props) => (
       <SinglePanelIcon />
     </Button>
     <Button
+      ref={dualButtonRef}
       type="button"
       size="icon"
       variant={mode === "dual" ? "secondary" : "ghost"}
+      data-layout-control="dual"
       className="h-8 w-8"
       aria-label="Dual chat view"
       aria-pressed={mode === "dual"}

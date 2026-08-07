@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampPrimaryPanelWidth,
+  getDualChatGridTemplate,
   getSessionWorkspaceColumns,
   resolveSecondaryRunId,
   setSecondaryRunId,
@@ -16,6 +17,24 @@ describe("dual chat layout", () => {
   it("uses half the available width as the effective minimum in a narrow container", () => {
     expect(clampPrimaryPanelWidth(500, 20)).toBe(246);
     expect(clampPrimaryPanelWidth(500, 480)).toBe(246);
+  });
+
+  it("builds compatible collapsed and expanded dual-chat grid tracks", () => {
+    expect(getDualChatGridTemplate(40, false)).toBe(
+      "minmax(0, 100fr) 0px minmax(0, 0fr)",
+    );
+    expect(getDualChatGridTemplate(40, true)).toBe(
+      "minmax(0, 40fr) 8px minmax(0, 60fr)",
+    );
+  });
+
+  it("clamps dual-chat split ratios before building grid tracks", () => {
+    expect(getDualChatGridTemplate(-10, true)).toContain(
+      "minmax(0, 0fr) 8px minmax(0, 100fr)",
+    );
+    expect(getDualChatGridTemplate(120, true)).toContain(
+      "minmax(0, 100fr) 8px minmax(0, 0fr)",
+    );
   });
 
   it("accepts only an available secondary session different from the primary", () => {

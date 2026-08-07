@@ -5,11 +5,17 @@ import type { CodingAgentLayoutMode } from "../components/CodingAgentLayoutContr
 import { SecondarySessionSelector } from "../components/SecondarySessionSelector";
 import { useCodingAgentSessions } from "../hooks/useCodingAgentSessions";
 import {
+  DUAL_CHAT_TRANSITION_DURATION_MS,
+  useDualChatTransition,
+} from "../hooks/useDualChatTransition";
+import {
   clampPrimaryPanelWidth,
   DUAL_CHAT_DIVIDER_WIDTH,
+  getDualChatGridTemplate,
   resolveSecondaryRunId,
   setSecondaryRunId,
 } from "../lib/dual-chat-layout";
+import { usePrefersReducedMotion } from "../../../lib/use-prefers-reduced-motion";
 import { CodingAgentSession } from "./CodingAgentSession";
 
 const SecondaryChatPanel = ({ primaryRunId }: { primaryRunId: string }) => {
@@ -77,10 +83,17 @@ export const CodingAgentWorkspace = ({
   primaryRunId: string;
 }) => {
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const secondaryPanelRef = useRef<HTMLDivElement>(null);
+  const dualLayoutButtonRef = useRef<HTMLButtonElement>(null);
   const [mode, setMode] = useState<CodingAgentLayoutMode>("single");
   const [primaryPanelWidth, setPrimaryPanelWidth] = useState<number>();
   const [primaryPanelPercent, setPrimaryPanelPercent] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const { isSecondaryMounted, isSecondaryVisible } = useDualChatTransition(
+    mode,
+    prefersReducedMotion,
+  );
 
   const updatePrimaryPanelWidth = (requestedWidth: number) => {
     const bounds = workspaceRef.current?.getBoundingClientRect();
@@ -92,7 +105,7 @@ export const CodingAgentWorkspace = ({
       bounds.width - DUAL_CHAT_DIVIDER_WIDTH,
     );
     setPrimaryPanelWidth(nextWidth);
-    setPrimaryPanelPercent(Math.round((nextWidth / availableWidth) * 100));
+    setPrimaryPanelPercent((nextWidth / availableWidth) * 100);
   };
 
   useEffect(() => {
@@ -122,35 +135,56 @@ export const CodingAgentWorkspace = ({
     return () => window.removeEventListener("resize", clampCurrentWidth);
   }, [mode, primaryPanelWidth]);
 
-  const gridTemplateColumns = primaryPanelWidth
-    ? `${primaryPanelWidth}px ${DUAL_CHAT_DIVIDER_WIDTH}px minmax(0,1fr)`
-    : `minmax(0,1fr) ${DUAL_CHAT_DIVIDER_WIDTH}px minmax(0,1fr)`;
+  const handleModeChange = (nextMode: CodingAgentLayoutMode) => {
+    if (
+      nextMode === "single" &&
+      secondaryPanelRef.current?.contains(document.activeElement)
+    ) {
+      dualLayoutButtonRef.current?.focus();
+    }
+    setMode(nextMode);
+  };
+
+  const workspaceStyle = isSecondaryMounted
+    ? ({
+        gridTemplateColumns: getDualChatGridTemplate(
+          primaryPanelPercent,
+          isSecondaryVisible,
+        ),
+        "--dual-chat-transition-duration": `${DUAL_CHAT_TRANSITION_DURATION_MS}ms`,
+      } as CSSProperties)
+    : undefined;
+  const roundedPrimaryPanelPercent = Math.round(primaryPanelPercent);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <div
         ref={workspaceRef}
-        style={
-          mode === "dual"
-            ? ({ gridTemplateColumns } as CSSProperties)
-            : undefined
-        }
+        style={workspaceStyle}
+        data-secondary-visible={isSecondaryVisible}
+        data-resizing={isResizing}
         className={
-          mode === "dual"
-            ? "grid min-h-0 flex-1 overflow-hidden"
+          isSecondaryMounted
+            ? "dual-chat-workspace grid min-h-0 flex-1 overflow-hidden"
             : "min-h-0 flex-1 overflow-hidden"
         }
       >
-        <CodingAgentSession
-          key={primaryRunId}
-          runId={primaryRunId}
-          showInspection={mode === "single"}
-          headerTitle="Coding Agent"
-          headerActions={
-            <CodingAgentLayoutControls mode={mode} onModeChange={setMode} />
-          }
-        />
-        {mode === "dual" ? (
+        <div className="min-w-0 overflow-hidden">
+          <CodingAgentSession
+            key={primaryRunId}
+            runId={primaryRunId}
+            showInspection={!isSecondaryMounted}
+            headerTitle="Coding Agent"
+            headerActions={
+              <CodingAgentLayoutControls
+                mode={mode}
+                onModeChange={handleModeChange}
+                dualButtonRef={dualLayoutButtonRef}
+              />
+            }
+          />
+        </div>
+        {isSecondaryMounted ? (
           <>
             <div
               role="separator"
@@ -158,10 +192,12 @@ export const CodingAgentWorkspace = ({
               aria-orientation="vertical"
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={primaryPanelPercent}
-              aria-valuetext={`${primaryPanelPercent}% for the primary chat`}
-              tabIndex={0}
+              aria-valuenow={roundedPrimaryPanelPercent}
+              aria-valuetext={`${roundedPrimaryPanelPercent}% for the primary chat`}
+              aria-hidden={!isSecondaryVisible}
+              tabIndex={isSecondaryVisible ? 0 : -1}
               onKeyDown={(event) => {
+                if (!isSecondaryVisible) return;
                 if (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
                   return;
 
@@ -175,10 +211,11 @@ export const CodingAgentWorkspace = ({
                 updatePrimaryPanelWidth(currentWidth + direction);
               }}
               onPointerDown={(event) => {
+                if (!isSecondaryVisible) return;
                 event.preventDefault();
                 setIsResizing(true);
               }}
-              className={`group relative z-10 flex touch-none cursor-col-resize items-center justify-center border-x border-border/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+              className={`dual-chat-divider group relative z-10 flex touch-none cursor-col-resize items-center justify-center border-x border-border/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
                 isResizing ? "bg-primary/10" : "bg-transparent hover:bg-primary/5"
               }`}
             >
@@ -191,7 +228,14 @@ export const CodingAgentWorkspace = ({
                 }`}
               />
             </div>
-            <SecondaryChatPanel primaryRunId={primaryRunId} />
+            <div
+              ref={secondaryPanelRef}
+              aria-hidden={!isSecondaryVisible}
+              inert={!isSecondaryVisible}
+              className="dual-chat-secondary min-w-0 overflow-hidden"
+            >
+              <SecondaryChatPanel primaryRunId={primaryRunId} />
+            </div>
           </>
         ) : null}
       </div>
