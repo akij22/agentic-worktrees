@@ -1,6 +1,18 @@
 export const DUAL_CHAT_DIVIDER_WIDTH = 8;
 export const DUAL_CHAT_MIN_PANEL_WIDTH = 320;
 
+export const getDualChatGridTemplate = (
+  primaryPanelPercent: number,
+  expanded: boolean,
+): string => {
+  if (!expanded) {
+    return "minmax(0, 100fr) 0px minmax(0, 0fr)";
+  }
+
+  const primary = Math.min(100, Math.max(0, primaryPanelPercent));
+  return `minmax(0, ${primary}fr) ${DUAL_CHAT_DIVIDER_WIDTH}px minmax(0, ${100 - primary}fr)`;
+};
+
 export const clampPrimaryPanelWidth = (
   containerWidth: number,
   requestedWidth: number,
