@@ -153,6 +153,7 @@ describe("coding agent layout components", () => {
     expect(markup).toContain('aria-label="Single chat view"');
     expect(markup).toContain('aria-label="Dual chat view"');
     expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('data-layout-control="dual"');
   });
 
   it("excludes the primary session and orders alternatives by most recent update", () => {
