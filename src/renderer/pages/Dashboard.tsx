@@ -67,12 +67,15 @@ type DialogState =
       createBaseBranch: CreateBaseBranchState;
     };
 
-const initialOpenDialog = (repo: Repository): DialogState => ({
+export const initialOpenDialog = (
+  repo: Repository,
+  preferredBaseBranch?: string,
+): DialogState => ({
   status: 'open',
   repo,
   branches: [],
   branchesState: 'loading',
-  baseBranch: repo.defaultBranch ?? '',
+  baseBranch: preferredBaseBranch ?? repo.defaultBranch ?? '',
   newBranchName: '',
   worktreeName: '',
   submitting: false,
@@ -386,37 +389,48 @@ export const Dashboard = () => {
     }
   }, [addRepository, loadRepos]);
 
-  const openCreateDialog = useCallback((repo: Repository) => {
-    setDialog(initialOpenDialog(repo));
-    void (async () => {
-      try {
-        const branches = await window.api.github.listBranches({
-          repositoryId: repo.id,
-        });
-        setDialog((prev) =>
-          prev.status === 'open'
-            ? {
-                ...prev,
-                branches,
-                branchesState: 'loaded',
-                baseBranch: prev.baseBranch || branches[0]?.name || '',
-              }
-            : prev,
-        );
-      } catch (error) {
-        setDialog((prev) =>
-          prev.status === 'open'
-            ? {
-                ...prev,
-                branchesState: 'error',
-                branchesError:
-                  error instanceof Error ? error.message : String(error),
-              }
-            : prev,
-        );
-      }
-    })();
-  }, []);
+  const openCreateDialog = useCallback(
+    (repo: Repository, preferredBaseBranch?: string) => {
+      setDialog(initialOpenDialog(repo, preferredBaseBranch));
+      void (async () => {
+        try {
+          const branches = await window.api.github.listBranches({
+            repositoryId: repo.id,
+          });
+          setDialog((prev) =>
+            prev.status === 'open'
+              ? {
+                  ...prev,
+                  branches,
+                  branchesState: 'loaded',
+                  baseBranch: branches.some(
+                    (branch) => branch.name === prev.baseBranch,
+                  )
+                    ? prev.baseBranch
+                    : branches.some(
+                          (branch) => branch.name === repo.defaultBranch,
+                        )
+                      ? (repo.defaultBranch ?? '')
+                      : (branches[0]?.name ?? ''),
+                }
+              : prev,
+          );
+        } catch (error) {
+          setDialog((prev) =>
+            prev.status === 'open'
+              ? {
+                  ...prev,
+                  branchesState: 'error',
+                  branchesError:
+                    error instanceof Error ? error.message : String(error),
+                }
+              : prev,
+          );
+        }
+      })();
+    },
+    [],
+  );
 
   const closeDialog = useCallback(() => {
     setDialog({ status: 'closed' });
@@ -602,9 +616,15 @@ export const Dashboard = () => {
           <RepositoryWorkspace
             repository={selectedRepository}
             worktrees={selectedRepositoryWorktrees}
+            branchList={
+              selectedRepository
+                ? repositoryBranchLists[selectedRepository.id]
+                : undefined
+            }
             selectedWorktreeId={selectedWorktreeId}
             sessionsByWorktreeId={sessionsByWorktreeId}
             chatSummary={worktreeChatSummary}
+            onBranchesRequested={loadRepositoryBranches}
             onCreateWorktree={openCreateDialog}
             onSelectWorktree={setSelectedWorktreeId}
             onOpenCodingAgent={(worktree) =>
