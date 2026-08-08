@@ -1,990 +1,1042 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import type { Repository, Worktree } from '../../shared/db/schema';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import type { Repository, Worktree } from "../../shared/db/schema";
 import type {
-  BranchDto,
-  CodingAgentSessionDto,
-  RemoteRepositoryDto,
-} from '../../shared/ipc/schemas';
-import { Button } from '../components/ui/button';
-import { Skeleton } from '../components/ui/skeleton';
+	BranchDto,
+	CodingAgentSessionDto,
+	RemoteRepositoryDto,
+} from "../../shared/ipc/schemas";
+import { Button } from "../components/ui/button";
+import { Skeleton } from "../components/ui/skeleton";
 import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Select } from '../components/ui/select';
+	Dialog,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Select } from "../components/ui/select";
 import {
-  RepositorySidebar,
-  type BranchChatStatus,
-  type RepositoryBranchListState,
-} from '../features/dashboard/components/RepositorySidebar';
-import { RepositoryWorkspace } from '../features/dashboard/components/RepositoryWorkspace';
-import { useWorktreeChatSummary } from '../features/dashboard/hooks/use-worktree-chat-summary';
+	RepositorySidebar,
+	type BranchChatStatus,
+	type RepositoryBranchListState,
+} from "../features/dashboard/components/RepositorySidebar";
+import { RepositoryWorkspace } from "../features/dashboard/components/RepositoryWorkspace";
+import { useWorktreeChatSummary } from "../features/dashboard/hooks/use-worktree-chat-summary";
 import {
-  filterRepositories,
-  resolveSelectedRepositoryId,
-  resolveSelectedWorktreeId,
-} from '../features/dashboard/dashboard-state';
+	filterRepositories,
+	resolveSelectedRepositoryId,
+	resolveSelectedWorktreeId,
+} from "../features/dashboard/dashboard-state";
 
 type LoadState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'success'; repos: Repository[] };
+	| { status: "idle" }
+	| { status: "loading" }
+	| { status: "error"; message: string }
+	| { status: "success"; repos: Repository[] };
 
 type AddRepositoryState =
-  | { status: 'closed' }
-  | {
-      status: 'open';
-      mode: 'idle' | 'local' | 'remote-loading' | 'remote-selecting' | 'remote-importing';
-      remoteCandidates: RemoteRepositoryDto[];
-      selectedRemoteIds: number[];
-      error?: string;
-    };
+	| { status: "closed" }
+	| {
+			status: "open";
+			mode:
+				| "idle"
+				| "local"
+				| "remote-loading"
+				| "remote-selecting"
+				| "remote-importing";
+			remoteCandidates: RemoteRepositoryDto[];
+			selectedRemoteIds: number[];
+			error?: string;
+	};
 
 type CreateBaseBranchState =
-  | { status: 'idle' }
-  | { status: 'open'; name: string; creating: boolean; error?: string };
+	| { status: "idle" }
+	| { status: "open"; name: string; creating: boolean; error?: string };
 
 type DialogState =
-  | { status: 'closed' }
-  | {
-      status: 'open';
-      repo: Repository;
-      branches: BranchDto[];
-      branchesState: 'loading' | 'loaded' | 'error';
-      branchesError?: string;
-      baseBranch: string;
-      newBranchName: string;
-      worktreeName: string;
-      submitting: boolean;
-      error?: string;
-      createBaseBranch: CreateBaseBranchState;
-    };
+	| { status: "closed" }
+	| {
+			status: "open";
+			repo: Repository;
+			branches: BranchDto[];
+			branchesState: "loading" | "loaded" | "error";
+			branchesError?: string;
+			baseBranch: string;
+			newBranchName: string;
+			worktreeName: string;
+			submitting: boolean;
+			error?: string;
+			createBaseBranch: CreateBaseBranchState;
+	};
 
-const initialOpenDialog = (repo: Repository): DialogState => ({
-  status: 'open',
-  repo,
-  branches: [],
-  branchesState: 'loading',
-  baseBranch: repo.defaultBranch ?? '',
-  newBranchName: '',
-  worktreeName: '',
-  submitting: false,
-  createBaseBranch: { status: 'idle' },
+export const initialOpenDialog = (
+	repo: Repository,
+	preferredBaseBranch?: string,
+): DialogState => ({
+	status: "open",
+	repo,
+	branches: [],
+	branchesState: "loading",
+	baseBranch: preferredBaseBranch ?? repo.defaultBranch ?? "",
+	newBranchName: "",
+	worktreeName: "",
+	submitting: false,
+	createBaseBranch: { status: "idle" },
 });
 
 export const Dashboard = () => {
-  const navigate = useNavigate();
-  const [loadState, setLoadState] = useState<LoadState>({ status: 'idle' });
-  const [addRepository, setAddRepository] = useState<AddRepositoryState>({
-    status: 'closed',
-  });
-  const [dialog, setDialog] = useState<DialogState>({ status: 'closed' });
-  const [createdWorktrees, setCreatedWorktrees] = useState<
-    Record<string, Worktree[]>
-  >({});
-  const [repositoryBranchLists, setRepositoryBranchLists] = useState<
-    Record<string, RepositoryBranchListState | undefined>
-  >({});
-  const [codingAgentSessions, setCodingAgentSessions] = useState<
-    CodingAgentSessionDto[]
-  >([]);
-  const requestedRepositoryBranches = useRef(new Set<string>());
-  const [repositoryQuery, setRepositoryQuery] = useState('');
-  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>();
-  const [selectedWorktreeId, setSelectedWorktreeId] = useState<string>();
+	const navigate = useNavigate();
+	const [loadState, setLoadState] = useState<LoadState>({ status: "idle" });
+	const [addRepository, setAddRepository] = useState<AddRepositoryState>({
+		status: "closed",
+	});
+	const [dialog, setDialog] = useState<DialogState>({ status: "closed" });
+	const [createdWorktrees, setCreatedWorktrees] = useState<
+		Record<string, Worktree[]>
+	>({});
+	const [repositoryBranchLists, setRepositoryBranchLists] = useState<
+		Record<string, RepositoryBranchListState | undefined>
+	>({});
+	const [codingAgentSessions, setCodingAgentSessions] = useState<
+		CodingAgentSessionDto[]
+	>([]);
+	const requestedRepositoryBranches = useRef(new Set<string>());
+	const [repositoryQuery, setRepositoryQuery] = useState("");
+	const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>();
+	const [selectedWorktreeId, setSelectedWorktreeId] = useState<string>();
 
-  const loadRepos = useCallback(async (refresh: boolean) => {
-    setLoadState({ status: 'loading' });
-    try {
-      const [repos, persistedWorktrees, sessions] = await Promise.all([
-        window.api.github.listRepos({ refresh }),
-        window.api.worktrees.listAll(),
-        window.api.codingAgent.listSessions(),
-      ]);
-      const groupedWorktrees = persistedWorktrees.reduce<Record<string, Worktree[]>>(
-        (grouped, worktree) => {
-          grouped[worktree.repositoryId] = [
-            ...(grouped[worktree.repositoryId] ?? []),
-            worktree,
-          ];
-          return grouped;
-        },
-        {},
-      );
-      setCreatedWorktrees(groupedWorktrees);
-      setCodingAgentSessions(sessions);
-      setSelectedRepositoryId((currentId) =>
-        resolveSelectedRepositoryId(repos, currentId),
-      );
-      setLoadState({ status: 'success', repos });
-      return repos;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setLoadState({
-        status: 'error',
-        message,
-      });
-      throw new Error(message);
-    }
-  }, []);
+	const loadRepos = useCallback(async (refresh: boolean) => {
+		setLoadState({ status: "loading" });
+		try {
+			const [repos, persistedWorktrees, sessions] = await Promise.all([
+				window.api.github.listRepos({ refresh }),
+				window.api.worktrees.listAll(),
+				window.api.codingAgent.listSessions(),
+			]);
+			const groupedWorktrees = persistedWorktrees.reduce<
+				Record<string, Worktree[]>
+			>((grouped, worktree) => {
+				grouped[worktree.repositoryId] = [
+					...(grouped[worktree.repositoryId] ?? []),
+					worktree,
+				];
+				return grouped;
+			}, {});
+			setCreatedWorktrees(groupedWorktrees);
+			setCodingAgentSessions(sessions);
+			setSelectedRepositoryId((currentId) =>
+				resolveSelectedRepositoryId(repos, currentId),
+			);
+			setLoadState({ status: "success", repos });
+			return repos;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setLoadState({
+				status: "error",
+				message,
+			});
+			throw new Error(message);
+		}
+	}, []);
 
-  useEffect(() => {
-    void loadRepos(false);
-  }, [loadRepos]);
+	useEffect(() => {
+		void loadRepos(false);
+	}, [loadRepos]);
 
-  useEffect(
-    () =>
-      window.api.codingAgent.onEvent((event) => {
-        if (
-          event.runId === null ||
-          ![
-            'permission.updated',
-            'session.error',
-            'session.idle',
-            'session.status',
-          ].includes(event.type)
-        ) {
-          return;
-        }
-        void window.api.codingAgent
-          .listSessions()
-          .then(setCodingAgentSessions)
-          .catch((error: unknown) => {
-            console.error('Failed to refresh branch chat statuses', error);
-          });
-      }),
-    [],
-  );
+	useEffect(
+		() =>
+			window.api.codingAgent.onEvent((event) => {
+				if (
+					event.runId === null ||
+					![
+						"permission.updated",
+						"session.error",
+						"session.idle",
+						"session.status",
+					].includes(event.type)
+				) {
+					return;
+				}
+				void window.api.codingAgent
+					.listSessions()
+					.then(setCodingAgentSessions)
+					.catch((error: unknown) => {
+						console.error("Failed to refresh branch chat statuses", error);
+					});
+			}),
+		[],
+	);
 
-  const loadRepositoryBranches = useCallback(async (repositoryId: string) => {
-    if (requestedRepositoryBranches.current.has(repositoryId)) return;
-    requestedRepositoryBranches.current.add(repositoryId);
-    setRepositoryBranchLists((current) => ({
-      ...current,
-      [repositoryId]: { status: 'loading' },
-    }));
+	const loadRepositoryBranches = useCallback(async (repositoryId: string) => {
+		if (requestedRepositoryBranches.current.has(repositoryId)) return;
+		requestedRepositoryBranches.current.add(repositoryId);
+		setRepositoryBranchLists((current) => ({
+			...current,
+			[repositoryId]: { status: "loading" },
+		}));
 
-    try {
-      const branches = await window.api.github.listBranches({ repositoryId });
-      setRepositoryBranchLists((current) => ({
-        ...current,
-        [repositoryId]: { status: 'ready', branches },
-      }));
-    } catch (error) {
-      requestedRepositoryBranches.current.delete(repositoryId);
-      setRepositoryBranchLists((current) => ({
-        ...current,
-        [repositoryId]: {
-          status: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        },
-      }));
-    }
-  }, []);
+		try {
+			const branches = await window.api.github.listBranches({ repositoryId });
+			setRepositoryBranchLists((current) => ({
+				...current,
+				[repositoryId]: { status: "ready", branches },
+			}));
+		} catch (error) {
+			requestedRepositoryBranches.current.delete(repositoryId);
+			setRepositoryBranchLists((current) => ({
+				...current,
+				[repositoryId]: {
+					status: "error",
+					message: error instanceof Error ? error.message : String(error),
+				},
+			}));
+		}
+	}, []);
 
-  const repositories = loadState.status === 'success' ? loadState.repos : [];
-  const visibleRepositories = useMemo(
-    () => filterRepositories(repositories, repositoryQuery),
-    [repositories, repositoryQuery],
-  );
-  const selectedRepository = useMemo(
-    () => repositories.find((repository) => repository.id === selectedRepositoryId),
-    [repositories, selectedRepositoryId],
-  );
-  const selectedRepositoryWorktrees = useMemo(
-    () =>
-      selectedRepository ? (createdWorktrees[selectedRepository.id] ?? []) : [],
-    [createdWorktrees, selectedRepository],
-  );
+	const repositories = loadState.status === "success" ? loadState.repos : [];
+	const visibleRepositories = useMemo(
+		() => filterRepositories(repositories, repositoryQuery),
+		[repositories, repositoryQuery],
+	);
+	const selectedRepository = useMemo(
+		() =>
+			repositories.find((repository) => repository.id === selectedRepositoryId),
+		[repositories, selectedRepositoryId],
+	);
+	const selectedRepositoryWorktrees = useMemo(
+		() =>
+			selectedRepository ? (createdWorktrees[selectedRepository.id] ?? []) : [],
+		[createdWorktrees, selectedRepository],
+	);
 
-  useEffect(() => {
-    setSelectedWorktreeId((currentId) =>
-      resolveSelectedWorktreeId(selectedRepositoryWorktrees, currentId),
-    );
-  }, [selectedRepositoryId, selectedRepositoryWorktrees]);
+	useEffect(() => {
+		setSelectedWorktreeId((currentId) =>
+			resolveSelectedWorktreeId(selectedRepositoryWorktrees, currentId),
+		);
+	}, [selectedRepositoryId, selectedRepositoryWorktrees]);
 
-  const selectedWorktree = useMemo(
-    () =>
-      selectedRepositoryWorktrees.find(
-        (worktree) => worktree.id === selectedWorktreeId,
-      ) ?? selectedRepositoryWorktrees[0],
-    [selectedRepositoryWorktrees, selectedWorktreeId],
-  );
-  const sessionsByWorktreeId = useMemo(() => {
-    const sessionsById = new Map(
-      codingAgentSessions.map((session) => [session.id, session]),
-    );
-    const latestSessionByWorktree = new Map<string, CodingAgentSessionDto>();
-    codingAgentSessions.forEach((session) => {
-      const current = latestSessionByWorktree.get(session.worktreeId);
-      if (!current || session.updatedAt > current.updatedAt) {
-        latestSessionByWorktree.set(session.worktreeId, session);
-      }
-    });
+	const selectedWorktree = useMemo(
+		() =>
+			selectedRepositoryWorktrees.find(
+				(worktree) => worktree.id === selectedWorktreeId,
+			) ?? selectedRepositoryWorktrees[0],
+		[selectedRepositoryWorktrees, selectedWorktreeId],
+	);
+	const sessionsByWorktreeId = useMemo(() => {
+		const sessionsById = new Map(
+			codingAgentSessions.map((session) => [session.id, session]),
+		);
+		const latestSessionByWorktree = new Map<string, CodingAgentSessionDto>();
+		codingAgentSessions.forEach((session) => {
+			const current = latestSessionByWorktree.get(session.worktreeId);
+			if (!current || session.updatedAt > current.updatedAt) {
+				latestSessionByWorktree.set(session.worktreeId, session);
+			}
+		});
 
-    return Object.values(createdWorktrees).reduce<
-      Record<string, CodingAgentSessionDto | undefined>
-    >((sessions, worktrees) => {
-      worktrees.forEach((worktree) => {
-        const session =
-          (worktree.activeRunId
-            ? sessionsById.get(worktree.activeRunId)
-            : undefined) ?? latestSessionByWorktree.get(worktree.id);
-        sessions[worktree.id] = session;
-      });
-      return sessions;
-    }, {});
-  }, [codingAgentSessions, createdWorktrees]);
-  const branchChatStatuses = useMemo(() => {
-    return Object.values(createdWorktrees).reduce<
-      Record<string, Record<string, BranchChatStatus | undefined>>
-    >((statuses, worktrees) => {
-      worktrees.forEach((worktree) => {
-        const session = sessionsByWorktreeId[worktree.id];
-        if (!session) return;
-        statuses[worktree.repositoryId] ??= {};
-        statuses[worktree.repositoryId][worktree.branchName] = {
-          status: session.status,
-          errorMessage: session.errorMessage,
-        };
-      });
-      return statuses;
-    }, {});
-  }, [createdWorktrees, sessionsByWorktreeId]);
-  const worktreeChatSummary = useWorktreeChatSummary(selectedWorktree);
+		return Object.values(createdWorktrees).reduce<
+			Record<string, CodingAgentSessionDto | undefined>
+		>((sessions, worktrees) => {
+			worktrees.forEach((worktree) => {
+				const session =
+					(worktree.activeRunId
+						? sessionsById.get(worktree.activeRunId)
+						: undefined) ?? latestSessionByWorktree.get(worktree.id);
+				sessions[worktree.id] = session;
+			});
+			return sessions;
+		}, {});
+	}, [codingAgentSessions, createdWorktrees]);
+	const branchChatStatuses = useMemo(() => {
+		return Object.values(createdWorktrees).reduce<
+			Record<string, Record<string, BranchChatStatus | undefined>>
+		>((statuses, worktrees) => {
+			worktrees.forEach((worktree) => {
+				const session = sessionsByWorktreeId[worktree.id];
+				if (!session) return;
+				statuses[worktree.repositoryId] ??= {};
+				statuses[worktree.repositoryId][worktree.branchName] = {
+					status: session.status,
+					errorMessage: session.errorMessage,
+				};
+			});
+			return statuses;
+		}, {});
+	}, [createdWorktrees, sessionsByWorktreeId]);
+	const worktreeChatSummary = useWorktreeChatSummary(
+		selectedWorktree,
+		selectedRepositoryWorktrees,
+	);
 
-  const openAddRepositoryDialog = useCallback(() => {
-    setAddRepository({
-      status: 'open',
-      mode: 'idle',
-      remoteCandidates: [],
-      selectedRemoteIds: [],
-    });
-  }, []);
+	const openAddRepositoryDialog = useCallback(() => {
+		setAddRepository({
+			status: "open",
+			mode: "idle",
+			remoteCandidates: [],
+			selectedRemoteIds: [],
+		});
+	}, []);
 
-  const closeAddRepositoryDialog = useCallback(() => {
-    setAddRepository({ status: 'closed' });
-  }, []);
+	const closeAddRepositoryDialog = useCallback(() => {
+		setAddRepository({ status: "closed" });
+	}, []);
 
-  const importLocalRepository = useCallback(async () => {
-    setAddRepository((prev) =>
-      prev.status === 'open'
-        ? { ...prev, mode: 'local', error: undefined }
-        : prev,
-    );
+	const importLocalRepository = useCallback(async () => {
+		setAddRepository((prev) =>
+			prev.status === "open"
+				? { ...prev, mode: "local", error: undefined }
+				: prev,
+		);
 
-    try {
-      const repository = await window.api.repositories.importLocal();
-      if (repository) {
-        await loadRepos(false);
-        setAddRepository({ status: 'closed' });
-        return;
-      }
-      setAddRepository({
-        status: 'open',
-        mode: 'idle',
-        remoteCandidates: [],
-        selectedRemoteIds: [],
-      });
-    } catch (error) {
-      setAddRepository((prev) =>
-        prev.status === 'open'
-          ? {
-              ...prev,
-              mode: 'idle',
-              error: error instanceof Error ? error.message : String(error),
-            }
-          : prev,
-      );
-    }
-  }, [loadRepos]);
+		try {
+			const repository = await window.api.repositories.importLocal();
+			if (repository) {
+				await loadRepos(false);
+				setAddRepository({ status: "closed" });
+				return;
+			}
+			setAddRepository({
+				status: "open",
+				mode: "idle",
+				remoteCandidates: [],
+				selectedRemoteIds: [],
+			});
+		} catch (error) {
+			setAddRepository((prev) =>
+				prev.status === "open"
+					? {
+							...prev,
+							mode: "idle",
+							error: error instanceof Error ? error.message : String(error),
+						}
+					: prev,
+			);
+		}
+	}, [loadRepos]);
 
-  const importRemoteRepositories = useCallback(async () => {
-    setAddRepository((prev) =>
-      prev.status === 'open'
-        ? { ...prev, mode: 'remote-loading', error: undefined }
-        : prev,
-    );
+	const importRemoteRepositories = useCallback(async () => {
+		setAddRepository((prev) =>
+			prev.status === "open"
+				? { ...prev, mode: "remote-loading", error: undefined }
+				: prev,
+		);
 
-    try {
-      const remoteCandidates = await window.api.github.listRemoteRepos();
-      setAddRepository((prev) =>
-        prev.status === 'open'
-          ? {
-              ...prev,
-              mode: 'remote-selecting',
-              remoteCandidates,
-              selectedRemoteIds: [],
-            }
-          : prev,
-      );
-    } catch (error) {
-      setAddRepository((prev) =>
-        prev.status === 'open'
-          ? {
-              ...prev,
-              mode: 'idle',
-              remoteCandidates: [],
-              selectedRemoteIds: [],
-              error: error instanceof Error ? error.message : String(error),
-            }
-          : prev,
-      );
-    }
-  }, []);
+		try {
+			const remoteCandidates = await window.api.github.listRemoteRepos();
+			setAddRepository((prev) =>
+				prev.status === "open"
+					? {
+							...prev,
+							mode: "remote-selecting",
+							remoteCandidates,
+							selectedRemoteIds: [],
+						}
+					: prev,
+			);
+		} catch (error) {
+			setAddRepository((prev) =>
+				prev.status === "open"
+					? {
+							...prev,
+							mode: "idle",
+							remoteCandidates: [],
+							selectedRemoteIds: [],
+							error: error instanceof Error ? error.message : String(error),
+						}
+					: prev,
+			);
+		}
+	}, []);
 
-  const toggleRemoteRepository = useCallback((repositoryId: number) => {
-    setAddRepository((prev) => {
-      if (prev.status !== 'open' || prev.mode !== 'remote-selecting') {
-        return prev;
-      }
-      const selectedRemoteIds = prev.selectedRemoteIds.includes(repositoryId)
-        ? prev.selectedRemoteIds.filter((id) => id !== repositoryId)
-        : [...prev.selectedRemoteIds, repositoryId];
-      return { ...prev, selectedRemoteIds, error: undefined };
-    });
-  }, []);
+	const toggleRemoteRepository = useCallback((repositoryId: number) => {
+		setAddRepository((prev) => {
+			if (prev.status !== "open" || prev.mode !== "remote-selecting") {
+				return prev;
+			}
+			const selectedRemoteIds = prev.selectedRemoteIds.includes(repositoryId)
+				? prev.selectedRemoteIds.filter((id) => id !== repositoryId)
+				: [...prev.selectedRemoteIds, repositoryId];
+			return { ...prev, selectedRemoteIds, error: undefined };
+		});
+	}, []);
 
-  const confirmRemoteRepositories = useCallback(async () => {
-    if (addRepository.status !== 'open') return;
-    if (addRepository.selectedRemoteIds.length === 0) {
-      setAddRepository((prev) =>
-        prev.status === 'open'
-          ? { ...prev, error: 'Select at least one repository.' }
-          : prev,
-      );
-      return;
-    }
+	const confirmRemoteRepositories = useCallback(async () => {
+		if (addRepository.status !== "open") return;
+		if (addRepository.selectedRemoteIds.length === 0) {
+			setAddRepository((prev) =>
+				prev.status === "open"
+					? { ...prev, error: "Select at least one repository." }
+					: prev,
+			);
+			return;
+		}
 
-    const repositoryIds = addRepository.selectedRemoteIds;
-    setAddRepository((prev) =>
-      prev.status === 'open'
-        ? { ...prev, mode: 'remote-importing', error: undefined }
-        : prev,
-    );
-    try {
-      await window.api.repositories.importRemote({ repositoryIds });
-      await loadRepos(false);
-      setAddRepository({ status: 'closed' });
-    } catch (error) {
-      setAddRepository((prev) =>
-        prev.status === 'open'
-          ? {
-              ...prev,
-              mode: 'remote-selecting',
-              error: error instanceof Error ? error.message : String(error),
-            }
-          : prev,
-      );
-    }
-  }, [addRepository, loadRepos]);
+		const repositoryIds = addRepository.selectedRemoteIds;
+		setAddRepository((prev) =>
+			prev.status === "open"
+				? { ...prev, mode: "remote-importing", error: undefined }
+				: prev,
+		);
+		try {
+			await window.api.repositories.importRemote({ repositoryIds });
+			await loadRepos(false);
+			setAddRepository({ status: "closed" });
+		} catch (error) {
+			setAddRepository((prev) =>
+				prev.status === "open"
+					? {
+							...prev,
+							mode: "remote-selecting",
+							error: error instanceof Error ? error.message : String(error),
+						}
+					: prev,
+			);
+		}
+	}, [addRepository, loadRepos]);
 
-  const openCreateDialog = useCallback((repo: Repository) => {
-    setDialog(initialOpenDialog(repo));
-    void (async () => {
-      try {
-        const branches = await window.api.github.listBranches({
-          repositoryId: repo.id,
-        });
-        setDialog((prev) =>
-          prev.status === 'open'
-            ? {
-                ...prev,
-                branches,
-                branchesState: 'loaded',
-                baseBranch: prev.baseBranch || branches[0]?.name || '',
-              }
-            : prev,
-        );
-      } catch (error) {
-        setDialog((prev) =>
-          prev.status === 'open'
-            ? {
-                ...prev,
-                branchesState: 'error',
-                branchesError:
-                  error instanceof Error ? error.message : String(error),
-              }
-            : prev,
-        );
-      }
-    })();
-  }, []);
+	const openCreateDialog = useCallback(
+		(repo: Repository, preferredBaseBranch?: string) => {
+			setDialog(initialOpenDialog(repo, preferredBaseBranch));
+			void (async () => {
+				try {
+					const branches = await window.api.github.listBranches({
+						repositoryId: repo.id,
+					});
+					setDialog((prev) =>
+						prev.status === "open"
+							? {
+									...prev,
+									branches,
+									branchesState: "loaded",
+									baseBranch: branches.some(
+										(branch) => branch.name === prev.baseBranch,
+									)
+										? prev.baseBranch
+										: branches.some(
+													(branch) => branch.name === repo.defaultBranch,
+												)
+											? (repo.defaultBranch ?? "")
+											: (branches[0]?.name ?? ""),
+								}
+							: prev,
+					);
+				} catch (error) {
+					setDialog((prev) =>
+						prev.status === "open"
+							? {
+									...prev,
+									branchesState: "error",
+									branchesError:
+										error instanceof Error ? error.message : String(error),
+								}
+							: prev,
+					);
+				}
+			})();
+		},
+		[],
+	);
 
-  const closeDialog = useCallback(() => {
-    setDialog({ status: 'closed' });
-  }, []);
+	const closeDialog = useCallback(() => {
+		setDialog({ status: "closed" });
+	}, []);
 
-  const handleCreateBaseBranch = useCallback(async () => {
-    if (dialog.status !== 'open' || dialog.createBaseBranch.status !== 'open') return;
-    const branchName = dialog.createBaseBranch.name.trim();
-    if (!branchName) return;
+	const handleCreateBaseBranch = useCallback(async () => {
+		if (dialog.status !== "open" || dialog.createBaseBranch.status !== "open")
+			return;
+		const branchName = dialog.createBaseBranch.name.trim();
+		if (!branchName) return;
 
-    setDialog((prev) =>
-      prev.status === 'open' && prev.createBaseBranch.status === 'open'
-        ? { ...prev, createBaseBranch: { ...prev.createBaseBranch, creating: true, error: undefined } }
-        : prev,
-    );
+		setDialog((prev) =>
+			prev.status === "open" && prev.createBaseBranch.status === "open"
+				? {
+						...prev,
+						createBaseBranch: {
+							...prev.createBaseBranch,
+							creating: true,
+							error: undefined,
+						},
+					}
+				: prev,
+		);
 
-    try {
-      const newBranch = await window.api.github.createBranch({
-        repositoryId: dialog.repo.id,
-        branchName,
-      });
-      setRepositoryBranchLists((current) => {
-        const branchList = current[dialog.repo.id];
-        if (branchList?.status !== 'ready') return current;
-        return {
-          ...current,
-          [dialog.repo.id]: {
-            status: 'ready',
-            branches: [...branchList.branches, newBranch].sort((a, b) =>
-              a.name.localeCompare(b.name),
-            ),
-          },
-        };
-      });
-      setDialog((prev) =>
-        prev.status === 'open'
-          ? {
-              ...prev,
-              branches: [...prev.branches, newBranch].sort((a, b) =>
-                a.name.localeCompare(b.name),
-              ),
-              baseBranch: newBranch.name,
-              createBaseBranch: { status: 'idle' },
-            }
-          : prev,
-      );
-    } catch (error) {
-      setDialog((prev) =>
-        prev.status === 'open' && prev.createBaseBranch.status === 'open'
-          ? {
-              ...prev,
-              createBaseBranch: {
-                ...prev.createBaseBranch,
-                creating: false,
-                error: error instanceof Error ? error.message : String(error),
-              },
-            }
-          : prev,
-      );
-    }
-  }, [dialog]);
+		try {
+			const newBranch = await window.api.github.createBranch({
+				repositoryId: dialog.repo.id,
+				branchName,
+			});
+			setRepositoryBranchLists((current) => {
+				const branchList = current[dialog.repo.id];
+				if (branchList?.status !== "ready") return current;
+				return {
+					...current,
+					[dialog.repo.id]: {
+						status: "ready",
+						branches: [...branchList.branches, newBranch].sort((a, b) =>
+							a.name.localeCompare(b.name),
+						),
+					},
+				};
+			});
+			setDialog((prev) =>
+				prev.status === "open"
+					? {
+							...prev,
+							branches: [...prev.branches, newBranch].sort((a, b) =>
+								a.name.localeCompare(b.name),
+							),
+							baseBranch: newBranch.name,
+							createBaseBranch: { status: "idle" },
+						}
+					: prev,
+			);
+		} catch (error) {
+			setDialog((prev) =>
+				prev.status === "open" && prev.createBaseBranch.status === "open"
+					? {
+							...prev,
+							createBaseBranch: {
+								...prev.createBaseBranch,
+								creating: false,
+								error: error instanceof Error ? error.message : String(error),
+							},
+						}
+					: prev,
+			);
+		}
+	}, [dialog]);
 
-  const submitCreate = useCallback(async () => {
-    if (dialog.status !== 'open') return;
-    const { repo, baseBranch, newBranchName, worktreeName } = dialog;
-    if (!baseBranch || !newBranchName.trim() || !worktreeName.trim()) {
-      setDialog((prev) =>
-        prev.status === 'open'
-          ? { ...prev, error: 'All fields are required.' }
-          : prev,
-      );
-      return;
-    }
-    setDialog((prev) =>
-      prev.status === 'open' ? { ...prev, submitting: true, error: undefined } : prev,
-    );
-    try {
-      const { worktree } = await window.api.worktrees.create({
-        repositoryId: repo.id,
-        baseBranch,
-        newBranchName: newBranchName.trim(),
-        worktreeName: worktreeName.trim(),
-      });
-      setCreatedWorktrees((prev) => ({
-        ...prev,
-        [repo.id]: [...(prev[repo.id] ?? []), worktree],
-      }));
-      setRepositoryBranchLists((current) => {
-        const branchList = current[repo.id];
-        if (
-          branchList?.status !== 'ready' ||
-          branchList.branches.some((branch) => branch.name === worktree.branchName)
-        ) {
-          return current;
-        }
-        return {
-          ...current,
-          [repo.id]: {
-            status: 'ready',
-            branches: [
-              ...branchList.branches,
-              {
-                name: worktree.branchName,
-                protected: false,
-                headCommitSha: worktree.headCommitSha,
-              },
-            ].sort((a, b) => a.name.localeCompare(b.name)),
-          },
-        };
-      });
-      setSelectedRepositoryId(repo.id);
-      setSelectedWorktreeId(worktree.id);
-      setDialog({ status: 'closed' });
-    } catch (error) {
-      setDialog((prev) =>
-        prev.status === 'open'
-          ? {
-              ...prev,
-              submitting: false,
-              error: error instanceof Error ? error.message : String(error),
-            }
-          : prev,
-      );
-    }
-  }, [dialog]);
+	const submitCreate = useCallback(async () => {
+		if (dialog.status !== "open") return;
+		const { repo, baseBranch, newBranchName, worktreeName } = dialog;
+		if (!baseBranch || !newBranchName.trim() || !worktreeName.trim()) {
+			setDialog((prev) =>
+				prev.status === "open"
+					? { ...prev, error: "All fields are required." }
+					: prev,
+			);
+			return;
+		}
+		setDialog((prev) =>
+			prev.status === "open"
+				? { ...prev, submitting: true, error: undefined }
+				: prev,
+		);
+		try {
+			const { worktree } = await window.api.worktrees.create({
+				repositoryId: repo.id,
+				baseBranch,
+				newBranchName: newBranchName.trim(),
+				worktreeName: worktreeName.trim(),
+			});
+			setCreatedWorktrees((prev) => ({
+				...prev,
+				[repo.id]: [...(prev[repo.id] ?? []), worktree],
+			}));
+			setRepositoryBranchLists((current) => {
+				const branchList = current[repo.id];
+				if (
+					branchList?.status !== "ready" ||
+					branchList.branches.some(
+						(branch) => branch.name === worktree.branchName,
+					)
+				) {
+					return current;
+				}
+				return {
+					...current,
+					[repo.id]: {
+						status: "ready",
+						branches: [
+							...branchList.branches,
+							{
+								name: worktree.branchName,
+								protected: false,
+								headCommitSha: worktree.headCommitSha,
+							},
+						].sort((a, b) => a.name.localeCompare(b.name)),
+					},
+				};
+			});
+			setSelectedRepositoryId(repo.id);
+			setSelectedWorktreeId(worktree.id);
+			setDialog({ status: "closed" });
+		} catch (error) {
+			setDialog((prev) =>
+				prev.status === "open"
+					? {
+							...prev,
+							submitting: false,
+							error: error instanceof Error ? error.message : String(error),
+						}
+					: prev,
+			);
+		}
+	}, [dialog]);
 
-  return (
-    <>
-      <div className="flex h-full min-h-0 overflow-hidden bg-background text-foreground">
-        <RepositorySidebar
-          repositories={visibleRepositories}
-          selectedRepositoryId={selectedRepositoryId}
-          branchLists={repositoryBranchLists}
-          branchChatStatuses={branchChatStatuses}
-          query={repositoryQuery}
-          loading={loadState.status === 'idle' || loadState.status === 'loading'}
-          onAdd={openAddRepositoryDialog}
-          onBranchesRequested={loadRepositoryBranches}
-          onRefresh={() => void loadRepos(false)}
-          onQueryChange={setRepositoryQuery}
-          onSelect={setSelectedRepositoryId}
-        />
+	return (
+		<>
+			<div className="flex h-full min-h-0 overflow-hidden bg-background text-foreground">
+				<RepositorySidebar
+					repositories={visibleRepositories}
+					selectedRepositoryId={selectedRepositoryId}
+					branchLists={repositoryBranchLists}
+					branchChatStatuses={branchChatStatuses}
+					query={repositoryQuery}
+					loading={
+						loadState.status === "idle" || loadState.status === "loading"
+					}
+					onAdd={openAddRepositoryDialog}
+					onBranchesRequested={loadRepositoryBranches}
+					onRefresh={() => void loadRepos(false)}
+					onQueryChange={setRepositoryQuery}
+					onSelect={setSelectedRepositoryId}
+				/>
 
-        {loadState.status === 'error' ? (
-          <section className="flex min-w-0 flex-1 items-center justify-center p-8">
-            <div className="max-w-md rounded-lg border border-destructive/40 bg-destructive/5 px-8 py-7 text-center">
-              <h2 className="text-base font-semibold text-destructive">
-                Failed to load repositories
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {loadState.message}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-5"
-                onClick={() => void loadRepos(true)}
-              >
-                Retry
-              </Button>
-            </div>
-          </section>
-        ) : loadState.status === 'success' && repositories.length === 0 ? (
-          <section className="flex min-w-0 flex-1 items-center justify-center p-8">
-            <div className="max-w-md rounded-lg border border-dashed border-border px-8 py-10 text-center">
-              <h2 className="text-base font-semibold">No repositories</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Add a local repository or select repositories from the connected
-                GitHub account.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                className="mt-5"
-                onClick={openAddRepositoryDialog}
-              >
-                Add repository
-              </Button>
-            </div>
-          </section>
-        ) : (
-          <RepositoryWorkspace
-            repository={selectedRepository}
-            worktrees={selectedRepositoryWorktrees}
-            selectedWorktreeId={selectedWorktreeId}
-            sessionsByWorktreeId={sessionsByWorktreeId}
-            chatSummary={worktreeChatSummary}
-            onCreateWorktree={openCreateDialog}
-            onSelectWorktree={setSelectedWorktreeId}
-            onOpenCodingAgent={(worktree) =>
-              navigate(
-                worktree.activeRunId
-                  ? `/coding-agent/${worktree.id}/${worktree.activeRunId}`
-                  : `/coding-agent?worktreeId=${encodeURIComponent(worktree.id)}&new=1`,
-              )
-            }
-          />
-        )}
-      </div>
+				{loadState.status === "error" ? (
+					<section className="flex min-w-0 flex-1 items-center justify-center p-8">
+						<div className="max-w-md rounded-lg border border-destructive/40 bg-destructive/5 px-8 py-7 text-center">
+							<h2 className="text-base font-semibold text-destructive">
+								Failed to load repositories
+							</h2>
+							<p className="mt-2 text-sm text-muted-foreground">
+								{loadState.message}
+							</p>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="mt-5"
+								onClick={() => void loadRepos(true)}
+							>
+								Retry
+							</Button>
+						</div>
+					</section>
+				) : loadState.status === "success" && repositories.length === 0 ? (
+					<section className="flex min-w-0 flex-1 items-center justify-center p-8">
+						<div className="max-w-md rounded-lg border border-dashed border-border px-8 py-10 text-center">
+							<h2 className="text-base font-semibold">No repositories</h2>
+							<p className="mt-2 text-sm text-muted-foreground">
+								Add a local repository or select repositories from the connected
+								GitHub account.
+							</p>
+							<Button
+								type="button"
+								size="sm"
+								className="mt-5"
+								onClick={openAddRepositoryDialog}
+							>
+								Add repository
+							</Button>
+						</div>
+					</section>
+				) : (
+					<RepositoryWorkspace
+						repository={selectedRepository}
+						worktrees={selectedRepositoryWorktrees}
+						branchList={
+							selectedRepository
+								? repositoryBranchLists[selectedRepository.id]
+								: undefined
+						}
+						selectedWorktreeId={selectedWorktreeId}
+						sessionsByWorktreeId={sessionsByWorktreeId}
+						chatSummary={worktreeChatSummary}
+						onBranchesRequested={loadRepositoryBranches}
+						onCreateWorktree={openCreateDialog}
+						onSelectWorktree={setSelectedWorktreeId}
+						onOpenCodingAgent={(worktree) =>
+							navigate(
+								worktree.activeRunId
+									? `/coding-agent/${worktree.id}/${worktree.activeRunId}`
+									: `/coding-agent?worktreeId=${encodeURIComponent(worktree.id)}&new=1`,
+							)
+						}
+					/>
+				)}
+			</div>
 
-      {dialog.status === 'open' && (
-        <Dialog open onOpenChange={(o) => !o && closeDialog()}>
-          <DialogHeader>
-            <DialogTitle>Create worktree — {dialog.repo.fullName}</DialogTitle>
-            <DialogDescription>
-              Select a base branch and provide a name for the new worktree branch.
-              The repository will be cloned locally on first use.
-            </DialogDescription>
-          </DialogHeader>
+			{dialog.status === "open" && (
+				<Dialog open onOpenChange={(o) => !o && closeDialog()}>
+					<DialogHeader>
+						<DialogTitle>Create worktree — {dialog.repo.fullName}</DialogTitle>
+						<DialogDescription>
+							Select a base branch and provide a name for the new worktree
+							branch. The repository will be cloned locally on first use.
+						</DialogDescription>
+					</DialogHeader>
 
-          <div className="mt-4 flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="base-branch">Base branch</Label>
-              {dialog.branchesState === 'loading' && (
-                <Skeleton className="h-9 w-full" />
-              )}
-              {dialog.branchesState === 'error' && (
-                <p className="text-sm text-destructive">
-                  {dialog.branchesError ?? 'Failed to load branches.'}
-                </p>
-              )}
-              {dialog.branchesState === 'loaded' && (
-                <div className="flex items-center gap-1.5">
-                  <Select
-                    id="base-branch"
-                    value={dialog.baseBranch}
-                    onChange={(e) =>
-                      setDialog((prev) =>
-                        prev.status === 'open'
-                          ? { ...prev, baseBranch: e.target.value }
-                          : prev,
-                      )
-                    }
-                    className="flex-1"
-                  >
-                    {dialog.branches.length === 0 && (
-                      <option value="">No branches available</option>
-                    )}
-                    {dialog.branches.map((b) => (
-                      <option key={b.name} value={b.name}>
-                        {b.name}
-                        {b.protected ? ' (protected)' : ''}
-                      </option>
-                    ))}
-                  </Select>
-                  {dialog.repo.githubRepoId < 0 &&
-                    dialog.createBaseBranch.status === 'idle' && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-9 w-9 shrink-0 p-0"
-                        title="Create new local branch"
-                        onClick={() =>
-                          setDialog((prev) =>
-                            prev.status === 'open'
-                              ? {
-                                  ...prev,
-                                  createBaseBranch: {
-                                    status: 'open',
-                                    name: '',
-                                    creating: false,
-                                  },
-                                }
-                              : prev,
-                          )
-                        }
-                      >
-                        +
-                      </Button>
-                    )}
-                </div>
-              )}
-              {dialog.createBaseBranch.status === 'open' && (
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      autoFocus
-                      placeholder="new-branch-name"
-                      value={dialog.createBaseBranch.name}
-                      disabled={dialog.createBaseBranch.creating}
-                      onChange={(e) =>
-                        setDialog((prev) =>
-                          prev.status === 'open' &&
-                          prev.createBaseBranch.status === 'open'
-                            ? {
-                                ...prev,
-                                createBaseBranch: {
-                                  ...prev.createBaseBranch,
-                                  name: e.target.value,
-                                  error: undefined,
-                                },
-                              }
-                            : prev,
-                        )
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void handleCreateBaseBranch();
-                        if (e.key === 'Escape')
-                          setDialog((prev) =>
-                            prev.status === 'open'
-                              ? { ...prev, createBaseBranch: { status: 'idle' } }
-                              : prev,
-                          );
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="sm"
-                      disabled={
-                        dialog.createBaseBranch.creating ||
-                        !dialog.createBaseBranch.name.trim()
-                      }
-                      onClick={() => void handleCreateBaseBranch()}
-                    >
-                      {dialog.createBaseBranch.creating ? 'Creating…' : 'Create'}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={dialog.createBaseBranch.creating}
-                      onClick={() =>
-                        setDialog((prev) =>
-                          prev.status === 'open'
-                            ? { ...prev, createBaseBranch: { status: 'idle' } }
-                            : prev,
-                        )
-                      }
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                  {dialog.createBaseBranch.error && (
-                    <p className="text-sm text-destructive">
-                      {dialog.createBaseBranch.error}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
+					<div className="mt-4 flex flex-col gap-4">
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="base-branch">Base branch</Label>
+							{dialog.branchesState === "loading" && (
+								<Skeleton className="h-9 w-full" />
+							)}
+							{dialog.branchesState === "error" && (
+								<p className="text-sm text-destructive">
+									{dialog.branchesError ?? "Failed to load branches."}
+								</p>
+							)}
+							{dialog.branchesState === "loaded" && (
+								<div className="flex items-center gap-1.5">
+									<Select
+										id="base-branch"
+										value={dialog.baseBranch}
+										onChange={(e) =>
+											setDialog((prev) =>
+												prev.status === "open"
+													? { ...prev, baseBranch: e.target.value }
+													: prev,
+											)
+										}
+										className="flex-1"
+									>
+										{dialog.branches.length === 0 && (
+											<option value="">No branches available</option>
+										)}
+										{dialog.branches.map((b) => (
+											<option key={b.name} value={b.name}>
+												{b.name}
+												{b.protected ? " (protected)" : ""}
+											</option>
+										))}
+									</Select>
+									{dialog.repo.githubRepoId < 0 &&
+										dialog.createBaseBranch.status === "idle" && (
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="h-9 w-9 shrink-0 p-0"
+												title="Create new local branch"
+												onClick={() =>
+													setDialog((prev) =>
+														prev.status === "open"
+															? {
+																	...prev,
+																	createBaseBranch: {
+																		status: "open",
+																		name: "",
+																		creating: false,
+																	},
+																}
+															: prev,
+													)
+												}
+											>
+												+
+											</Button>
+										)}
+								</div>
+							)}
+							{dialog.createBaseBranch.status === "open" && (
+								<div className="flex flex-col gap-1">
+									<div className="flex items-center gap-1.5">
+										<Input
+											autoFocus
+											placeholder="new-branch-name"
+											value={dialog.createBaseBranch.name}
+											disabled={dialog.createBaseBranch.creating}
+											onChange={(e) =>
+												setDialog((prev) =>
+													prev.status === "open" &&
+													prev.createBaseBranch.status === "open"
+														? {
+																...prev,
+																createBaseBranch: {
+																	...prev.createBaseBranch,
+																	name: e.target.value,
+																	error: undefined,
+																},
+															}
+														: prev,
+												)
+											}
+											onKeyDown={(e) => {
+												if (e.key === "Enter") void handleCreateBaseBranch();
+												if (e.key === "Escape")
+													setDialog((prev) =>
+														prev.status === "open"
+															? {
+																	...prev,
+																	createBaseBranch: { status: "idle" },
+																}
+															: prev,
+													);
+											}}
+										/>
+										<Button
+											type="button"
+											variant="default"
+											size="sm"
+											disabled={
+												dialog.createBaseBranch.creating ||
+												!dialog.createBaseBranch.name.trim()
+											}
+											onClick={() => void handleCreateBaseBranch()}
+										>
+											{dialog.createBaseBranch.creating
+												? "Creating…"
+												: "Create"}
+										</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											disabled={dialog.createBaseBranch.creating}
+											onClick={() =>
+												setDialog((prev) =>
+													prev.status === "open"
+														? { ...prev, createBaseBranch: { status: "idle" } }
+														: prev,
+												)
+											}
+										>
+											Cancel
+										</Button>
+									</div>
+									{dialog.createBaseBranch.error && (
+										<p className="text-sm text-destructive">
+											{dialog.createBaseBranch.error}
+										</p>
+									)}
+								</div>
+							)}
+						</div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="new-branch">New branch name</Label>
-              <Input
-                id="new-branch"
-                value={dialog.newBranchName}
-                placeholder="feature/my-change"
-                onChange={(e) =>
-                  setDialog((prev) =>
-                    prev.status === 'open'
-                      ? { ...prev, newBranchName: e.target.value }
-                      : prev,
-                  )
-                }
-              />
-            </div>
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="new-branch">New branch name</Label>
+							<Input
+								id="new-branch"
+								value={dialog.newBranchName}
+								placeholder="feature/my-change"
+								onChange={(e) =>
+									setDialog((prev) =>
+										prev.status === "open"
+											? { ...prev, newBranchName: e.target.value }
+											: prev,
+									)
+								}
+							/>
+						</div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="worktree-name">Worktree name</Label>
-              <Input
-                id="worktree-name"
-                value={dialog.worktreeName}
-                placeholder="my-change"
-                onChange={(e) =>
-                  setDialog((prev) =>
-                    prev.status === 'open'
-                      ? { ...prev, worktreeName: e.target.value }
-                      : prev,
-                  )
-                }
-              />
-            </div>
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="worktree-name">Worktree name</Label>
+							<Input
+								id="worktree-name"
+								value={dialog.worktreeName}
+								placeholder="my-change"
+								onChange={(e) =>
+									setDialog((prev) =>
+										prev.status === "open"
+											? { ...prev, worktreeName: e.target.value }
+											: prev,
+									)
+								}
+							/>
+						</div>
 
-            {dialog.error && (
-              <p className="text-sm text-destructive">{dialog.error}</p>
-            )}
-          </div>
+						{dialog.error && (
+							<p className="text-sm text-destructive">{dialog.error}</p>
+						)}
+					</div>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={closeDialog}
-              disabled={dialog.submitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={submitCreate}
-              disabled={
-                dialog.submitting ||
-                dialog.branchesState !== 'loaded' ||
-                !dialog.baseBranch ||
-                !dialog.newBranchName.trim() ||
-                !dialog.worktreeName.trim()
-              }
-            >
-              {dialog.submitting ? 'Creating…' : 'Create worktree'}
-            </Button>
-          </DialogFooter>
-        </Dialog>
-      )}
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={closeDialog}
+							disabled={dialog.submitting}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={submitCreate}
+							disabled={
+								dialog.submitting ||
+								dialog.branchesState !== "loaded" ||
+								!dialog.baseBranch ||
+								!dialog.newBranchName.trim() ||
+								!dialog.worktreeName.trim()
+							}
+						>
+							{dialog.submitting ? "Creating…" : "Create worktree"}
+						</Button>
+					</DialogFooter>
+				</Dialog>
+			)}
 
-      {addRepository.status === 'open' && (
-        <Dialog open onOpenChange={(open) => !open && closeAddRepositoryDialog()}>
-          <DialogHeader>
-            <DialogTitle>Add repository</DialogTitle>
-            <DialogDescription>
-              Choose a local repository or select one or more repositories from
-              the connected GitHub account.
-            </DialogDescription>
-          </DialogHeader>
+			{addRepository.status === "open" && (
+				<Dialog
+					open
+					onOpenChange={(open) => !open && closeAddRepositoryDialog()}
+				>
+					<DialogHeader>
+						<DialogTitle>Add repository</DialogTitle>
+						<DialogDescription>
+							Choose a local repository or select one or more repositories from
+							the connected GitHub account.
+						</DialogDescription>
+					</DialogHeader>
 
-          <div className="mt-4 grid gap-3">
-            <button
-              type="button"
-              className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
-              onClick={() => void importLocalRepository()}
-              disabled={addRepository.mode !== 'idle'}
-            >
-              <div className="text-sm font-semibold">Local path</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Select a folder on this computer. The app checks for a valid
-                `.git` repository before adding it.
-              </div>
-            </button>
+					<div className="mt-4 grid gap-3">
+						<button
+							type="button"
+							className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
+							onClick={() => void importLocalRepository()}
+							disabled={addRepository.mode !== "idle"}
+						>
+							<div className="text-sm font-semibold">Local path</div>
+							<div className="mt-1 text-sm text-muted-foreground">
+								Select a folder on this computer. The app checks for a valid
+								`.git` repository before adding it.
+							</div>
+						</button>
 
-            {addRepository.mode === 'remote-loading' && (
-              <p className="rounded-md border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
-                Loading repositories from GitHub…
-              </p>
-            )}
+						{addRepository.mode === "remote-loading" && (
+							<p className="rounded-md border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+								Loading repositories from GitHub…
+							</p>
+						)}
 
-            {(addRepository.mode === 'remote-selecting' ||
-              addRepository.mode === 'remote-importing') && (
-              <div className="rounded-lg border border-border bg-muted/20 p-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold">Select repositories</div>
-                    <div className="text-xs text-muted-foreground">
-                      {addRepository.remoteCandidates.length} available ·{' '}
-                      {addRepository.selectedRemoteIds.length} selected
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setAddRepository((prev) =>
-                        prev.status === 'open'
-                          ? {
-                              ...prev,
-                              selectedRemoteIds:
-                                prev.selectedRemoteIds.length ===
-                                prev.remoteCandidates.length
-                                  ? []
-                                  : prev.remoteCandidates.map(
-                                      (repository) => repository.githubRepoId,
-                                    ),
-                              error: undefined,
-                            }
-                          : prev,
-                      )
-                    }
-                    disabled={
-                      addRepository.mode === 'remote-importing' ||
-                      addRepository.remoteCandidates.length === 0
-                    }
-                  >
-                    {addRepository.remoteCandidates.length > 0 &&
-                    addRepository.selectedRemoteIds.length ===
-                    addRepository.remoteCandidates.length
-                      ? 'Clear all'
-                      : 'Select all'}
-                  </Button>
-                </div>
+						{(addRepository.mode === "remote-selecting" ||
+							addRepository.mode === "remote-importing") && (
+							<div className="rounded-lg border border-border bg-muted/20 p-3">
+								<div className="mb-2 flex items-center justify-between gap-3">
+									<div>
+										<div className="text-sm font-semibold">
+											Select repositories
+										</div>
+										<div className="text-xs text-muted-foreground">
+											{addRepository.remoteCandidates.length} available ·{" "}
+											{addRepository.selectedRemoteIds.length} selected
+										</div>
+									</div>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() =>
+											setAddRepository((prev) =>
+												prev.status === "open"
+													? {
+															...prev,
+															selectedRemoteIds:
+																prev.selectedRemoteIds.length ===
+																prev.remoteCandidates.length
+																	? []
+																	: prev.remoteCandidates.map(
+																			(repository) => repository.githubRepoId,
+																		),
+															error: undefined,
+														}
+													: prev,
+											)
+										}
+										disabled={
+											addRepository.mode === "remote-importing" ||
+											addRepository.remoteCandidates.length === 0
+										}
+									>
+										{addRepository.remoteCandidates.length > 0 &&
+										addRepository.selectedRemoteIds.length ===
+											addRepository.remoteCandidates.length
+											? "Clear all"
+											: "Select all"}
+									</Button>
+								</div>
 
-                <div className="max-h-64 overflow-y-auto rounded-md border border-border bg-background">
-                  {addRepository.remoteCandidates.length === 0 ? (
-                    <p className="px-3 py-4 text-sm text-muted-foreground">
-                      No repositories are available from this GitHub account.
-                    </p>
-                  ) : (
-                    addRepository.remoteCandidates.map((repository) => {
-                      const selected = addRepository.selectedRemoteIds.includes(
-                        repository.githubRepoId,
-                      );
-                      return (
-                        <label
-                          key={repository.githubRepoId}
-                          className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-muted/50"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            onChange={() =>
-                              toggleRemoteRepository(repository.githubRepoId)
-                            }
-                            disabled={addRepository.mode === 'remote-importing'}
-                            className="mt-1 size-4 accent-primary"
-                          />
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium">
-                              {repository.fullName}
-                            </span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {repository.isPrivate ? 'Private' : 'Public'} · default:{' '}
-                              {repository.defaultBranch ?? '—'}
-                            </span>
-                          </span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
+								<div className="max-h-64 overflow-y-auto rounded-md border border-border bg-background">
+									{addRepository.remoteCandidates.length === 0 ? (
+										<p className="px-3 py-4 text-sm text-muted-foreground">
+											No repositories are available from this GitHub account.
+										</p>
+									) : (
+										addRepository.remoteCandidates.map((repository) => {
+											const selected = addRepository.selectedRemoteIds.includes(
+												repository.githubRepoId,
+											);
+											return (
+												<label
+													key={repository.githubRepoId}
+													className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-muted/50"
+												>
+													<input
+														type="checkbox"
+														checked={selected}
+														onChange={() =>
+															toggleRemoteRepository(repository.githubRepoId)
+														}
+														disabled={addRepository.mode === "remote-importing"}
+														className="mt-1 size-4 accent-primary"
+													/>
+													<span className="min-w-0">
+														<span className="block truncate text-sm font-medium">
+															{repository.fullName}
+														</span>
+														<span className="block truncate text-xs text-muted-foreground">
+															{repository.isPrivate ? "Private" : "Public"} ·
+															default: {repository.defaultBranch ?? "—"}
+														</span>
+													</span>
+												</label>
+											);
+										})
+									)}
+								</div>
 
-                <Button
-                  type="button"
-                  className="mt-3 w-full"
-                  onClick={() => void confirmRemoteRepositories()}
-                  disabled={
-                    addRepository.mode === 'remote-importing' ||
-                    addRepository.selectedRemoteIds.length === 0
-                  }
-                >
-                  {addRepository.mode === 'remote-importing'
-                    ? 'Adding repositories…'
-                    : `Add selected (${addRepository.selectedRemoteIds.length})`}
-                </Button>
-              </div>
-            )}
+								<Button
+									type="button"
+									className="mt-3 w-full"
+									onClick={() => void confirmRemoteRepositories()}
+									disabled={
+										addRepository.mode === "remote-importing" ||
+										addRepository.selectedRemoteIds.length === 0
+									}
+								>
+									{addRepository.mode === "remote-importing"
+										? "Adding repositories…"
+										: `Add selected (${addRepository.selectedRemoteIds.length})`}
+								</Button>
+							</div>
+						)}
 
-            <button
-              type="button"
-              className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
-              onClick={() => void importRemoteRepositories()}
-              disabled={addRepository.mode !== 'idle'}
-            >
-              <div className="text-sm font-semibold">GitHub remote</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Browse the repositories available from the connected GitHub
-                profile and choose which ones to add.
-              </div>
-            </button>
+						<button
+							type="button"
+							className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
+							onClick={() => void importRemoteRepositories()}
+							disabled={addRepository.mode !== "idle"}
+						>
+							<div className="text-sm font-semibold">GitHub remote</div>
+							<div className="mt-1 text-sm text-muted-foreground">
+								Browse the repositories available from the connected GitHub
+								profile and choose which ones to add.
+							</div>
+						</button>
 
-            {addRepository.error && (
-              <p className="text-sm text-destructive">{addRepository.error}</p>
-            )}
-          </div>
+						{addRepository.error && (
+							<p className="text-sm text-destructive">{addRepository.error}</p>
+						)}
+					</div>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={closeAddRepositoryDialog}
-              disabled={
-                addRepository.mode === 'local' ||
-                addRepository.mode === 'remote-loading' ||
-                addRepository.mode === 'remote-importing'
-              }
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </Dialog>
-      )}
-    </>
-  );
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={closeAddRepositoryDialog}
+							disabled={
+								addRepository.mode === "local" ||
+								addRepository.mode === "remote-loading" ||
+								addRepository.mode === "remote-importing"
+							}
+						>
+							Cancel
+						</Button>
+					</DialogFooter>
+				</Dialog>
+			)}
+		</>
+	);
 };

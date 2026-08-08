@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Repository, Worktree } from '../../../../shared/db/schema';
 import { RepositorySidebar } from './RepositorySidebar';
 import { RepositoryWorkspace } from './RepositoryWorkspace';
@@ -90,6 +93,8 @@ const chatSummary: WorktreeChatSummaryState = {
   },
 };
 
+afterEach(() => cleanup());
+
 describe('Dashboard repository workspace components', () => {
   it('renders the repository navigation and marks the selected repository', () => {
     const markup = renderToStaticMarkup(
@@ -161,11 +166,23 @@ describe('Dashboard repository workspace components', () => {
       <RepositoryWorkspace
         repository={repository}
         worktrees={[worktree]}
+        branchList={{
+          status: 'ready',
+          branches: [
+            { name: 'main', protected: true, headCommitSha: 'main-sha' },
+            {
+              name: worktree.branchName,
+              protected: false,
+              headCommitSha: worktree.headCommitSha,
+            },
+          ],
+        }}
         selectedWorktreeId={worktree.id}
         sessionsByWorktreeId={{
           [worktree.id]: chatSummary.snapshot.session,
         }}
         chatSummary={chatSummary}
+        onBranchesRequested={() => undefined}
         onCreateWorktree={() => undefined}
         onOpenCodingAgent={() => undefined}
         onSelectWorktree={() => undefined}
@@ -208,6 +225,17 @@ describe('Dashboard repository workspace components', () => {
       <RepositoryWorkspace
         repository={repository}
         worktrees={[readyWorktree, worktree, completedWorktree, errorWorktree]}
+        branchList={{
+          status: 'ready',
+          branches: [
+            { name: 'main', protected: true, headCommitSha: 'main-sha' },
+            {
+              name: worktree.branchName,
+              protected: false,
+              headCommitSha: worktree.headCommitSha,
+            },
+          ],
+        }}
         selectedWorktreeId={worktree.id}
         sessionsByWorktreeId={{
           [worktree.id]: session,
@@ -227,6 +255,7 @@ describe('Dashboard repository workspace components', () => {
           },
         }}
         chatSummary={chatSummary}
+        onBranchesRequested={() => undefined}
         onCreateWorktree={() => undefined}
         onOpenCodingAgent={() => undefined}
         onSelectWorktree={() => undefined}
@@ -239,5 +268,134 @@ describe('Dashboard repository workspace components', () => {
     expect(markup).toContain('Completed');
     expect(markup).toContain('Error');
     expect(markup).not.toContain('>Active<');
+  });
+
+  it('renders repository summaries and the loaded branch table', () => {
+    const markup = renderToStaticMarkup(
+      <RepositoryWorkspace
+        repository={repository}
+        worktrees={[worktree]}
+        branchList={{
+          status: 'ready',
+          branches: [
+            { name: 'main', protected: true, headCommitSha: 'main-sha' },
+            { name: 'feat/new-work', protected: false, headCommitSha: null },
+          ],
+        }}
+        selectedWorktreeId={worktree.id}
+        sessionsByWorktreeId={{
+          [worktree.id]: chatSummary.snapshot.session,
+        }}
+        chatSummary={chatSummary}
+        onBranchesRequested={() => undefined}
+        onCreateWorktree={() => undefined}
+        onOpenCodingAgent={() => undefined}
+        onSelectWorktree={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('Default branch');
+    expect(markup).toContain('Branches');
+    expect(markup).toContain('2 branches');
+    expect(markup).toContain('Worktrees');
+    expect(markup).toContain('1 worktree');
+    expect(markup).toContain('feat/new-work');
+    expect(markup).toContain('Protected');
+  });
+
+  it.each([
+    [{ status: 'loading' as const }, 'Loading branches'],
+    [
+      { status: 'error' as const, message: 'Branch request failed.' },
+      'Could not load branches',
+    ],
+    [{ status: 'ready' as const, branches: [] }, 'No branches found'],
+  ])('renders branch state %j', (branchList, expected) => {
+    const markup = renderToStaticMarkup(
+      <RepositoryWorkspace
+        repository={repository}
+        worktrees={[]}
+        branchList={branchList}
+        sessionsByWorktreeId={{}}
+        chatSummary={{ status: 'idle' }}
+        onBranchesRequested={() => undefined}
+        onCreateWorktree={() => undefined}
+        onOpenCodingAgent={() => undefined}
+        onSelectWorktree={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain(expected);
+  });
+
+  it('opens the Coding Agent from a branch with an existing worktree', () => {
+    const onOpenCodingAgent = vi.fn();
+    render(
+      <RepositoryWorkspace
+        repository={repository}
+        worktrees={[worktree]}
+        branchList={{
+          status: 'ready',
+          branches: [
+            {
+              name: worktree.branchName,
+              protected: false,
+              headCommitSha: worktree.headCommitSha,
+            },
+          ],
+        }}
+        selectedWorktreeId={worktree.id}
+        sessionsByWorktreeId={{
+          [worktree.id]: chatSummary.snapshot.session,
+        }}
+        chatSummary={chatSummary}
+        onBranchesRequested={() => undefined}
+        onCreateWorktree={() => undefined}
+        onOpenCodingAgent={onOpenCodingAgent}
+        onSelectWorktree={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Open Coding Agent for ${worktree.branchName}`,
+      }),
+    );
+
+    expect(onOpenCodingAgent).toHaveBeenCalledWith(worktree);
+  });
+
+  it('requests a worktree with the clicked branch preselected', () => {
+    const onCreateWorktree = vi.fn();
+    render(
+      <RepositoryWorkspace
+        repository={repository}
+        worktrees={[]}
+        branchList={{
+          status: 'ready',
+          branches: [
+            {
+              name: 'feat/new-work',
+              protected: false,
+              headCommitSha: null,
+            },
+          ],
+        }}
+        sessionsByWorktreeId={{}}
+        chatSummary={{ status: 'idle' }}
+        onBranchesRequested={() => undefined}
+        onCreateWorktree={onCreateWorktree}
+        onOpenCodingAgent={() => undefined}
+        onSelectWorktree={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Create worktree from feat/new-work',
+      }),
+    );
+
+    expect(onCreateWorktree).toHaveBeenCalledWith(repository, 'feat/new-work');
   });
 });
