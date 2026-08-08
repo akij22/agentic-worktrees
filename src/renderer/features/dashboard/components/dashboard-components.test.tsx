@@ -328,6 +328,43 @@ describe('Dashboard repository workspace components', () => {
     expect(markup).toContain(expected);
   });
 
+  it('opens the Coding Agent from a branch with an existing worktree', () => {
+    const onOpenCodingAgent = vi.fn();
+    render(
+      <RepositoryWorkspace
+        repository={repository}
+        worktrees={[worktree]}
+        branchList={{
+          status: 'ready',
+          branches: [
+            {
+              name: worktree.branchName,
+              protected: false,
+              headCommitSha: worktree.headCommitSha,
+            },
+          ],
+        }}
+        selectedWorktreeId={worktree.id}
+        sessionsByWorktreeId={{
+          [worktree.id]: chatSummary.snapshot.session,
+        }}
+        chatSummary={chatSummary}
+        onBranchesRequested={() => undefined}
+        onCreateWorktree={() => undefined}
+        onOpenCodingAgent={onOpenCodingAgent}
+        onSelectWorktree={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Open Coding Agent for ${worktree.branchName}`,
+      }),
+    );
+
+    expect(onOpenCodingAgent).toHaveBeenCalledWith(worktree);
+  });
+
   it('requests a worktree with the clicked branch preselected', () => {
     const onCreateWorktree = vi.fn();
     render(

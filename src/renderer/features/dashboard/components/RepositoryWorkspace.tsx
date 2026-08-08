@@ -223,7 +223,7 @@ export const RepositoryWorkspace = ({
               sessionsByWorktreeId={sessionsByWorktreeId}
               onBranchesRequested={onBranchesRequested}
               onCreateWorktree={onCreateWorktree}
-              onSelectWorktree={onSelectWorktree}
+              onOpenCodingAgent={onOpenCodingAgent}
             />
           </section>
 
@@ -308,7 +308,7 @@ const BranchTable = ({
   sessionsByWorktreeId,
   onBranchesRequested,
   onCreateWorktree,
-  onSelectWorktree,
+  onOpenCodingAgent,
 }: {
   repository: Repository;
   branchList: RepositoryBranchListState;
@@ -316,7 +316,7 @@ const BranchTable = ({
   sessionsByWorktreeId: Record<string, CodingAgentSessionDto | undefined>;
   onBranchesRequested: (repositoryId: string) => void;
   onCreateWorktree: (repository: Repository, preferredBaseBranch?: string) => void;
-  onSelectWorktree: (worktreeId: string) => void;
+  onOpenCodingAgent: (worktree: Worktree) => void;
 }) => {
   const worktreeByBranch = new Map(
     worktrees.map((worktree) => [worktree.branchName, worktree]),
@@ -408,8 +408,8 @@ const BranchTable = ({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        aria-label={`Select worktree for ${branch.name}`}
-                        onClick={() => onSelectWorktree(worktree.id)}
+                        aria-label={`Open Coding Agent for ${branch.name}`}
+                        onClick={() => onOpenCodingAgent(worktree)}
                       >
                         Open
                         <ArrowRight aria-hidden="true" />
