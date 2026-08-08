@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1582" height="972" viewBox="0 0 1582 972">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a0b0e"/><stop offset="1" stop-color="#101116"/></linearGradient>
+    <linearGradient id="selected" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#251317"/><stop offset="1" stop-color="#171114"/></linearGradient>
+    <linearGradient id="red" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ef4444"/><stop offset="1" stop-color="#c9272c"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000" flood-opacity=".35"/></filter>
+    <style>
+      .sans{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.mono{font-family:'SFMono-Regular',Consolas,monospace}.muted{fill:#9298a3}.dim{fill:#666d78}.white{fill:#f4f5f7}.label{font-size:12px;font-weight:600;letter-spacing:.08em}.body{font-size:13px}.small{font-size:11px}.icon{fill:none;stroke:#a8afb9;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+  <rect width="1582" height="972" fill="#050506"/>
+  <rect x="36" y="28" width="1510" height="916" rx="18" fill="url(#bg)" stroke="#34363c" filter="url(#shadow)"/>
+  <!-- title bar -->
+  <path d="M54 28h1474a18 18 0 0 1 18 18v25H36V46a18 18 0 0 1 18-18z" fill="#1c1d21"/>
+  <circle cx="56" cy="50" r="7" fill="#ff605c"/><circle cx="79" cy="50" r="7" fill="#ffbd44"/><circle cx="102" cy="50" r="7" fill="#00ca4e"/>
+  <text x="126" y="55" class="sans muted" font-size="13" font-weight="600">Agentic Worktrees</text>
+  <!-- nav rail -->
+  <rect x="36" y="71" width="76" height="873" fill="#101115"/><line x1="112" y1="71" x2="112" y2="944" stroke="#282a30"/>
+  <rect x="54" y="91" width="40" height="40" rx="10" fill="#f3f0ea"/><text x="74" y="116" text-anchor="middle" class="mono" font-size="14" font-weight="800" fill="#16171b">AW</text>
+  <rect x="48" y="157" width="52" height="52" rx="12" fill="url(#red)"/>
+  <g transform="translate(63 172)" stroke="#fff" stroke-width="1.8" fill="none"><rect width="9" height="9" rx="2"/><rect x="15" width="9" height="9" rx="2"/><rect y="15" width="9" height="9" rx="2"/><rect x="15" y="15" width="9" height="9" rx="2"/></g>
+  <g class="icon" transform="translate(65 236)"><path d="M7 2 2 7l5 5M15 2l5 5-5 5M12 0 9 14"/></g>
+  <g class="icon" transform="translate(64 296)"><circle cx="10" cy="10" r="3"/><path d="M10 1v2m0 14v2M1 10h2m14 0h2M3.6 3.6 5 5m10 10 1.4 1.4M16.4 3.6 15 5M5 15l-1.4 1.4"/></g>
+  <line x1="48" y1="882" x2="100" y2="882" stroke="#282a30"/>
+  <g class="icon" transform="translate(64 902)"><circle cx="10" cy="10" r="4"/><path d="M10 0v3m0 14v3M0 10h3m14 0h3M3 3l2 2m10 10 2 2M17 3l-2 2M5 15l-2 2"/></g>
+  <!-- repository sidebar -->
+  <rect x="112" y="71" width="330" height="873" fill="#121318"/><line x1="442" y1="71" x2="442" y2="944" stroke="#282a30"/>
+  <text x="138" y="113" class="sans white" font-size="18" font-weight="700">Repositories</text>
+  <text x="138" y="135" class="sans muted small">6 connected · 2 need attention</text>
+  <rect x="136" y="154" width="282" height="40" rx="9" fill="#0c0d11" stroke="#30323a"/>
+  <g class="icon" transform="translate(150 166)"><circle cx="7" cy="7" r="5"/><path d="m11 11 4 4"/></g><text x="176" y="179" class="sans muted body">Search repositories</text><text x="392" y="179" text-anchor="end" class="mono dim small">⌘K</text>
+  <text x="138" y="225" class="sans dim label">PINNED</text>
+  <!-- selected repo -->
+  <rect x="126" y="241" width="302" height="100" rx="11" fill="url(#selected)" stroke="#5c2429"/>
+  <rect x="126" y="241" width="3" height="100" rx="2" fill="#ef4444"/>
+  <g class="icon" transform="translate(145 260)" stroke="#ef6468"><path d="M2 4h7l2 3h9v11H2z"/><circle cx="15" cy="14" r="2.5"/><path d="M15 11.5V9"/></g>
+  <text x="177" y="270" class="sans white" font-size="14" font-weight="650">akij22/akij22</text>
+  <rect x="350" y="255" width="58" height="23" rx="11" fill="#272128"/><text x="379" y="271" text-anchor="middle" class="sans" font-size="10" fill="#d9b8ba">REMOTE</text>
+  <text x="177" y="295" class="mono muted small">github.com/akij22/akij22</text>
+  <circle cx="178" cy="316" r="4" fill="#34d399"/><text x="189" y="320" class="sans muted small">Synced</text>
+  <text x="398" y="320" text-anchor="end" class="sans muted small">2 branches</text>
+  <!-- repo items -->
+  <g class="sans">
+    <g transform="translate(0 0)"><text x="145" y="380" class="white" font-size="13" font-weight="600">akij22/MatchMovie</text><text x="145" y="400" class="mono muted small">local · main</text><circle cx="397" cy="378" r="4" fill="#f59e0b"/><path d="m408 374 5 5-5 5" class="icon"/></g>
+    <line x1="136" y1="420" x2="418" y2="420" stroke="#23252b"/>
+    <g><text x="145" y="456" class="white" font-size="13" font-weight="600">akij22/search-engine</text><text x="145" y="476" class="mono muted small">remote · main</text><circle cx="397" cy="454" r="4" fill="#34d399"/><path d="m408 450 5 5-5 5" class="icon"/></g>
+    <line x1="136" y1="496" x2="418" y2="496" stroke="#23252b"/>
+    <g><text x="145" y="532" class="white" font-size="13" font-weight="600">BorgoDriver</text><text x="145" y="552" class="mono muted small">local · develop</text><circle cx="397" cy="530" r="4" fill="#34d399"/><path d="m408 526 5 5-5 5" class="icon"/></g>
+    <line x1="136" y1="572" x2="418" y2="572" stroke="#23252b"/>
+    <g><text x="145" y="608" class="white" font-size="13" font-weight="600">scratch_clone</text><text x="145" y="628" class="mono muted small">local · main</text><circle cx="397" cy="606" r="4" fill="#ef4444"/><path d="m408 602 5 5-5 5" class="icon"/></g>
+    <line x1="136" y1="648" x2="418" y2="648" stroke="#23252b"/>
+    <g><text x="145" y="684" class="white" font-size="13" font-weight="600">agentic-worktrees</text><text x="145" y="704" class="mono muted small">local · feature/ui</text><circle cx="397" cy="682" r="4" fill="#34d399"/><path d="m408 678 5 5-5 5" class="icon"/></g>
+  </g>
+  <line x1="112" y1="884" x2="442" y2="884" stroke="#282a30"/>
+  <rect x="136" y="900" width="120" height="30" rx="8" fill="#202127"/><text x="154" y="920" class="sans white body">＋ Add repository</text><text x="395" y="920" text-anchor="end" class="sans muted body">↻ Refresh</text>
+  <!-- main -->
+  <g class="sans">
+    <text x="478" y="111" class="muted small">Repositories  /  akij22</text>
+    <text x="478" y="146" class="white" font-size="24" font-weight="730">akij22</text>
+    <rect x="550" y="125" width="57" height="24" rx="12" fill="#1e2026" stroke="#353840"/><text x="578" y="141" text-anchor="middle" class="muted small">Remote</text>
+    <text x="478" y="172" class="mono muted small">github.com/akij22/akij22</text>
+    <rect x="1296" y="108" width="102" height="38" rx="9" fill="#1c1d22" stroke="#343740"/><text x="1347" y="132" text-anchor="middle" class="white body">Open in GitHub</text>
+    <rect x="1408" y="108" width="111" height="38" rx="9" fill="url(#red)"/><text x="1464" y="132" text-anchor="middle" class="white body" font-weight="650">＋ New worktree</text>
+    <line x1="442" y1="195" x2="1546" y2="195" stroke="#282a30"/>
+    <!-- summary strip -->
+    <rect x="478" y="222" width="318" height="86" rx="12" fill="#15161b" stroke="#2b2d34"/>
+    <text x="498" y="245" class="dim label">DEFAULT BRANCH</text><circle cx="501" cy="277" r="5" fill="#34d399"/><text x="516" y="282" class="mono white" font-size="16" font-weight="650">main</text><text x="765" y="281" text-anchor="end" class="muted small">up to date</text>
+    <rect x="810" y="222" width="318" height="86" rx="12" fill="#15161b" stroke="#2b2d34"/>
+    <text x="830" y="245" class="dim label">BRANCHES</text><text x="830" y="284" class="white" font-size="24" font-weight="700">2</text><text x="865" y="282" class="muted body">1 active · 1 inactive</text>
+    <rect x="1142" y="222" width="377" height="86" rx="12" fill="#15161b" stroke="#2b2d34"/>
+    <text x="1162" y="245" class="dim label">WORKTREES</text><text x="1162" y="284" class="white" font-size="24" font-weight="700">0</text><text x="1197" y="282" class="muted body">Create one from any branch below</text>
+    <!-- section controls -->
+    <text x="478" y="358" class="white" font-size="18" font-weight="700">Branches</text><text x="478" y="380" class="muted small">Choose a branch to create an isolated workspace.</text>
+    <rect x="1185" y="344" width="215" height="38" rx="9" fill="#0d0e12" stroke="#30333a"/><g class="icon" transform="translate(1200 355)"><circle cx="7" cy="7" r="5"/><path d="m11 11 4 4"/></g><text x="1227" y="368" class="muted body">Filter branches</text>
+    <rect x="1410" y="344" width="109" height="38" rx="9" fill="#1d1f24" stroke="#343740"/><text x="1465" y="368" text-anchor="middle" class="white body">Last updated ▾</text>
+    <!-- branch table -->
+    <rect x="478" y="405" width="1041" height="283" rx="13" fill="#121318" stroke="#2d2f36"/>
+    <path d="M491 405h1015a13 13 0 0 1 13 13v35H478v-35a13 13 0 0 1 13-13z" fill="#18191f"/>
+    <text x="502" y="434" class="dim label">BRANCH</text><text x="915" y="434" class="dim label">STATUS</text><text x="1098" y="434" class="dim label">LAST ACTIVITY</text><text x="1335" y="434" class="dim label">WORKTREE</text>
+    <line x1="478" y1="453" x2="1519" y2="453" stroke="#2b2d34"/>
+    <!-- row 1 -->
+    <g transform="translate(0 0)"><circle cx="505" cy="493" r="14" fill="#24262d"/><path d="M505 484v18m0-13 8 5" class="icon"/><text x="533" y="490" class="mono white" font-size="14" font-weight="650">main</text><rect x="533" y="500" width="52" height="20" rx="10" fill="#23252a"/><text x="559" y="514" text-anchor="middle" class="muted small">default</text><circle cx="918" cy="493" r="4" fill="#34d399"/><text x="930" y="497" class="muted body">Synced</text><text x="1098" y="497" class="muted body">2 minutes ago</text><text x="1335" y="497" class="dim body">Not created</text><rect x="1404" y="476" width="91" height="34" rx="8" fill="#25272d" stroke="#383b43"/><text x="1450" y="498" text-anchor="middle" class="white small" font-weight="600">Create</text></g>
+    <line x1="494" y1="541" x2="1503" y2="541" stroke="#25272d"/>
+    <!-- row 2 -->
+    <g><circle cx="505" cy="582" r="14" fill="#24262d"/><path d="M505 573v18m0-13 8 5" class="icon"/><text x="533" y="586" class="mono white" font-size="14" font-weight="650">output</text><circle cx="918" cy="582" r="4" fill="#f59e0b"/><text x="930" y="586" class="muted body">Behind 3 commits</text><text x="1098" y="586" class="muted body">Yesterday, 18:42</text><text x="1335" y="586" class="dim body">Not created</text><rect x="1404" y="565" width="91" height="34" rx="8" fill="#25272d" stroke="#383b43"/><text x="1450" y="587" text-anchor="middle" class="white small" font-weight="600">Create</text></g>
+    <line x1="494" y1="629" x2="1503" y2="629" stroke="#25272d"/>
+    <text x="502" y="661" class="muted small">Showing 2 branches</text><text x="1495" y="661" text-anchor="end" class="muted small">Fetch updates ↗</text>
+    <!-- recent worktrees empty state -->
+    <text x="478" y="738" class="white" font-size="18" font-weight="700">Worktrees</text><text x="478" y="760" class="muted small">Active isolated environments for this repository.</text>
+    <rect x="478" y="786" width="1041" height="115" rx="13" fill="#121318" stroke="#2d2f36" stroke-dasharray="4 4"/>
+    <circle cx="527" cy="844" r="25" fill="#1d1f25"/><path d="M519 852v-16m0 4h11m0 0v-5m0 5v10m0-15 8-5" class="icon"/>
+    <text x="568" y="837" class="white" font-size="14" font-weight="650">No worktrees for this repository</text><text x="568" y="861" class="muted body">Create one directly from a branch above to start an isolated coding session.</text>
+    <rect x="1366" y="825" width="129" height="38" rx="9" fill="#23171a" stroke="#59272b"/><text x="1431" y="849" text-anchor="middle" fill="#f87171" class="body" font-weight="650">Create worktree</text>
+  </g>
+</svg>

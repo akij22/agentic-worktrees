@@ -50,7 +50,7 @@ type AddRepositoryState =
 			remoteCandidates: RemoteRepositoryDto[];
 			selectedRemoteIds: number[];
 			error?: string;
-	};
+	  };
 
 type CreateBaseBranchState =
 	| { status: "idle" }
@@ -70,7 +70,7 @@ type DialogState =
 			submitting: boolean;
 			error?: string;
 			createBaseBranch: CreateBaseBranchState;
-	};
+	  };
 
 export const initialOpenDialog = (
 	repo: Repository,
