@@ -169,7 +169,7 @@ export const CodingAgentWorkspace = ({
             : "min-h-0 flex-1 overflow-hidden"
         }
       >
-        <div className="min-w-0 overflow-hidden">
+        <div className="h-full min-h-0 min-w-0 overflow-hidden">
           <CodingAgentSession
             key={primaryRunId}
             runId={primaryRunId}
@@ -232,7 +232,7 @@ export const CodingAgentWorkspace = ({
               ref={secondaryPanelRef}
               aria-hidden={!isSecondaryVisible}
               inert={!isSecondaryVisible}
-              className="dual-chat-secondary min-w-0 overflow-hidden"
+              className="dual-chat-secondary h-full min-h-0 min-w-0 overflow-hidden"
             >
               <SecondaryChatPanel primaryRunId={primaryRunId} />
             </div>

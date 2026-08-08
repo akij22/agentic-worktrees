@@ -18,5 +18,8 @@ describe("SessionMessages", () => {
     );
 
     expect(markup).toContain("Compacting context...");
+    expect(markup).toContain("min-h-0");
+    expect(markup).toContain("overflow-y-auto");
+    expect(markup).toContain("overscroll-contain");
   });
 });

@@ -278,9 +278,13 @@ export const CodingAgentSession = ({
             ),
           } as CSSProperties
         }
-        className="grid min-h-0 flex-1 grid-cols-1 xl:[grid-template-columns:var(--session-workspace-columns)]"
+        className={`grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:[grid-template-columns:var(--session-workspace-columns)] ${
+          showInspection
+            ? "grid-rows-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-rows-1"
+            : "grid-rows-1"
+        }`}
       >
-        <section className="flex min-h-0 flex-col border-b border-border xl:border-b-0">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border xl:border-b-0">
           <div className="flex items-center justify-between border-b border-border px-5 py-3">
             <span className="truncate text-xs font-medium">
               {session.title}

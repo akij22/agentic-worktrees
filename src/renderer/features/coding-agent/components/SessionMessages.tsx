@@ -61,10 +61,10 @@ export const SessionMessages = ({
   }, [activity, error, messages, permission]);
 
   return (
-  <div
-    ref={messagesRef}
-    className="flex-1 space-y-6 overflow-y-auto px-5 py-6"
-  >
+    <div
+      ref={messagesRef}
+      className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-6"
+    >
     {messages.length === 0 ? (
       <div className="py-16 text-center text-sm text-muted-foreground">
         Ask {agentName} to make a change in this worktree.
@@ -156,6 +156,6 @@ export const SessionMessages = ({
     ) : null}
     {error ? <p className="text-sm text-destructive">{error}</p> : null}
     {children}
-  </div>
+    </div>
   );
 };
