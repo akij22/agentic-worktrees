@@ -400,6 +400,132 @@ export const intelligenceOverlapTargets = sqliteTable(
   }),
 );
 
+export const conflictResolutionSessions = sqliteTable(
+  'conflict_resolution_sessions',
+  {
+    id: text('id').primaryKey(),
+    repositoryId: text('repository_id')
+      .notNull()
+      .references(() => repositories.id, { onDelete: 'restrict' }),
+    snapshotId: text('snapshot_id').notNull(),
+    overlapId: text('overlap_id').notNull(),
+    targetBranch: text('target_branch').notNull(),
+    targetCommitSha: text('target_commit_sha'),
+    state: text('state').notNull(),
+    classification: text('classification'),
+    currentStage: text('current_stage').notNull(),
+    integrationBranch: text('integration_branch'),
+    integrationPath: text('integration_path'),
+    retained: integer('retained', { mode: 'boolean' }).notNull(),
+    cleanupPending: integer('cleanup_pending', { mode: 'boolean' }).notNull(),
+    errorMessage: text('error_message'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => ({
+    repositoryUpdatedIdx: index(
+      'conflict_resolution_sessions_repository_updated_idx',
+    ).on(table.repositoryId, table.updatedAt),
+    overlapUpdatedIdx: index(
+      'conflict_resolution_sessions_overlap_updated_idx',
+    ).on(table.overlapId, table.updatedAt),
+    activeTupleIdx: index('conflict_resolution_sessions_active_tuple_idx').on(
+      table.repositoryId,
+      table.overlapId,
+      table.targetBranch,
+      table.state,
+    ),
+  }),
+);
+
+export const conflictResolutionParticipants = sqliteTable(
+  'conflict_resolution_participants',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => conflictResolutionSessions.id, { onDelete: 'cascade' }),
+    side: text('side').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    worktreeId: text('worktree_id').notNull(),
+    runId: text('run_id'),
+    task: text('task').notNull(),
+    agentName: text('agent_name'),
+    branch: text('branch').notNull(),
+    originalHeadSha: text('original_head_sha').notNull(),
+    mergeBaseSha: text('merge_base_sha').notNull(),
+    syntheticCommitSha: text('synthetic_commit_sha').notNull(),
+    syntheticRef: text('synthetic_ref').notNull(),
+    statusFingerprintBefore: text('status_fingerprint_before').notNull(),
+    statusFingerprintAfter: text('status_fingerprint_after').notNull(),
+  },
+  (table) => ({
+    sessionSideUnique: uniqueIndex(
+      'conflict_resolution_participants_session_side_unique',
+    ).on(table.sessionId, table.side),
+    sessionIdIdx: index('conflict_resolution_participants_session_id_idx').on(
+      table.sessionId,
+    ),
+  }),
+);
+
+export const conflictResolutionFiles = sqliteTable(
+  'conflict_resolution_files',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => conflictResolutionSessions.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    kind: text('kind').notNull(),
+    risk: text('risk').notNull(),
+    reasonCode: text('reason_code').notNull(),
+    leftPath: text('left_path'),
+    rightPath: text('right_path'),
+    symbol: text('symbol'),
+    staticRanges: text('static_ranges').notNull(),
+    gitStages: text('git_stages').notNull(),
+    markerRanges: text('marker_ranges').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+  },
+  (table) => ({
+    sessionPathUnique: uniqueIndex(
+      'conflict_resolution_files_session_path_unique',
+    ).on(table.sessionId, table.path),
+    sessionIdIdx: index('conflict_resolution_files_session_id_idx').on(
+      table.sessionId,
+    ),
+  }),
+);
+
+export const conflictResolutionOperations = sqliteTable(
+  'conflict_resolution_operations',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => conflictResolutionSessions.id, { onDelete: 'cascade' }),
+    sequence: integer('sequence').notNull(),
+    stage: text('stage').notNull(),
+    kind: text('kind').notNull(),
+    commandSummary: text('command_summary'),
+    status: text('status').notNull(),
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
+    outputSummary: text('output_summary'),
+    errorMessage: text('error_message'),
+  },
+  (table) => ({
+    sessionSequenceUnique: uniqueIndex(
+      'conflict_resolution_operations_session_sequence_unique',
+    ).on(table.sessionId, table.sequence),
+    sessionIdIdx: index('conflict_resolution_operations_session_id_idx').on(
+      table.sessionId,
+    ),
+  }),
+);
+
 export type Repository = typeof repositories.$inferSelect;
 export type Worktree = typeof worktrees.$inferSelect;
 export type Run = typeof runs.$inferSelect;
@@ -417,3 +543,10 @@ export type IntelligenceChangedSymbol =
 export type IntelligenceOverlap = typeof intelligenceOverlaps.$inferSelect;
 export type IntelligenceOverlapTarget =
   typeof intelligenceOverlapTargets.$inferSelect;
+export type ConflictResolutionSession =
+  typeof conflictResolutionSessions.$inferSelect;
+export type ConflictResolutionParticipant =
+  typeof conflictResolutionParticipants.$inferSelect;
+export type ConflictResolutionFile = typeof conflictResolutionFiles.$inferSelect;
+export type ConflictResolutionOperation =
+  typeof conflictResolutionOperations.$inferSelect;

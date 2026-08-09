@@ -14,15 +14,21 @@ describe('database upgrades', () => {
     sqlite.close();
   });
 
-  it('bootstraps normalized intelligence tables', () => {
+  it('bootstraps normalized intelligence and conflict-resolution tables', () => {
     sqlite.exec(bootstrapSchemaSql);
 
     const tables = sqlite
       .prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'intelligence_%'",
+        `SELECT name FROM sqlite_master
+         WHERE type = 'table'
+           AND (name LIKE 'intelligence_%' OR name LIKE 'conflict_resolution_%')`,
       )
       .all() as Array<{ name: string }>;
     expect(tables.map(({ name }) => name).sort()).toEqual([
+      'conflict_resolution_files',
+      'conflict_resolution_operations',
+      'conflict_resolution_participants',
+      'conflict_resolution_sessions',
       'intelligence_changed_files',
       'intelligence_changed_symbols',
       'intelligence_overlap_targets',

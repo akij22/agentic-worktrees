@@ -344,6 +344,118 @@ const bootstrapStatements = [
     CREATE INDEX IF NOT EXISTS intelligence_overlap_targets_overlap_id_idx
     ON intelligence_overlap_targets (overlap_id)
   `,
+  `
+    CREATE TABLE IF NOT EXISTS conflict_resolution_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      repository_id TEXT NOT NULL,
+      snapshot_id TEXT NOT NULL,
+      overlap_id TEXT NOT NULL,
+      target_branch TEXT NOT NULL,
+      target_commit_sha TEXT,
+      state TEXT NOT NULL,
+      classification TEXT,
+      current_stage TEXT NOT NULL,
+      integration_branch TEXT,
+      integration_path TEXT,
+      retained INTEGER NOT NULL,
+      cleanup_pending INTEGER NOT NULL,
+      error_message TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE RESTRICT
+    )
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS conflict_resolution_sessions_repository_updated_idx
+    ON conflict_resolution_sessions (repository_id, updated_at)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS conflict_resolution_sessions_overlap_updated_idx
+    ON conflict_resolution_sessions (overlap_id, updated_at)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS conflict_resolution_sessions_active_tuple_idx
+    ON conflict_resolution_sessions (repository_id, overlap_id, target_branch, state)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS conflict_resolution_participants (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT NOT NULL,
+      side TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      worktree_id TEXT NOT NULL,
+      run_id TEXT,
+      task TEXT NOT NULL,
+      agent_name TEXT,
+      branch TEXT NOT NULL,
+      original_head_sha TEXT NOT NULL,
+      merge_base_sha TEXT NOT NULL,
+      synthetic_commit_sha TEXT NOT NULL,
+      synthetic_ref TEXT NOT NULL,
+      status_fingerprint_before TEXT NOT NULL,
+      status_fingerprint_after TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES conflict_resolution_sessions(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS conflict_resolution_participants_session_side_unique
+    ON conflict_resolution_participants (session_id, side)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS conflict_resolution_participants_session_id_idx
+    ON conflict_resolution_participants (session_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS conflict_resolution_files (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      risk TEXT NOT NULL,
+      reason_code TEXT NOT NULL,
+      left_path TEXT,
+      right_path TEXT,
+      symbol TEXT,
+      static_ranges TEXT NOT NULL,
+      git_stages TEXT NOT NULL,
+      marker_ranges TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES conflict_resolution_sessions(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS conflict_resolution_files_session_path_unique
+    ON conflict_resolution_files (session_id, path)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS conflict_resolution_files_session_id_idx
+    ON conflict_resolution_files (session_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS conflict_resolution_operations (
+      id TEXT PRIMARY KEY NOT NULL,
+      session_id TEXT NOT NULL,
+      sequence INTEGER NOT NULL,
+      stage TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      command_summary TEXT,
+      status TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      output_summary TEXT,
+      error_message TEXT,
+      FOREIGN KEY (session_id) REFERENCES conflict_resolution_sessions(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS conflict_resolution_operations_session_sequence_unique
+    ON conflict_resolution_operations (session_id, sequence)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS conflict_resolution_operations_session_id_idx
+    ON conflict_resolution_operations (session_id)
+  `,
 ] as const;
 
 export const bootstrapSchemaSql = bootstrapStatements.join(';\n');
