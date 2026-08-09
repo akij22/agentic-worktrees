@@ -44,10 +44,14 @@ export const IntelligenceWorktreeNode = ({ worktree, risk, onOpenChat }: Props) 
       <div><strong className="block text-sm text-red-400">−{worktree.deletions}</strong><span className="text-muted-foreground">removed</span></div>
     </div>
 
-    <div className="mt-3 flex items-center justify-between gap-2">
-      <span className="truncate font-mono text-[10px] text-muted-foreground">
-        {worktree.files[0]?.path ?? 'Waiting for first edit'}
-      </span>
+    <div className="mt-3 flex items-end justify-between gap-2">
+      <ul className="min-w-0 space-y-1 font-mono text-[9px] text-muted-foreground">
+        {worktree.files.length === 0 ? <li>Waiting for first edit</li> : worktree.files.slice(0, 3).map((file) => (
+          <li key={file.path} className="truncate" title={file.path}>
+            {file.path}{file.symbols[0] ? <span className="text-foreground/70"> · {file.symbols[0]}</span> : null}
+          </li>
+        ))}
+      </ul>
       <Button
         type="button"
         size="sm"

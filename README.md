@@ -50,6 +50,14 @@
   - Run Codex turns with explicit `workspace-write` sandboxing and `on-request` approval defaults.
   - Persist session metadata, messages, output events, and diffs in the local SQLite database.
 
+- **Cross-worktree intelligence**
+  - Open **Intelligence** from the sidebar to compare concurrent coding-agent worktrees within one repository.
+  - Analyze committed, staged, unstaged, and untracked changes locally against each worktree's merge base.
+  - Classify deterministic overlap as high risk for the same symbol or overlapping original ranges, medium risk for the same file or module, and low risk for shared folder ancestry.
+  - Review actionable overlaps in **Attention**, inspect the paths and symbols involved, compare persisted two-sided patches, and open either related coding-agent chat.
+  - Analyze TypeScript, TSX, JavaScript, and JSX at symbol level; other file types receive file and module analysis.
+  - Preserve the latest successful snapshot when refresh fails. Intelligence does not use AI conflict guesses or fabricate execution progress.
+
 - **Desktop workspace**
   - Use a dense dashboard designed around repository and worktree workflows.
   - Resize the dashboard sidebar and switch between light and dark themes.
@@ -164,6 +172,7 @@ Database migrations are initialized by the application. When database schema def
 9. Use the session side panel to switch between **Review**, **Terminal**, and **Files**. Review shows the generated diff and the available Git publishing actions, Terminal starts in the current worktree, and Files provides recursive navigation with read-only text previews.
 10. From **Review**, create a commit for all current changes and push unpublished commits. For GitHub-linked repositories, open a non-draft pull request after the branch has been pushed.
 11. Approve or reject interactive permission requests, and use the stop action to abort a running session. Codex uses `workspace-write` with `on-request` approvals by default.
-12. Use **Settings** to sign out of GitHub or select/change either local coding-agent executable. Codex reuses the authentication and configuration of the selected local CLI; the application does not request separate Codex credentials.
+12. Open **Intelligence**, select a repository, and refresh its local analysis. Review high-risk or actionable items in **Attention**, inspect overlap evidence, compare both worktree patches, or open the associated chats. Worktrees without a detected relationship are marked **Safely independent**.
+13. Use **Settings** to sign out of GitHub or select/change either local coding-agent executable. Codex reuses the authentication and configuration of the selected local CLI; the application does not request separate Codex credentials.
 
 The application stores its local database and encrypted credentials in Electron's application data directory. Keep the worktree workspace path backed up if the local worktree metadata is important to your workflow.

@@ -7,6 +7,17 @@ import { RiskBadge } from './RiskBadge';
 
 const PAGE_SIZE = 4;
 const riskRank = { low: 0, medium: 1, high: 2 } as const;
+const nodePositions = [
+  { x: 25, y: 25 },
+  { x: 75, y: 25 },
+  { x: 25, y: 75 },
+  { x: 75, y: 75 },
+];
+const connectorStyles = {
+  high: { className: 'text-red-500', dash: undefined },
+  medium: { className: 'text-amber-500', dash: '7 5' },
+  low: { className: 'text-sky-500', dash: '2 5' },
+} as const;
 
 type Props = {
   snapshot: IntelligenceSnapshotDto;
@@ -44,10 +55,26 @@ export const WorktreeOverlapMap = ({ snapshot, onReview, onCompare, onOpenChat }
         ) : null}
       </div>
       <div className="relative p-4">
-        <div className="pointer-events-none absolute inset-4 hidden opacity-20 lg:block" aria-hidden="true">
-          <svg className="size-full" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M25 25 C50 25 50 75 75 75 M75 25 C50 25 50 75 25 75" fill="none" stroke="currentColor" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" /></svg>
+        <div className="pointer-events-none absolute inset-4 hidden lg:block" aria-hidden="true">
+          <svg className="size-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {relationships.map((overlap) => {
+              const left = nodePositions[visible.findIndex(({ worktreeId }) => worktreeId === overlap.leftWorktreeId)];
+              const right = nodePositions[visible.findIndex(({ worktreeId }) => worktreeId === overlap.rightWorktreeId)];
+              const style = connectorStyles[overlap.risk];
+              return <line key={overlap.id} x1={left.x} y1={left.y} x2={right.x} y2={right.y} className={style.className} stroke="currentColor" strokeWidth="1.5" strokeDasharray={style.dash} vectorEffect="non-scaling-stroke" />;
+            })}
+          </svg>
         </div>
-        <div className="relative grid gap-4 lg:grid-cols-2">
+        {relationships.length > 0 ? (
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-lg border border-border bg-background/95 px-3 py-2 shadow-lg lg:flex">
+            <GitMerge className="size-4 text-primary" aria-hidden="true" />
+            <span className="mt-1 font-mono text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Analysis engine</span>
+          </div>
+        ) : null}
+        <ul className="sr-only">
+          {relationships.map((overlap) => <li key={overlap.id}>{overlap.risk} risk: {overlap.summary}</li>)}
+        </ul>
+        <div className="relative grid gap-4 lg:grid-cols-2 lg:gap-x-28">
           {visible.map((worktree) => <IntelligenceWorktreeNode key={worktree.worktreeId} worktree={worktree} risk={riskFor(worktree.worktreeId)} onOpenChat={onOpenChat} />)}
         </div>
         {relationships.length > 0 ? (

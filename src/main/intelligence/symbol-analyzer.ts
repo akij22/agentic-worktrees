@@ -1,4 +1,4 @@
-import ts from 'typescript';
+import * as ts from 'typescript';
 import { isTypeScriptFamily } from './path-model';
 import type { ChangedRange, ChangedSymbol } from './types';
 
