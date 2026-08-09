@@ -97,3 +97,4 @@
 * Do not use package managers other than `npm` for project commands.
 * Do not spawn subagents until I ask you to do so.
 * Do not use 'superpowers' skill until I ask you to do so.
+* Do not use Ralph Loop until I ask you to do so.
