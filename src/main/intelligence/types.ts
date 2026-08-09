@@ -94,6 +94,8 @@ export interface PersistedIntelligenceSnapshot {
 }
 
 export interface PersistedOverlapDetails {
+  repositoryId: string;
+  snapshotId: string;
   overlap: ClassifiedOverlap & { id: string };
   left: PersistedIntelligenceWorktree;
   right: PersistedIntelligenceWorktree;

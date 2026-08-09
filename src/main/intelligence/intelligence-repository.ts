@@ -335,7 +335,13 @@ export const createIntelligenceRepository = (
     const right = snapshot.worktrees.find(({ worktreeId }) =>
       worktreeId === overlap.rightWorktreeId);
     if (!left || !right) throw new Error(`Overlap ${overlapId} has missing worktrees.`);
-    return { overlap, left, right };
+    return {
+      repositoryId: snapshot.repositoryId,
+      snapshotId: snapshot.id,
+      overlap,
+      left,
+      right,
+    };
   },
 
   compareDiffs(overlapId, targetId) {
