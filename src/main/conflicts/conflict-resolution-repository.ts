@@ -20,7 +20,10 @@ export interface ConflictResolutionRepository {
 	createSession(session: PreparedConflictSession): PreparedConflictSession;
 	saveSession(session: PreparedConflictSession): PreparedConflictSession;
 	getSession(sessionId: string): PreparedConflictSession | null;
-	listSessions(repositoryId: string, overlapId?: string): PreparedConflictSession[];
+	listSessions(
+		repositoryId: string,
+		overlapId?: string,
+	): PreparedConflictSession[];
 	findActive(
 		repositoryId: string,
 		overlapId: string,
@@ -51,12 +54,21 @@ const parseJson = <Value>(value: string, label: string): Value => {
 };
 
 const state = (value: string): ConflictResolutionState => {
-	if (validStates.has(value as ConflictResolutionState)) return value as ConflictResolutionState;
+	if (validStates.has(value as ConflictResolutionState))
+		return value as ConflictResolutionState;
 	throw new Error(`Invalid persisted conflict resolution state: ${value}`);
 };
 
-const classification = (value: string | null): ConflictClassification | null => {
-	if (value === null || value === "safe" || value === "review_required" || value === "conflict") return value;
+const classification = (
+	value: string | null,
+): ConflictClassification | null => {
+	if (
+		value === null ||
+		value === "safe" ||
+		value === "review_required" ||
+		value === "conflict"
+	)
+		return value;
 	throw new Error(`Invalid persisted conflict classification: ${value}`);
 };
 
@@ -76,67 +88,83 @@ const risk = (value: string): IntelligenceRisk => {
 };
 
 const operationStatus = (value: string): ConflictOperationStatus => {
-	if (value === "running" || value === "succeeded" || value === "failed") return value;
+	if (value === "running" || value === "succeeded" || value === "failed")
+		return value;
 	throw new Error(`Invalid persisted conflict operation status: ${value}`);
 };
 
-const insertChildren = (database: Database, session: PreparedConflictSession): void => {
+const insertChildren = (
+	database: Database,
+	session: PreparedConflictSession,
+): void => {
 	if (session.participants.length > 0) {
-		database.insert(schema.conflictResolutionParticipants).values(
-			session.participants.map((participant, index) => ({
-				id: `${session.id}:participant:${participant.side}`,
-				sessionId: session.id,
-				side: participant.side,
-				sortOrder: index,
-				worktreeId: participant.worktreeId,
-				runId: participant.runId,
-				task: participant.task,
-				agentName: participant.agentName,
-				branch: participant.branch,
-				originalHeadSha: participant.originalHeadSha,
-				mergeBaseSha: participant.mergeBaseSha,
-				syntheticCommitSha: participant.syntheticCommitSha,
-				syntheticRef: participant.syntheticRef,
-				statusFingerprintBefore: participant.statusFingerprintBefore,
-				statusFingerprintAfter: participant.statusFingerprintAfter,
-			})),
-		).run();
+		database
+			.insert(schema.conflictResolutionParticipants)
+			.values(
+				session.participants.map((participant, index) => ({
+					id: `${session.id}:participant:${participant.side}`,
+					sessionId: session.id,
+					side: participant.side,
+					sortOrder: index,
+					worktreeId: participant.worktreeId,
+					runId: participant.runId,
+					task: participant.task,
+					agentName: participant.agentName,
+					branch: participant.branch,
+					originalHeadSha: participant.originalHeadSha,
+					mergeBaseSha: participant.mergeBaseSha,
+					syntheticCommitSha: participant.syntheticCommitSha,
+					syntheticRef: participant.syntheticRef,
+					statusFingerprintBefore: participant.statusFingerprintBefore,
+					statusFingerprintAfter: participant.statusFingerprintAfter,
+				})),
+			)
+			.run();
 	}
 	if (session.files.length > 0) {
-		database.insert(schema.conflictResolutionFiles).values(
-			session.files.map((file, index) => ({
-				id: `${session.id}:file:${index}`,
-				sessionId: session.id,
-				path: file.path,
-				kind: file.kind,
-				risk: file.risk,
-				reasonCode: file.reasonCode,
-				leftPath: file.leftPath,
-				rightPath: file.rightPath,
-				symbol: file.symbol,
-				staticRanges: JSON.stringify(file.staticRanges),
-				gitStages: JSON.stringify(file.gitStages),
-				markerRanges: JSON.stringify(file.markerRanges),
-				sortOrder: index,
-			})),
-		).run();
+		database
+			.insert(schema.conflictResolutionFiles)
+			.values(
+				session.files.map((file, index) => ({
+					id: `${session.id}:file:${index}`,
+					sessionId: session.id,
+					path: file.path,
+					kind: file.kind,
+					risk: file.risk,
+					reasonCode: file.reasonCode,
+					leftPath: file.leftPath,
+					rightPath: file.rightPath,
+					symbol: file.symbol,
+					staticRanges: JSON.stringify(file.staticRanges),
+					gitStages: JSON.stringify(file.gitStages),
+					markerRanges: JSON.stringify(file.markerRanges),
+					sortOrder: index,
+				})),
+			)
+			.run();
 	}
 	if (session.operations.length > 0) {
-		database.insert(schema.conflictResolutionOperations).values(
-			session.operations.map((operation) => ({
-				id: operation.id,
-				sessionId: session.id,
-				sequence: operation.sequence,
-				stage: operation.stage,
-				kind: operation.kind,
-				commandSummary: operation.commandSummary,
-				status: operation.status,
-				startedAt: new Date(operation.startedAt),
-				completedAt: operation.completedAt === null ? null : new Date(operation.completedAt),
-				outputSummary: operation.outputSummary,
-				errorMessage: operation.errorMessage,
-			})),
-		).run();
+		database
+			.insert(schema.conflictResolutionOperations)
+			.values(
+				session.operations.map((operation) => ({
+					id: operation.id,
+					sessionId: session.id,
+					sequence: operation.sequence,
+					stage: operation.stage,
+					kind: operation.kind,
+					commandSummary: operation.commandSummary,
+					status: operation.status,
+					startedAt: new Date(operation.startedAt),
+					completedAt:
+						operation.completedAt === null
+							? null
+							: new Date(operation.completedAt),
+					outputSummary: operation.outputSummary,
+					errorMessage: operation.errorMessage,
+				})),
+			)
+			.run();
 	}
 };
 
@@ -157,22 +185,32 @@ const sessionValues = (session: PreparedConflictSession) => ({
 	errorMessage: session.errorMessage,
 	createdAt: new Date(session.createdAt),
 	updatedAt: new Date(session.updatedAt),
-	completedAt: session.completedAt === null ? null : new Date(session.completedAt),
+	completedAt:
+		session.completedAt === null ? null : new Date(session.completedAt),
 });
 
 const loadSession = (
 	database: Database,
 	row: typeof schema.conflictResolutionSessions.$inferSelect,
 ): PreparedConflictSession => {
-	const participantRows = database.select().from(schema.conflictResolutionParticipants)
+	const participantRows = database
+		.select()
+		.from(schema.conflictResolutionParticipants)
 		.where(eq(schema.conflictResolutionParticipants.sessionId, row.id))
-		.orderBy(asc(schema.conflictResolutionParticipants.sortOrder)).all();
-	const fileRows = database.select().from(schema.conflictResolutionFiles)
+		.orderBy(asc(schema.conflictResolutionParticipants.sortOrder))
+		.all();
+	const fileRows = database
+		.select()
+		.from(schema.conflictResolutionFiles)
 		.where(eq(schema.conflictResolutionFiles.sessionId, row.id))
-		.orderBy(asc(schema.conflictResolutionFiles.sortOrder)).all();
-	const operationRows = database.select().from(schema.conflictResolutionOperations)
+		.orderBy(asc(schema.conflictResolutionFiles.sortOrder))
+		.all();
+	const operationRows = database
+		.select()
+		.from(schema.conflictResolutionOperations)
 		.where(eq(schema.conflictResolutionOperations.sessionId, row.id))
-		.orderBy(asc(schema.conflictResolutionOperations.sequence)).all();
+		.orderBy(asc(schema.conflictResolutionOperations.sequence))
+		.all();
 
 	return {
 		id: row.id,
@@ -211,9 +249,15 @@ const loadSession = (
 			leftPath: file.leftPath,
 			rightPath: file.rightPath,
 			symbol: file.symbol,
-			staticRanges: parseJson<ChangedRange[]>(file.staticRanges, "static ranges"),
+			staticRanges: parseJson<ChangedRange[]>(
+				file.staticRanges,
+				"static ranges",
+			),
 			gitStages: parseJson<GitConflictStage[]>(file.gitStages, "Git stages"),
-			markerRanges: parseJson<ChangedRange[]>(file.markerRanges, "marker ranges"),
+			markerRanges: parseJson<ChangedRange[]>(
+				file.markerRanges,
+				"marker ranges",
+			),
 		})),
 		operations: operationRows.map((operation) => ({
 			id: operation.id,
@@ -238,56 +282,94 @@ export const createConflictResolutionRepository = (
 ): ConflictResolutionRepository => ({
 	createSession(session) {
 		database.transaction((transaction) => {
-			transaction.insert(schema.conflictResolutionSessions).values(sessionValues(session)).run();
+			transaction
+				.insert(schema.conflictResolutionSessions)
+				.values(sessionValues(session))
+				.run();
 			insertChildren(transaction, session);
 		});
 		const persisted = this.getSession(session.id);
-		if (!persisted) throw new Error(`Conflict resolution session was not persisted: ${session.id}`);
+		if (!persisted)
+			throw new Error(
+				`Conflict resolution session was not persisted: ${session.id}`,
+			);
 		return persisted;
 	},
 	saveSession(session) {
 		database.transaction((transaction) => {
-			const updated = transaction.update(schema.conflictResolutionSessions)
+			const updated = transaction
+				.update(schema.conflictResolutionSessions)
 				.set(sessionValues(session))
-				.where(eq(schema.conflictResolutionSessions.id, session.id)).run();
-			if (updated.changes !== 1) throw new Error(`Conflict resolution session not found: ${session.id}`);
-			transaction.delete(schema.conflictResolutionParticipants)
-				.where(eq(schema.conflictResolutionParticipants.sessionId, session.id)).run();
-			transaction.delete(schema.conflictResolutionFiles)
-				.where(eq(schema.conflictResolutionFiles.sessionId, session.id)).run();
-			transaction.delete(schema.conflictResolutionOperations)
-				.where(eq(schema.conflictResolutionOperations.sessionId, session.id)).run();
+				.where(eq(schema.conflictResolutionSessions.id, session.id))
+				.run();
+			if (updated.changes !== 1)
+				throw new Error(`Conflict resolution session not found: ${session.id}`);
+			transaction
+				.delete(schema.conflictResolutionParticipants)
+				.where(eq(schema.conflictResolutionParticipants.sessionId, session.id))
+				.run();
+			transaction
+				.delete(schema.conflictResolutionFiles)
+				.where(eq(schema.conflictResolutionFiles.sessionId, session.id))
+				.run();
+			transaction
+				.delete(schema.conflictResolutionOperations)
+				.where(eq(schema.conflictResolutionOperations.sessionId, session.id))
+				.run();
 			insertChildren(transaction, session);
 		});
 		const persisted = this.getSession(session.id);
-		if (!persisted) throw new Error(`Conflict resolution session was not persisted: ${session.id}`);
+		if (!persisted)
+			throw new Error(
+				`Conflict resolution session was not persisted: ${session.id}`,
+			);
 		return persisted;
 	},
 	getSession(sessionId) {
-		const row = database.select().from(schema.conflictResolutionSessions)
-			.where(eq(schema.conflictResolutionSessions.id, sessionId)).get();
+		const row = database
+			.select()
+			.from(schema.conflictResolutionSessions)
+			.where(eq(schema.conflictResolutionSessions.id, sessionId))
+			.get();
 		return row ? loadSession(database, row) : null;
 	},
 	listSessions(repositoryId, overlapId) {
 		const rows = overlapId
-			? database.select().from(schema.conflictResolutionSessions)
-				.where(and(
-					eq(schema.conflictResolutionSessions.repositoryId, repositoryId),
-					eq(schema.conflictResolutionSessions.overlapId, overlapId),
-				)).orderBy(desc(schema.conflictResolutionSessions.updatedAt)).all()
-			: database.select().from(schema.conflictResolutionSessions)
-				.where(eq(schema.conflictResolutionSessions.repositoryId, repositoryId))
-				.orderBy(desc(schema.conflictResolutionSessions.updatedAt)).all();
+			? database
+					.select()
+					.from(schema.conflictResolutionSessions)
+					.where(
+						and(
+							eq(schema.conflictResolutionSessions.repositoryId, repositoryId),
+							eq(schema.conflictResolutionSessions.overlapId, overlapId),
+						),
+					)
+					.orderBy(desc(schema.conflictResolutionSessions.updatedAt))
+					.all()
+			: database
+					.select()
+					.from(schema.conflictResolutionSessions)
+					.where(
+						eq(schema.conflictResolutionSessions.repositoryId, repositoryId),
+					)
+					.orderBy(desc(schema.conflictResolutionSessions.updatedAt))
+					.all();
 		return rows.map((row) => loadSession(database, row));
 	},
 	findActive(repositoryId, overlapId, targetBranch) {
-		const row = database.select().from(schema.conflictResolutionSessions)
-			.where(and(
-				eq(schema.conflictResolutionSessions.repositoryId, repositoryId),
-				eq(schema.conflictResolutionSessions.overlapId, overlapId),
-				eq(schema.conflictResolutionSessions.targetBranch, targetBranch),
-				inArray(schema.conflictResolutionSessions.state, activeStates),
-			)).orderBy(desc(schema.conflictResolutionSessions.updatedAt)).get();
+		const row = database
+			.select()
+			.from(schema.conflictResolutionSessions)
+			.where(
+				and(
+					eq(schema.conflictResolutionSessions.repositoryId, repositoryId),
+					eq(schema.conflictResolutionSessions.overlapId, overlapId),
+					eq(schema.conflictResolutionSessions.targetBranch, targetBranch),
+					inArray(schema.conflictResolutionSessions.state, activeStates),
+				),
+			)
+			.orderBy(desc(schema.conflictResolutionSessions.updatedAt))
+			.get();
 		return row ? loadSession(database, row) : null;
 	},
 });

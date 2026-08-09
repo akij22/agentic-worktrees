@@ -36,7 +36,9 @@ export class GitCommandError extends Error {
 		exitCode: number | string | undefined;
 		cause: unknown;
 	}) {
-		super(`Git command failed: git ${input.args.join(" ")}`, { cause: input.cause });
+		super(`Git command failed: git ${input.args.join(" ")}`, {
+			cause: input.cause,
+		});
 		this.name = "GitCommandError";
 		this.args = input.args;
 		this.stdout = input.stdout;
@@ -47,18 +49,23 @@ export class GitCommandError extends Error {
 
 const defaultRunner: GitRunner = (file, args, options) =>
 	new Promise((resolve, reject) => {
-		execFile(file, args, {
-			cwd: options.cwd,
-			env: options.env,
-			encoding: "utf8",
-			maxBuffer: options.maxBuffer,
-		}, (error, stdout, stderr) => {
-			if (error) {
-				reject(Object.assign(error, { stdout, stderr }));
-				return;
-			}
-			resolve({ stdout, stderr });
-		});
+		execFile(
+			file,
+			args,
+			{
+				cwd: options.cwd,
+				env: options.env,
+				encoding: "utf8",
+				maxBuffer: options.maxBuffer,
+			},
+			(error, stdout, stderr) => {
+				if (error) {
+					reject(Object.assign(error, { stdout, stderr }));
+					return;
+				}
+				resolve({ stdout, stderr });
+			},
+		);
 	});
 
 export interface GitProcess {
@@ -67,8 +74,10 @@ export interface GitProcess {
 }
 
 const containsUnsafeRefCharacter = (ref: string): boolean =>
-	[...ref].some((character) =>
-		character.charCodeAt(0) <= 32 || "~^:?*[\\".includes(character));
+	[...ref].some(
+		(character) =>
+			character.charCodeAt(0) <= 32 || "~^:?*[\\".includes(character),
+	);
 
 const isUnsafeRef = (ref: string): boolean =>
 	ref.length === 0 ||
@@ -99,11 +108,21 @@ export const createGitProcess = ({
 				stderr: result.stderr.slice(0, maxOutput),
 			};
 		} catch (cause) {
-			const value = cause as { stdout?: unknown; stderr?: unknown; code?: number | string };
+			const value = cause as {
+				stdout?: unknown;
+				stderr?: unknown;
+				code?: number | string;
+			};
 			throw new GitCommandError({
 				args,
-				stdout: typeof value.stdout === "string" ? value.stdout.slice(0, maxOutput) : "",
-				stderr: typeof value.stderr === "string" ? value.stderr.slice(0, maxOutput) : "",
+				stdout:
+					typeof value.stdout === "string"
+						? value.stdout.slice(0, maxOutput)
+						: "",
+				stderr:
+					typeof value.stderr === "string"
+						? value.stderr.slice(0, maxOutput)
+						: "",
 				exitCode: value.code,
 				cause,
 			});

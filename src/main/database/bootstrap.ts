@@ -1,5 +1,5 @@
 const bootstrapStatements = [
-  `
+	`
     CREATE TABLE IF NOT EXISTS repositories (
       id TEXT PRIMARY KEY NOT NULL,
       github_repo_id INTEGER NOT NULL,
@@ -20,19 +20,19 @@ const bootstrapStatements = [
       last_synced_at INTEGER
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS repositories_github_repo_id_unique
     ON repositories (github_repo_id)
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS repositories_full_name_unique
     ON repositories (full_name)
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS repositories_local_root_path_unique
     ON repositories (local_root_path)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS worktrees (
       id TEXT PRIMARY KEY NOT NULL,
       repository_id TEXT NOT NULL,
@@ -49,15 +49,15 @@ const bootstrapStatements = [
       FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE RESTRICT
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS worktrees_path_unique
     ON worktrees (path)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS worktrees_repository_id_idx
     ON worktrees (repository_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS runs (
       id TEXT PRIMARY KEY NOT NULL,
       repository_id TEXT NOT NULL,
@@ -80,19 +80,19 @@ const bootstrapStatements = [
       FOREIGN KEY (worktree_id) REFERENCES worktrees(id) ON DELETE RESTRICT
     )
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS runs_repository_id_idx
     ON runs (repository_id)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS runs_worktree_id_idx
     ON runs (worktree_id)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS runs_status_idx
     ON runs (status)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS run_output_events (
       id TEXT PRIMARY KEY NOT NULL,
       run_id TEXT NOT NULL,
@@ -104,15 +104,15 @@ const bootstrapStatements = [
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS run_output_events_run_sequence_unique
     ON run_output_events (run_id, sequence)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS run_output_events_run_sequence_idx
     ON run_output_events (run_id, sequence)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS run_messages (
       id TEXT PRIMARY KEY NOT NULL,
       run_id TEXT NOT NULL,
@@ -125,15 +125,15 @@ const bootstrapStatements = [
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS run_messages_run_sequence_unique
     ON run_messages (run_id, sequence)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS run_messages_run_sequence_idx
     ON run_messages (run_id, sequence)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS coding_agent_installations (
       id TEXT PRIMARY KEY NOT NULL,
       kind TEXT NOT NULL,
@@ -146,11 +146,11 @@ const bootstrapStatements = [
       updated_at INTEGER NOT NULL
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS coding_agent_installations_kind_unique
     ON coding_agent_installations (kind)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS coding_agent_sessions (
       run_id TEXT PRIMARY KEY NOT NULL,
       installation_id TEXT NOT NULL,
@@ -164,15 +164,15 @@ const bootstrapStatements = [
       FOREIGN KEY (installation_id) REFERENCES coding_agent_installations(id) ON DELETE RESTRICT
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS coding_agent_sessions_external_session_id_unique
     ON coding_agent_sessions (external_session_id)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS coding_agent_sessions_installation_id_idx
     ON coding_agent_sessions (installation_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS coding_agent_session_diffs (
       id TEXT PRIMARY KEY NOT NULL,
       run_id TEXT NOT NULL,
@@ -185,15 +185,15 @@ const bootstrapStatements = [
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS coding_agent_session_diffs_run_id_idx
     ON coding_agent_session_diffs (run_id)
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS coding_agent_session_diffs_run_file_unique
     ON coding_agent_session_diffs (run_id, file)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS intelligence_snapshots (
       id TEXT PRIMARY KEY NOT NULL,
       repository_id TEXT NOT NULL,
@@ -207,11 +207,11 @@ const bootstrapStatements = [
       FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS intelligence_snapshots_repository_id_unique
     ON intelligence_snapshots (repository_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS intelligence_worktrees (
       id TEXT PRIMARY KEY NOT NULL,
       snapshot_id TEXT NOT NULL,
@@ -234,15 +234,15 @@ const bootstrapStatements = [
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS intelligence_worktrees_snapshot_worktree_unique
     ON intelligence_worktrees (snapshot_id, worktree_id)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS intelligence_worktrees_snapshot_id_idx
     ON intelligence_worktrees (snapshot_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS intelligence_changed_files (
       id TEXT PRIMARY KEY NOT NULL,
       intelligence_worktree_id TEXT NOT NULL,
@@ -260,15 +260,15 @@ const bootstrapStatements = [
       FOREIGN KEY (intelligence_worktree_id) REFERENCES intelligence_worktrees(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS intelligence_changed_files_worktree_path_unique
     ON intelligence_changed_files (intelligence_worktree_id, path)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS intelligence_changed_files_worktree_id_idx
     ON intelligence_changed_files (intelligence_worktree_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS intelligence_changed_symbols (
       id TEXT PRIMARY KEY NOT NULL,
       changed_file_id TEXT NOT NULL,
@@ -282,17 +282,17 @@ const bootstrapStatements = [
       FOREIGN KEY (changed_file_id) REFERENCES intelligence_changed_files(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS intelligence_changed_symbols_file_symbol_unique
     ON intelligence_changed_symbols (
       changed_file_id, qualified_name, declaration_start, declaration_end
     )
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS intelligence_changed_symbols_changed_file_id_idx
     ON intelligence_changed_symbols (changed_file_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS intelligence_overlaps (
       id TEXT PRIMARY KEY NOT NULL,
       snapshot_id TEXT NOT NULL,
@@ -309,17 +309,17 @@ const bootstrapStatements = [
       FOREIGN KEY (right_intelligence_worktree_id) REFERENCES intelligence_worktrees(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS intelligence_overlaps_snapshot_pair_unique
     ON intelligence_overlaps (
       snapshot_id, left_intelligence_worktree_id, right_intelligence_worktree_id
     )
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS intelligence_overlaps_snapshot_id_idx
     ON intelligence_overlaps (snapshot_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS intelligence_overlap_targets (
       id TEXT PRIMARY KEY NOT NULL,
       overlap_id TEXT NOT NULL,
@@ -336,15 +336,15 @@ const bootstrapStatements = [
       FOREIGN KEY (right_changed_file_id) REFERENCES intelligence_changed_files(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS intelligence_overlap_targets_overlap_target_unique
     ON intelligence_overlap_targets (overlap_id, target_type, path, symbol)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS intelligence_overlap_targets_overlap_id_idx
     ON intelligence_overlap_targets (overlap_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS conflict_resolution_sessions (
       id TEXT PRIMARY KEY NOT NULL,
       repository_id TEXT NOT NULL,
@@ -366,19 +366,19 @@ const bootstrapStatements = [
       FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE RESTRICT
     )
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS conflict_resolution_sessions_repository_updated_idx
     ON conflict_resolution_sessions (repository_id, updated_at)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS conflict_resolution_sessions_overlap_updated_idx
     ON conflict_resolution_sessions (overlap_id, updated_at)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS conflict_resolution_sessions_active_tuple_idx
     ON conflict_resolution_sessions (repository_id, overlap_id, target_branch, state)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS conflict_resolution_participants (
       id TEXT PRIMARY KEY NOT NULL,
       session_id TEXT NOT NULL,
@@ -398,15 +398,15 @@ const bootstrapStatements = [
       FOREIGN KEY (session_id) REFERENCES conflict_resolution_sessions(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS conflict_resolution_participants_session_side_unique
     ON conflict_resolution_participants (session_id, side)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS conflict_resolution_participants_session_id_idx
     ON conflict_resolution_participants (session_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS conflict_resolution_files (
       id TEXT PRIMARY KEY NOT NULL,
       session_id TEXT NOT NULL,
@@ -424,15 +424,15 @@ const bootstrapStatements = [
       FOREIGN KEY (session_id) REFERENCES conflict_resolution_sessions(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS conflict_resolution_files_session_path_unique
     ON conflict_resolution_files (session_id, path)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS conflict_resolution_files_session_id_idx
     ON conflict_resolution_files (session_id)
   `,
-  `
+	`
     CREATE TABLE IF NOT EXISTS conflict_resolution_operations (
       id TEXT PRIMARY KEY NOT NULL,
       session_id TEXT NOT NULL,
@@ -448,14 +448,14 @@ const bootstrapStatements = [
       FOREIGN KEY (session_id) REFERENCES conflict_resolution_sessions(id) ON DELETE CASCADE
     )
   `,
-  `
+	`
     CREATE UNIQUE INDEX IF NOT EXISTS conflict_resolution_operations_session_sequence_unique
     ON conflict_resolution_operations (session_id, sequence)
   `,
-  `
+	`
     CREATE INDEX IF NOT EXISTS conflict_resolution_operations_session_id_idx
     ON conflict_resolution_operations (session_id)
   `,
 ] as const;
 
-export const bootstrapSchemaSql = bootstrapStatements.join(';\n');
+export const bootstrapSchemaSql = bootstrapStatements.join(";\n");

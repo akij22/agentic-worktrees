@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdtempSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -27,14 +33,23 @@ const setup = () => {
 };
 
 afterEach(() => {
-	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+	for (const root of roots.splice(0))
+		rmSync(root, { recursive: true, force: true });
 });
 
 describe("IntegrationGitAdapter", () => {
 	it("captures the complete dirty state without modifying the original worktree", async () => {
 		const { root, repositoryPath, targetCommitSha } = setup();
 		const worktreePath = join(root, "left");
-		git(repositoryPath, "worktree", "add", "-b", "feat/left", worktreePath, "main");
+		git(
+			repositoryPath,
+			"worktree",
+			"add",
+			"-b",
+			"feat/left",
+			worktreePath,
+			"main",
+		);
 		writeFileSync(join(worktreePath, "committed.txt"), "committed\n");
 		git(worktreePath, "add", "committed.txt");
 		git(worktreePath, "commit", "-m", "participant commit");
@@ -43,22 +58,45 @@ describe("IntegrationGitAdapter", () => {
 		writeFileSync(join(worktreePath, "shared.txt"), "unstaged\n");
 		writeFileSync(join(worktreePath, "untracked.txt"), "untracked\n");
 		rmSync(join(worktreePath, "delete.txt"));
-		writeFileSync(join(worktreePath, "renamed.txt"), readFileSync(join(worktreePath, "rename.txt")));
+		writeFileSync(
+			join(worktreePath, "renamed.txt"),
+			readFileSync(join(worktreePath, "rename.txt")),
+		);
 		rmSync(join(worktreePath, "rename.txt"));
 
-		const adapter = createIntegrationGitAdapter({ integrationRoot: join(root, "integration") });
+		const adapter = createIntegrationGitAdapter({
+			integrationRoot: join(root, "integration"),
+		});
 		const before = await adapter.captureFingerprint(worktreePath);
 		const snapshot = await adapter.createSyntheticSnapshot({
-			repositoryPath, worktreePath, targetCommitSha, sessionId: "session", side: "left",
+			repositoryPath,
+			worktreePath,
+			targetCommitSha,
+			sessionId: "session",
+			side: "left",
 		});
 		const after = await adapter.captureFingerprint(worktreePath);
 
 		expect(after).toBe(before);
-		expect(git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:staged.txt`)).toBe("staged");
-		expect(git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:shared.txt`)).toBe("unstaged");
-		expect(git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:untracked.txt`)).toBe("untracked");
-		expect(() => git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:delete.txt`)).toThrow();
-		expect(git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:renamed.txt`)).toBe("rename me");
+		expect(
+			git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:staged.txt`),
+		).toBe("staged");
+		expect(
+			git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:shared.txt`),
+		).toBe("unstaged");
+		expect(
+			git(
+				repositoryPath,
+				"show",
+				`${snapshot.syntheticCommitSha}:untracked.txt`,
+			),
+		).toBe("untracked");
+		expect(() =>
+			git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:delete.txt`),
+		).toThrow();
+		expect(
+			git(repositoryPath, "show", `${snapshot.syntheticCommitSha}:renamed.txt`),
+		).toBe("rename me");
 	});
 
 	it("retains real unmerged stages when synthetic snapshots conflict", async () => {
@@ -66,22 +104,59 @@ describe("IntegrationGitAdapter", () => {
 		const leftPath = join(root, "left");
 		const rightPath = join(root, "right");
 		git(repositoryPath, "worktree", "add", "-b", "feat/left", leftPath, "main");
-		git(repositoryPath, "worktree", "add", "-b", "feat/right", rightPath, "main");
+		git(
+			repositoryPath,
+			"worktree",
+			"add",
+			"-b",
+			"feat/right",
+			rightPath,
+			"main",
+		);
 		writeFileSync(join(leftPath, "shared.txt"), "left\n");
 		writeFileSync(join(rightPath, "shared.txt"), "right\n");
-		const adapter = createIntegrationGitAdapter({ integrationRoot: join(root, "integration") });
-		const left = await adapter.createSyntheticSnapshot({ repositoryPath, worktreePath: leftPath, targetCommitSha, sessionId: "conflict", side: "left" });
-		const right = await adapter.createSyntheticSnapshot({ repositoryPath, worktreePath: rightPath, targetCommitSha, sessionId: "conflict", side: "right" });
-		const integration = await adapter.createIntegrationWorktree({ repositoryPath, targetCommitSha, sessionId: "conflict" });
+		const adapter = createIntegrationGitAdapter({
+			integrationRoot: join(root, "integration"),
+		});
+		const left = await adapter.createSyntheticSnapshot({
+			repositoryPath,
+			worktreePath: leftPath,
+			targetCommitSha,
+			sessionId: "conflict",
+			side: "left",
+		});
+		const right = await adapter.createSyntheticSnapshot({
+			repositoryPath,
+			worktreePath: rightPath,
+			targetCommitSha,
+			sessionId: "conflict",
+			side: "right",
+		});
+		const integration = await adapter.createIntegrationWorktree({
+			repositoryPath,
+			targetCommitSha,
+			sessionId: "conflict",
+		});
 
-		expect((await adapter.mergeSynthetic(integration.path, left.syntheticRef)).kind).toBe("clean");
-		const result = await adapter.mergeSynthetic(integration.path, right.syntheticRef);
+		expect(
+			(await adapter.mergeSynthetic(integration.path, left.syntheticRef)).kind,
+		).toBe("clean");
+		const result = await adapter.mergeSynthetic(
+			integration.path,
+			right.syntheticRef,
+		);
 
 		expect(result.kind).toBe("conflict");
 		if (result.kind === "conflict") {
 			expect(result.files.map(({ path }) => path)).toContain("shared.txt");
-			expect(result.files.find(({ path }) => path === "shared.txt")?.stages.map(({ stage }) => stage)).toEqual([1, 2, 3]);
+			expect(
+				result.files
+					.find(({ path }) => path === "shared.txt")
+					?.stages.map(({ stage }) => stage),
+			).toEqual([1, 2, 3]);
 		}
-		expect(readFileSync(join(integration.path, "shared.txt"), "utf8")).toContain("<<<<<<<");
+		expect(
+			readFileSync(join(integration.path, "shared.txt"), "utf8"),
+		).toContain("<<<<<<<");
 	});
 });

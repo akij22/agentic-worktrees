@@ -5,7 +5,10 @@ import {
 	classifyConfirmedConflict,
 } from "./conflict-classifier";
 
-const target = (reasonCode: string, risk: "high" | "medium" = "high"): OverlapTarget => ({
+const target = (
+	reasonCode: string,
+	risk: "high" | "medium" = "high",
+): OverlapTarget => ({
 	type: reasonCode === "same-symbol" ? "symbol" : "file",
 	path: "src/session.ts",
 	reasonCode,
@@ -17,27 +20,36 @@ const target = (reasonCode: string, risk: "high" | "medium" = "high"): OverlapTa
 
 describe("confirmed conflict classification", () => {
 	it("treats Git unresolved entries as a confirmed conflict", () => {
-		expect(classifyConfirmedConflict({
-			git: { kind: "conflict", files: [{ path: "src/session.ts", stages: [], markerRanges: [] }] },
-			targets: [],
-		})).toBe("conflict");
+		expect(
+			classifyConfirmedConflict({
+				git: {
+					kind: "conflict",
+					files: [{ path: "src/session.ts", stages: [], markerRanges: [] }],
+				},
+				targets: [],
+			}),
+		).toBe("conflict");
 	});
 
 	it.each(["same-symbol", "overlapping-original-range"])(
 		"requires review for clean Git merges with %s evidence",
 		(reasonCode) => {
-			expect(classifyConfirmedConflict({
-				git: { kind: "clean", files: [] },
-				targets: [target(reasonCode)],
-			})).toBe("review_required");
+			expect(
+				classifyConfirmedConflict({
+					git: { kind: "clean", files: [] },
+					targets: [target(reasonCode)],
+				}),
+			).toBe("review_required");
 		},
 	);
 
 	it("marks a clean same-file merge safe", () => {
-		expect(classifyConfirmedConflict({
-			git: { kind: "clean", files: [] },
-			targets: [target("same-file", "medium")],
-		})).toBe("safe");
+		expect(
+			classifyConfirmedConflict({
+				git: { kind: "clean", files: [] },
+				targets: [target("same-file", "medium")],
+			}),
+		).toBe("safe");
 	});
 });
 
@@ -60,6 +72,8 @@ describe("resolution state transitions", () => {
 		["requested", "safe"],
 		["capturing", "review_required"],
 	] as const)("rejects %s → %s", (from, to) => {
-		expect(() => assertResolutionTransition(from, to)).toThrow(/Invalid conflict resolution transition/);
+		expect(() => assertResolutionTransition(from, to)).toThrow(
+			/Invalid conflict resolution transition/,
+		);
 	});
 });

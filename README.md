@@ -50,13 +50,16 @@
   - Run Codex turns with explicit `workspace-write` sandboxing and `on-request` approval defaults.
   - Persist session metadata, messages, output events, and diffs in the local SQLite database.
 
-- **Cross-worktree intelligence**
+- **Cross-worktree intelligence and Git confirmation**
   - Open **Intelligence** from the sidebar to compare concurrent coding-agent worktrees within one repository.
   - Analyze committed, staged, unstaged, and untracked changes locally against each worktree's merge base.
-  - Classify deterministic overlap as high risk for the same symbol or overlapping original ranges, medium risk for the same file or module, and low risk for shared folder ancestry.
-  - Review actionable overlaps in **Attention**, inspect the paths and symbols involved, compare persisted two-sided patches, and open either related coding-agent chat.
+  - Distinguish deterministic **overlaps** and **predicted conflicts** from conflicts that Git has actually confirmed.
+  - Select a target branch and use **Confirm with Git** to snapshot both complete worktree deltas through temporary indexes and private synthetic commits. Original coding-agent worktrees, indexes, files, and branches remain unchanged.
+  - Classify simulation results as **Safe**, **Review Required**, or **Conflict**. Safe simulations remove disposable Git state; semantic-review and real Git-conflict results retain an isolated Integration Worktree.
+  - Inspect affected files, symbols, ranges, Git stages, and conflict-marker ranges; compare persisted diffs or open either original chat for context.
+  - Open a retained Integration Worktree in an installed editor for inspection. Automated/manual resolution, verification commands, target updates, pushes, and pull requests are intentionally reserved for later phases.
   - Analyze TypeScript, TSX, JavaScript, and JSX at symbol level; other file types receive file and module analysis.
-  - Preserve the latest successful snapshot when refresh fails. Intelligence does not use AI conflict guesses or fabricate execution progress.
+  - Preserve the latest successful intelligence snapshot and an auditable preparation history. Intelligence does not use AI conflict guesses or fabricate execution progress.
 
 - **Desktop workspace**
   - Use a dense dashboard designed around repository and worktree workflows.
@@ -172,7 +175,7 @@ Database migrations are initialized by the application. When database schema def
 9. Use the session side panel to switch between **Review**, **Terminal**, and **Files**. Review shows the generated diff and the available Git publishing actions, Terminal starts in the current worktree, and Files provides recursive navigation with read-only text previews.
 10. From **Review**, create a commit for all current changes and push unpublished commits. For GitHub-linked repositories, open a non-draft pull request after the branch has been pushed.
 11. Approve or reject interactive permission requests, and use the stop action to abort a running session. Codex uses `workspace-write` with `on-request` approvals by default.
-12. Open **Intelligence**, select a repository, and refresh its local analysis. Review high-risk or actionable items in **Attention**, inspect overlap evidence, compare both worktree patches, or open the associated chats. Worktrees without a detected relationship are marked **Safely independent**.
+12. Open **Intelligence**, select a repository, and refresh its local analysis. Review overlaps or predicted conflicts in **Attention**, select a target branch, and choose **Confirm with Git**. Safe pairs leave Attention; Review Required and Conflict results retain an isolated Integration Worktree that can be opened in an installed editor. Original worktrees remain unchanged.
 13. Use **Settings** to sign out of GitHub or select/change either local coding-agent executable. Codex reuses the authentication and configuration of the selected local CLI; the application does not request separate Codex credentials.
 
 The application stores its local database and encrypted credentials in Electron's application data directory. Keep the worktree workspace path backed up if the local worktree metadata is important to your workflow.

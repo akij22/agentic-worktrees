@@ -4,7 +4,10 @@ import type {
 	ConflictResolutionState,
 } from "./types";
 
-const transitions: Record<ConflictResolutionState, readonly ConflictResolutionState[]> = {
+const transitions: Record<
+	ConflictResolutionState,
+	readonly ConflictResolutionState[]
+> = {
 	requested: ["capturing", "failed"],
 	capturing: ["simulating", "failed"],
 	simulating: ["preparing_sandbox", "safe", "failed"],

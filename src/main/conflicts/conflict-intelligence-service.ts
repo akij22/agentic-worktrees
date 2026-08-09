@@ -31,10 +31,18 @@ export interface ConflictSessionChangedEvent {
 
 export interface ConflictIntelligenceService {
 	listTargetBranches(repositoryId: string): Promise<BranchDto[]>;
-	prepareConflict(input: { overlapId: string; targetBranch: string }): Promise<PreparedConflictSession>;
+	prepareConflict(input: {
+		overlapId: string;
+		targetBranch: string;
+	}): Promise<PreparedConflictSession>;
 	getSession(sessionId: string): PreparedConflictSession;
-	listSessions(input: { repositoryId: string; overlapId?: string }): PreparedConflictSession[];
-	onSessionChanged(listener: (event: ConflictSessionChangedEvent) => void): () => void;
+	listSessions(input: {
+		repositoryId: string;
+		overlapId?: string;
+	}): PreparedConflictSession[];
+	onSessionChanged(
+		listener: (event: ConflictSessionChangedEvent) => void,
+	): () => void;
 	reconcileInterruptedSessions(): void;
 }
 
@@ -77,23 +85,36 @@ export const createConflictIntelligenceService = (
 		for (const listener of listeners) listener(event);
 	};
 
-	const enqueue = <Value>(repositoryId: string, operation: () => Promise<Value>): Promise<Value> => {
+	const enqueue = <Value>(
+		repositoryId: string,
+		operation: () => Promise<Value>,
+	): Promise<Value> => {
 		const previous = repositoryQueues.get(repositoryId) ?? Promise.resolve();
 		const result = previous.catch(() => undefined).then(operation);
-		repositoryQueues.set(repositoryId, result.then(() => undefined, () => undefined));
+		repositoryQueues.set(
+			repositoryId,
+			result.then(
+				() => undefined,
+				() => undefined,
+			),
+		);
 		return result;
 	};
 
 	const service: ConflictIntelligenceService = {
 		async listTargetBranches(repositoryId) {
 			const repository = dependencies.getRepository(repositoryId);
-			if (!repository?.localRootPath) throw new Error(`Repository is not available locally: ${repositoryId}`);
+			if (!repository?.localRootPath)
+				throw new Error(`Repository is not available locally: ${repositoryId}`);
 			return dependencies.listBranches(repository.localRootPath);
 		},
 		async prepareConflict({ overlapId, targetBranch }) {
 			const details = dependencies.intelligenceRepository.getOverlap(overlapId);
 			const repository = dependencies.getRepository(details.repositoryId);
-			if (!repository?.localRootPath) throw new Error(`Repository is not available locally: ${details.repositoryId}`);
+			if (!repository?.localRootPath)
+				throw new Error(
+					`Repository is not available locally: ${details.repositoryId}`,
+				);
 			const repositoryPath = repository.localRootPath;
 			const branches = await dependencies.listBranches(repositoryPath);
 			if (!branches.some(({ name }) => name === targetBranch)) {
@@ -112,9 +133,17 @@ export const createConflictIntelligenceService = (
 			const promise = enqueue(details.repositoryId, async () => {
 				const left = dependencies.getWorktree(details.left.worktreeId);
 				const right = dependencies.getWorktree(details.right.worktreeId);
-				if (!left || !right) throw new Error(`Conflict participants are no longer available: ${overlapId}`);
-				if (left.repositoryId !== details.repositoryId || right.repositoryId !== details.repositoryId) {
-					throw new Error("Conflict participants do not belong to the overlap repository.");
+				if (!left || !right)
+					throw new Error(
+						`Conflict participants are no longer available: ${overlapId}`,
+					);
+				if (
+					left.repositoryId !== details.repositoryId ||
+					right.repositoryId !== details.repositoryId
+				) {
+					throw new Error(
+						"Conflict participants do not belong to the overlap repository.",
+					);
 				}
 				const createdAt = dependencies.now();
 				let current: PreparedConflictSession = {
@@ -142,7 +171,11 @@ export const createConflictIntelligenceService = (
 				current = dependencies.resolutionRepository.createSession(current);
 				emit(current);
 
-				const transition = (next: ConflictResolutionState, label: string, kind: string): void => {
+				const transition = (
+					next: ConflictResolutionState,
+					label: string,
+					kind: string,
+				): void => {
 					if (current.state === next) return;
 					assertResolutionTransition(current.state, next);
 					const timestamp = dependencies.now();
@@ -174,19 +207,46 @@ export const createConflictIntelligenceService = (
 						repository: { id: details.repositoryId, path: repositoryPath },
 						targetBranch,
 						participants: [
-							{ side: "left", repositoryId: details.repositoryId, worktreeId: left.id, runId: details.left.runId, task: details.left.task, agentName: details.left.agentName, branch: left.branchName, path: left.path },
-							{ side: "right", repositoryId: details.repositoryId, worktreeId: right.id, runId: details.right.runId, task: details.right.task, agentName: details.right.agentName, branch: right.branchName, path: right.path },
+							{
+								side: "left",
+								repositoryId: details.repositoryId,
+								worktreeId: left.id,
+								runId: details.left.runId,
+								task: details.left.task,
+								agentName: details.left.agentName,
+								branch: left.branchName,
+								path: left.path,
+							},
+							{
+								side: "right",
+								repositoryId: details.repositoryId,
+								worktreeId: right.id,
+								runId: details.right.runId,
+								task: details.right.task,
+								agentName: details.right.agentName,
+								branch: right.branchName,
+								path: right.path,
+							},
 						],
 						targets: details.overlap.targets,
-						onStage: (stage, label) => transition(
-							stage,
-							label,
-							stage === "capturing" ? "capture" : stage === "simulating" ? "simulate" : "prepare-sandbox",
-						),
+						onStage: (stage, label) =>
+							transition(
+								stage,
+								label,
+								stage === "capturing"
+									? "capture"
+									: stage === "simulating"
+										? "simulate"
+										: "prepare-sandbox",
+							),
 					});
 					const finalState = result.classification;
 					if (finalState !== "safe" && current.state === "simulating") {
-						transition("preparing_sandbox", "Preparing isolated integration sandbox", "prepare-sandbox");
+						transition(
+							"preparing_sandbox",
+							"Preparing isolated integration sandbox",
+							"prepare-sandbox",
+						);
 					}
 					assertResolutionTransition(current.state, finalState);
 					const completedAt = dependencies.now();
@@ -194,7 +254,12 @@ export const createConflictIntelligenceService = (
 						...current,
 						state: finalState,
 						classification: result.classification,
-						currentStage: finalState === "safe" ? "Git mergeable" : finalState === "conflict" ? "Git confirmed conflict" : "Semantic review required",
+						currentStage:
+							finalState === "safe"
+								? "Git mergeable"
+								: finalState === "conflict"
+									? "Git confirmed conflict"
+									: "Semantic review required",
 						targetCommitSha: result.targetCommitSha,
 						participants: result.participants,
 						files: result.files,
@@ -230,11 +295,15 @@ export const createConflictIntelligenceService = (
 		},
 		getSession(sessionId) {
 			const session = dependencies.resolutionRepository.getSession(sessionId);
-			if (!session) throw new Error(`Conflict resolution session not found: ${sessionId}`);
+			if (!session)
+				throw new Error(`Conflict resolution session not found: ${sessionId}`);
 			return session;
 		},
 		listSessions(input) {
-			return dependencies.resolutionRepository.listSessions(input.repositoryId, input.overlapId);
+			return dependencies.resolutionRepository.listSessions(
+				input.repositoryId,
+				input.overlapId,
+			);
 		},
 		onSessionChanged(listener) {
 			listeners.add(listener);
@@ -242,14 +311,17 @@ export const createConflictIntelligenceService = (
 		},
 		reconcileInterruptedSessions() {
 			for (const repository of dependencies.listRepositories?.() ?? []) {
-				for (const session of dependencies.resolutionRepository.listSessions(repository.id)) {
+				for (const session of dependencies.resolutionRepository.listSessions(
+					repository.id,
+				)) {
 					if (terminalStates.has(session.state)) continue;
 					const completedAt = dependencies.now();
 					const failed = dependencies.resolutionRepository.saveSession({
 						...session,
 						state: "failed",
 						currentStage: "Interrupted preparation",
-						errorMessage: "Preparation was interrupted before Git confirmation completed.",
+						errorMessage:
+							"Preparation was interrupted before Git confirmation completed.",
 						updatedAt: completedAt,
 						completedAt,
 					});
