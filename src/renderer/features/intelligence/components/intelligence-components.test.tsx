@@ -42,12 +42,30 @@ describe("conflict UI support", () => {
 						left: {
 							worktreeId: "left",
 							runId: "left-run",
-							files: [{ path: "src/session.ts", modulePath: "src", additions: 1, deletions: 1, patch: "-old\n+left", binary: false }],
+							files: [
+								{
+									path: "src/session.ts",
+									modulePath: "src",
+									additions: 1,
+									deletions: 1,
+									patch: "-old\n+left",
+									binary: false,
+								},
+							],
 						},
 						right: {
 							worktreeId: "right",
 							runId: "right-run",
-							files: [{ path: "src/session.ts", modulePath: "src", additions: 1, deletions: 1, patch: "-old\n+right", binary: false }],
+							files: [
+								{
+									path: "src/session.ts",
+									modulePath: "src",
+									additions: 1,
+									deletions: 1,
+									patch: "-old\n+right",
+									binary: false,
+								},
+							],
 						},
 					}),
 				},

@@ -25,6 +25,5 @@ export const worktreeFor = (
 ): IntelligenceWorktreeDto | undefined =>
 	snapshot.worktrees.find((worktree) => worktree.worktreeId === worktreeId);
 
-export const conflictFileCount = (
-	overlap: IntelligenceOverlapDto,
-): number => new Set(overlap.targets.map(({ path }) => path)).size;
+export const conflictFileCount = (overlap: IntelligenceOverlapDto): number =>
+	new Set(overlap.targets.map(({ path }) => path)).size;

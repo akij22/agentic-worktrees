@@ -1,4 +1,9 @@
-import { GitBranch, ShieldCheck, ShieldAlert, TriangleAlert } from "lucide-react";
+import {
+	GitBranch,
+	ShieldCheck,
+	ShieldAlert,
+	TriangleAlert,
+} from "lucide-react";
 import type { IntelligenceSnapshotDto } from "../../../../shared/ipc/schemas";
 
 export const IntelligenceSummary = ({
@@ -46,14 +51,20 @@ export const IntelligenceSummary = ({
 					key={label}
 					className="flex min-h-20 items-center gap-4 rounded-lg border border-border/80 bg-card/45 px-4 py-3 shadow-sm"
 				>
-					<div className={`flex size-11 shrink-0 items-center justify-center rounded-full ${iconTone}`}>
+					<div
+						className={`flex size-11 shrink-0 items-center justify-center rounded-full ${iconTone}`}
+					>
 						<Icon className="size-5" aria-hidden="true" />
 					</div>
 					<div>
-						<strong className={`block font-mono text-2xl leading-none ${valueTone}`}>
+						<strong
+							className={`block font-mono text-2xl leading-none ${valueTone}`}
+						>
 							{value}
 						</strong>
-						<span className="mt-1 block text-xs text-muted-foreground">{label}</span>
+						<span className="mt-1 block text-xs text-muted-foreground">
+							{label}
+						</span>
 					</div>
 				</article>
 			))}

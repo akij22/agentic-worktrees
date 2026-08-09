@@ -35,15 +35,17 @@ describe("useCodingAgentSessions", () => {
 			value: {
 				codingAgent: {
 					getStatus: vi.fn().mockResolvedValue({
-						installations: [{
-							kind: "opencode",
-							name: "OpenCode",
-							configured: true,
-							executablePath: "/usr/local/bin/opencode",
-							version: "1.0.0",
-							running: true,
-							error: null,
-						}],
+						installations: [
+							{
+								kind: "opencode",
+								name: "OpenCode",
+								configured: true,
+								executablePath: "/usr/local/bin/opencode",
+								version: "1.0.0",
+								running: true,
+								error: null,
+							},
+						],
 					}),
 					listWorktrees: vi.fn().mockResolvedValue([]),
 					listSessions: vi.fn().mockResolvedValue([session]),

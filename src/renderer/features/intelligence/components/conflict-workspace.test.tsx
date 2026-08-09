@@ -80,7 +80,9 @@ describe("conflict workspace", () => {
 			/>,
 		);
 
-		fireEvent.click(screen.getByRole("button", { name: /Home screen.*First session/i }));
+		fireEvent.click(
+			screen.getByRole("button", { name: /Home screen.*First session/i }),
+		);
 		expect(onSelect).toHaveBeenCalledWith("conflict");
 		expect(screen.getByText("src/session.ts")).toBeTruthy();
 	});
@@ -88,7 +90,9 @@ describe("conflict workspace", () => {
 	it("renders selected file and symbol evidence inline", () => {
 		render(<ConflictDetails overlap={conflict} left={left} right={right} />);
 
-		expect(screen.getByRole("heading", { name: /Home screen.*First session/i })).toBeTruthy();
+		expect(
+			screen.getByRole("heading", { name: /Home screen.*First session/i }),
+		).toBeTruthy();
 		expect(screen.getByText("src/session.ts")).toBeTruthy();
 		expect(screen.getByText("createSession")).toBeTruthy();
 		expect(screen.getByText("Same symbol")).toBeTruthy();
@@ -109,11 +113,15 @@ describe("conflict workspace", () => {
 		);
 
 		expect(screen.getByText("+1,827")).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Open Home screen chat" }));
+		fireEvent.click(
+			screen.getByRole("button", { name: "Open Home screen chat" }),
+		);
 		expect(onOpenChat).toHaveBeenCalledWith("left", "left-run");
 		fireEvent.click(screen.getByRole("button", { name: "Compare diffs" }));
 		expect(onCompare).toHaveBeenCalledWith("conflict");
-		expect(screen.getByRole("heading", { name: "Independent worktrees" })).toBeTruthy();
+		expect(
+			screen.getByRole("heading", { name: "Independent worktrees" }),
+		).toBeTruthy();
 		expect(screen.getByText("Settings cleanup")).toBeTruthy();
 	});
 });

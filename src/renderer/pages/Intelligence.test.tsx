@@ -43,36 +43,97 @@ const snapshot = (risk: "high" | "low"): IntelligenceSnapshotDto => ({
 	warnings: [],
 	worktrees: [
 		{
-			worktreeId: "left", runId: "left-run", task: "Left task", branch: "feat/left",
-			baseBranch: "main", agentKind: "opencode", agentName: "OpenCode", status: "busy",
-			changedFileCount: 1, additions: 5, deletions: 1,
-			files: [{ path: "src/shared.ts", modulePath: "src", additions: 5, deletions: 1, symbols: ["shared"] }],
-			independent: false, warning: null, updatedAt: 1,
+			worktreeId: "left",
+			runId: "left-run",
+			task: "Left task",
+			branch: "feat/left",
+			baseBranch: "main",
+			agentKind: "opencode",
+			agentName: "OpenCode",
+			status: "busy",
+			changedFileCount: 1,
+			additions: 5,
+			deletions: 1,
+			files: [
+				{
+					path: "src/shared.ts",
+					modulePath: "src",
+					additions: 5,
+					deletions: 1,
+					symbols: ["shared"],
+				},
+			],
+			independent: false,
+			warning: null,
+			updatedAt: 1,
 		},
 		{
-			worktreeId: "right", runId: "right-run", task: "Right task", branch: "feat/right",
-			baseBranch: "main", agentKind: "codex", agentName: "Codex", status: "busy",
-			changedFileCount: 1, additions: 3, deletions: 2,
-			files: [{ path: "src/shared.ts", modulePath: "src", additions: 3, deletions: 2, symbols: ["shared"] }],
-			independent: false, warning: null, updatedAt: 2,
+			worktreeId: "right",
+			runId: "right-run",
+			task: "Right task",
+			branch: "feat/right",
+			baseBranch: "main",
+			agentKind: "codex",
+			agentName: "Codex",
+			status: "busy",
+			changedFileCount: 1,
+			additions: 3,
+			deletions: 2,
+			files: [
+				{
+					path: "src/shared.ts",
+					modulePath: "src",
+					additions: 3,
+					deletions: 2,
+					symbols: ["shared"],
+				},
+			],
+			independent: false,
+			warning: null,
+			updatedAt: 2,
 		},
 	],
-	overlaps: [{
-		id: "overlap", leftWorktreeId: "left", rightWorktreeId: "right", risk,
-		category: risk === "high" ? "symbol" : "folder", reasonCode: risk === "high" ? "same-symbol" : "shared-folder",
-		summary: `${risk} persisted overlap`, actionable: risk === "high",
-		targets: [{ type: risk === "high" ? "symbol" : "folder", path: "src/shared.ts", symbol: risk === "high" ? "shared" : null,
-			leftFilePath: "src/shared.ts", rightFilePath: "src/shared.ts", reasonCode: "evidence", risk }],
-	}],
+	overlaps: [
+		{
+			id: "overlap",
+			leftWorktreeId: "left",
+			rightWorktreeId: "right",
+			risk,
+			category: risk === "high" ? "symbol" : "folder",
+			reasonCode: risk === "high" ? "same-symbol" : "shared-folder",
+			summary: `${risk} persisted overlap`,
+			actionable: risk === "high",
+			targets: [
+				{
+					type: risk === "high" ? "symbol" : "folder",
+					path: "src/shared.ts",
+					symbol: risk === "high" ? "shared" : null,
+					leftFilePath: "src/shared.ts",
+					rightFilePath: "src/shared.ts",
+					reasonCode: "evidence",
+					risk,
+				},
+			],
+		},
+	],
 });
 
 const renderPage = (value: IntelligenceSnapshotDto) => {
 	mocks.useIntelligence.mockReturnValue({
-		repositories: [repository], selectedRepositoryId: repository.id,
-		selectRepository: vi.fn(), snapshot: value, loading: false,
-		refreshing: false, error: undefined, refresh: vi.fn(),
+		repositories: [repository],
+		selectedRepositoryId: repository.id,
+		selectRepository: vi.fn(),
+		snapshot: value,
+		loading: false,
+		refreshing: false,
+		error: undefined,
+		refresh: vi.fn(),
 	});
-	return render(<MemoryRouter><Intelligence /></MemoryRouter>);
+	return render(
+		<MemoryRouter>
+			<Intelligence />
+		</MemoryRouter>,
+	);
 };
 
 afterEach(() => {
@@ -83,9 +144,13 @@ afterEach(() => {
 describe("Intelligence conflict page", () => {
 	it("defaults to the first high-risk conflict and excludes the graph", () => {
 		renderPage(snapshot("high"));
-		expect(screen.getByRole("heading", { name: "Cross-worktree conflicts" })).toBeTruthy();
+		expect(
+			screen.getByRole("heading", { name: "Cross-worktree conflicts" }),
+		).toBeTruthy();
 		expect(screen.getAllByText("high persisted overlap")).toHaveLength(2);
-		expect(screen.queryByRole("heading", { name: "Worktree overlap map" })).toBeNull();
+		expect(
+			screen.queryByRole("heading", { name: "Worktree overlap map" }),
+		).toBeNull();
 	});
 
 	it("shows a conflict-free state when only low-risk overlaps exist", () => {
