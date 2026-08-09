@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type {
+	ConflictResolutionSessionDto,
 	IntelligenceOverlapDto,
 	IntelligenceSnapshotDto,
 } from "../../../../shared/ipc/schemas";
-import { conflictFileCount, selectConflicts } from "./conflict-view-model";
+import {
+	conflictFileCount,
+	conflictPresentation,
+	selectConflicts,
+} from "./conflict-view-model";
 
 const overlap = (
 	id: string,
@@ -64,5 +69,34 @@ describe("conflict view model", () => {
 				overlap("high", "high", ["src/a.ts", "src/a.ts", "src/b.ts"]),
 			),
 		).toBe(2);
+	});
+
+	it("distinguishes static predictions from Git-confirmed outcomes", () => {
+		const predicted = { ...overlap("high", "high"), reasonCode: "same-symbol" };
+		expect(conflictPresentation(predicted)).toEqual({
+			kind: "predicted_conflict",
+			label: "Predicted conflict",
+			confirmation: "Not confirmed",
+		});
+		const confirmed = {
+			overlapId: predicted.id,
+			state: "conflict",
+			classification: "conflict",
+		} as ConflictResolutionSessionDto;
+		expect(conflictPresentation(predicted, confirmed)).toEqual({
+			kind: "conflict",
+			label: "Conflict",
+			confirmation: "Git confirmed",
+		});
+	});
+
+	it("removes Git-confirmed safe findings from Attention", () => {
+		const high = overlap("high", "high");
+		const safe = {
+			overlapId: high.id,
+			state: "safe",
+			classification: "safe",
+		} as ConflictResolutionSessionDto;
+		expect(selectConflicts(snapshot([high]), [safe])).toEqual([]);
 	});
 });
