@@ -1,4 +1,4 @@
-import { GitBranch, GitMerge, ShieldCheck, TriangleAlert } from "lucide-react";
+import { GitBranch, ShieldCheck, ShieldAlert, TriangleAlert } from "lucide-react";
 import type { IntelligenceSnapshotDto } from "../../../../shared/ipc/schemas";
 
 export const IntelligenceSummary = ({
@@ -11,46 +11,50 @@ export const IntelligenceSummary = ({
 			label: "Active worktrees",
 			value: snapshot.worktrees.length,
 			icon: GitBranch,
-			tone: "text-foreground",
+			valueTone: "text-foreground",
+			iconTone: "bg-blue-500/10 text-blue-400",
 		},
 		{
-			label: "Relationships",
-			value: snapshot.overlaps.length,
-			icon: GitMerge,
-			tone: "text-sky-400",
-		},
-		{
-			label: "High risk",
+			label: "High-risk conflicts",
 			value: snapshot.overlaps.filter(({ risk }) => risk === "high").length,
-			icon: TriangleAlert,
-			tone: "text-red-400",
+			icon: ShieldAlert,
+			valueTone: "text-red-400",
+			iconTone: "bg-red-500/10 text-red-400",
 		},
 		{
-			label: "Independent",
+			label: "Medium overlaps",
+			value: snapshot.overlaps.filter(({ risk }) => risk === "medium").length,
+			icon: TriangleAlert,
+			valueTone: "text-amber-400",
+			iconTone: "bg-amber-500/10 text-amber-400",
+		},
+		{
+			label: "Independent worktrees",
 			value: snapshot.worktrees.filter(({ independent }) => independent).length,
 			icon: ShieldCheck,
-			tone: "text-emerald-400",
+			valueTone: "text-emerald-400",
+			iconTone: "bg-emerald-500/10 text-emerald-400",
 		},
 	];
 	return (
 		<section
 			className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-			aria-label="Intelligence summary"
+			aria-label="Conflict summary"
 		>
-			{metrics.map(({ label, value, icon: Icon, tone }) => (
+			{metrics.map(({ label, value, icon: Icon, valueTone, iconTone }) => (
 				<article
 					key={label}
-					className="rounded-xl border border-border bg-card/50 px-4 py-3 shadow-sm"
+					className="flex min-h-20 items-center gap-4 rounded-lg border border-border/80 bg-card/45 px-4 py-3 shadow-sm"
 				>
-					<div className="flex items-center justify-between">
-						<span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-							{label}
-						</span>
-						<Icon className={`size-3.5 ${tone}`} aria-hidden="true" />
+					<div className={`flex size-11 shrink-0 items-center justify-center rounded-full ${iconTone}`}>
+						<Icon className="size-5" aria-hidden="true" />
 					</div>
-					<strong className={`mt-2 block font-mono text-2xl ${tone}`}>
-						{value}
-					</strong>
+					<div>
+						<strong className={`block font-mono text-2xl leading-none ${valueTone}`}>
+							{value}
+						</strong>
+						<span className="mt-1 block text-xs text-muted-foreground">{label}</span>
+					</div>
 				</article>
 			))}
 		</section>
