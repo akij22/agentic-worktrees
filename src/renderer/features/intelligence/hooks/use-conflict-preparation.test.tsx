@@ -72,7 +72,7 @@ describe("useConflictPreparation", () => {
 					repositoryId: string;
 					state: "review_required";
 					updatedAt: number;
-			}) => void)
+			  }) => void)
 			| undefined;
 		const listSessions = vi
 			.fn()
