@@ -51,11 +51,15 @@ const WorktreeCard = ({
 						<small className="text-[8px] text-muted-foreground">files</small>
 					</span>
 					<span className="text-center">
-						<b className="block text-emerald-400">+{number.format(worktree.additions)}</b>
+						<b className="block text-emerald-400">
+							+{number.format(worktree.additions)}
+						</b>
 						<small className="text-[8px] text-muted-foreground">added</small>
 					</span>
 					<span className="text-center">
-						<b className="block text-red-400">−{number.format(worktree.deletions)}</b>
+						<b className="block text-red-400">
+							−{number.format(worktree.deletions)}
+						</b>
 						<small className="text-[8px] text-muted-foreground">removed</small>
 					</span>
 				</div>
@@ -63,10 +67,13 @@ const WorktreeCard = ({
 			<div className="mt-2 flex items-end justify-between gap-3">
 				<div className="min-w-0">
 					<p className="flex items-center gap-1.5 truncate font-mono text-[9px] text-muted-foreground">
-						<GitBranch className="size-3" />{worktree.branch}
+						<GitBranch className="size-3" />
+						{worktree.branch}
 					</p>
 					{!compact && worktree.files[0] ? (
-						<p className="mt-1 truncate font-mono text-[8px] text-foreground/55">{worktree.files[0].path}</p>
+						<p className="mt-1 truncate font-mono text-[8px] text-foreground/55">
+							{worktree.files[0].path}
+						</p>
 					) : null}
 				</div>
 				{worktree.runId && onOpenChat ? (
@@ -77,7 +84,8 @@ const WorktreeCard = ({
 			</div>
 		</>
 	);
-	const className = "w-full rounded-lg border border-border/80 bg-background/35 p-3 text-left";
+	const className =
+		"w-full rounded-lg border border-border/80 bg-background/35 p-3 text-left";
 
 	if (worktree.runId && onOpenChat) {
 		const runId = worktree.runId;
