@@ -22,6 +22,12 @@ import {
   codingAgentSessionModelUpdateSchema,
   codingAgentSelectExecutableRequestSchema,
   createLocalBranchRequestSchema,
+  conflictIntegrationOpenRequestSchema,
+  conflictPrepareRequestSchema,
+  conflictResolutionSessionEventSchema,
+  conflictResolutionSessionSchema,
+  conflictSessionListRequestSchema,
+  conflictSessionRequestSchema,
   editorOpenRequestSchema,
   githubListBranchesRequestSchema,
   githubListReposRequestSchema,
@@ -77,6 +83,7 @@ import { workspaceFileService } from '../workspace/workspace-file-service';
 import { workspaceGitService } from '../workspace/workspace-git-service';
 import { workspaceTerminalService } from '../workspace/workspace-terminal-service';
 import { intelligenceService } from '../intelligence';
+import { conflictIntelligenceService } from '../conflicts';
 import {
   abortAgentSession,
   compactAgentSession,
@@ -546,6 +553,56 @@ const handleIntelligenceDiffCompare = (
   );
 };
 
+const handleIntelligenceTargetBranches = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = intelligenceRepositoryRequestSchema.parse(rawRequest);
+  return conflictIntelligenceService.listTargetBranches(request.repositoryId);
+};
+
+const handleIntelligenceConflictPrepare = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = conflictPrepareRequestSchema.parse(rawRequest);
+  return conflictResolutionSessionSchema.parse(
+    await conflictIntelligenceService.prepareConflict(request),
+  );
+};
+
+const handleIntelligenceResolutionGet = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = conflictSessionRequestSchema.parse(rawRequest);
+  return conflictResolutionSessionSchema.parse(
+    conflictIntelligenceService.getSession(request.sessionId),
+  );
+};
+
+const handleIntelligenceResolutionList = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = conflictSessionListRequestSchema.parse(rawRequest);
+  return conflictResolutionSessionSchema.array().parse(
+    conflictIntelligenceService.listSessions(request),
+  );
+};
+
+const handleIntelligenceIntegrationOpen = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = conflictIntegrationOpenRequestSchema.parse(rawRequest);
+  const session = conflictIntelligenceService.getSession(request.sessionId);
+  if (!session.retained || !session.integrationPath) {
+    throw new Error(`Conflict session has no retained Integration Worktree: ${request.sessionId}`);
+  }
+  await openEditor(request.editorId, session.integrationPath);
+};
+
 export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_STATUS, () =>
     authStatusResponse(() => githubAuthService.getStatus()),
@@ -721,6 +778,27 @@ export const registerIpcHandlers = (): void => {
     IPC_CHANNELS.INTELLIGENCE_DIFF_COMPARE,
     requireAuthenticated(handleIntelligenceDiffCompare),
   );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_TARGET_BRANCHES,
+    requireAuthenticated(handleIntelligenceTargetBranches),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_CONFLICT_PREPARE,
+    requireAuthenticated(handleIntelligenceConflictPrepare),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_RESOLUTION_GET,
+    requireAuthenticated(handleIntelligenceResolutionGet),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_RESOLUTION_LIST,
+    requireAuthenticated(handleIntelligenceResolutionList),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_INTEGRATION_OPEN,
+    requireAuthenticated(handleIntelligenceIntegrationOpen),
+  );
+  conflictIntelligenceService.reconcileInterruptedSessions();
   githubAuthService.onStatusChange((status) => {
     const publicStatus = githubAuthStatusSchema.parse(status);
     for (const window of BrowserWindow.getAllWindows()) {
@@ -738,6 +816,15 @@ export const registerIpcHandlers = (): void => {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(
         IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED,
+        publicEvent,
+      );
+    }
+  });
+  conflictIntelligenceService.onSessionChanged((event) => {
+    const publicEvent = conflictResolutionSessionEventSchema.parse(event);
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(
+        IPC_CHANNELS.INTELLIGENCE_RESOLUTION_CHANGED,
         publicEvent,
       );
     }

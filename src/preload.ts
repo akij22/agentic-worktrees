@@ -4,6 +4,9 @@ import type { Api } from './shared/ipc/api';
 import {
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
+  githubListBranchesResponseSchema,
+  conflictResolutionSessionEventSchema,
+  conflictResolutionSessionSchema,
   intelligenceDiffComparisonSchema,
   intelligenceOverlapDetailsSchema,
   intelligenceSnapshotEventSchema,
@@ -180,6 +183,40 @@ const api: Api = {
           request,
         ),
       ),
+    listTargetBranches: async (request) =>
+      githubListBranchesResponseSchema.parse(
+        await ipcRenderer.invoke(
+          IPC_CHANNELS.INTELLIGENCE_TARGET_BRANCHES,
+          request,
+        ),
+      ),
+    prepareConflict: async (request) =>
+      conflictResolutionSessionSchema.parse(
+        await ipcRenderer.invoke(
+          IPC_CHANNELS.INTELLIGENCE_CONFLICT_PREPARE,
+          request,
+        ),
+      ),
+    getResolutionSession: async (request) =>
+      conflictResolutionSessionSchema.parse(
+        await ipcRenderer.invoke(
+          IPC_CHANNELS.INTELLIGENCE_RESOLUTION_GET,
+          request,
+        ),
+      ),
+    listResolutionSessions: async (request) => {
+      const values: unknown = await ipcRenderer.invoke(
+        IPC_CHANNELS.INTELLIGENCE_RESOLUTION_LIST,
+        request,
+      );
+      return conflictResolutionSessionSchema.array().parse(values);
+    },
+    openIntegrationWorktree: async (request) => {
+      await ipcRenderer.invoke(
+        IPC_CHANNELS.INTELLIGENCE_INTEGRATION_OPEN,
+        request,
+      );
+    },
     onSnapshotChanged: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: unknown) =>
         listener(intelligenceSnapshotEventSchema.parse(payload));
@@ -187,6 +224,16 @@ const api: Api = {
       return () =>
         ipcRenderer.removeListener(
           IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED,
+          handler,
+        );
+    },
+    onResolutionSessionChanged: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+        listener(conflictResolutionSessionEventSchema.parse(payload));
+      ipcRenderer.on(IPC_CHANNELS.INTELLIGENCE_RESOLUTION_CHANGED, handler);
+      return () =>
+        ipcRenderer.removeListener(
+          IPC_CHANNELS.INTELLIGENCE_RESOLUTION_CHANGED,
           handler,
         );
     },

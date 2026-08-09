@@ -6,6 +6,8 @@ import {
   codingAgentSessionCreateRequestSchema,
   codingAgentSessionUsageSchema,
   codingAgentSessionViewedRequestSchema,
+  conflictPrepareRequestSchema,
+  conflictResolutionSessionSchema,
   editorOpenRequestSchema,
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
@@ -201,6 +203,42 @@ describe('intelligence IPC schemas', () => {
       .toEqual({ repositoryId: 'repo-1' });
     expect(() => intelligenceRepositoryRequestSchema.parse({ repositoryId: ' ' }))
       .toThrow();
+  });
+
+  it('accepts safe conflict targets and rejects option-like branch names', () => {
+    expect(conflictPrepareRequestSchema.parse({
+      overlapId: 'overlap-1',
+      targetBranch: 'release/next',
+    })).toEqual({ overlapId: 'overlap-1', targetBranch: 'release/next' });
+    expect(() => conflictPrepareRequestSchema.parse({
+      overlapId: 'overlap-1',
+      targetBranch: '--upload-pack=evil',
+    })).toThrow();
+  });
+
+  it('rejects unknown persisted preparation states', () => {
+    expect(() => conflictResolutionSessionSchema.parse({
+      id: 'session-1',
+      repositoryId: 'repository-1',
+      snapshotId: 'snapshot-1',
+      overlapId: 'overlap-1',
+      targetBranch: 'main',
+      targetCommitSha: null,
+      state: 'guessed-safe',
+      classification: null,
+      currentStage: 'Unknown',
+      integrationBranch: null,
+      integrationPath: null,
+      retained: false,
+      cleanupPending: false,
+      errorMessage: null,
+      participants: [],
+      files: [],
+      operations: [],
+      createdAt: 1,
+      updatedAt: 1,
+      completedAt: null,
+    })).toThrow();
   });
 });
 

@@ -26,6 +26,12 @@ const mocks = vi.hoisted(() => ({
   compareIntelligenceDiffs: vi.fn(),
   subscribeIntelligence: vi.fn(),
   scheduleIntelligenceRefresh: vi.fn(),
+  listConflictBranches: vi.fn(),
+  prepareConflict: vi.fn(),
+  getConflictSession: vi.fn(),
+  listConflictSessions: vi.fn(),
+  subscribeConflictSessions: vi.fn(),
+  reconcileConflictSessions: vi.fn(),
   windows: [] as Array<{ webContents: { send: ReturnType<typeof vi.fn> } }>,
 }));
 
@@ -109,6 +115,17 @@ vi.mock('../intelligence', () => ({
     compareDiffs: mocks.compareIntelligenceDiffs,
     subscribe: mocks.subscribeIntelligence,
     scheduleRefreshForRun: mocks.scheduleIntelligenceRefresh,
+  },
+}));
+
+vi.mock('../conflicts', () => ({
+  conflictIntelligenceService: {
+    listTargetBranches: mocks.listConflictBranches,
+    prepareConflict: mocks.prepareConflict,
+    getSession: mocks.getConflictSession,
+    listSessions: mocks.listConflictSessions,
+    onSessionChanged: mocks.subscribeConflictSessions,
+    reconcileInterruptedSessions: mocks.reconcileConflictSessions,
   },
 }));
 
@@ -289,6 +306,46 @@ describe('GitHub authentication IPC handlers', () => {
     await expect(invoke(IPC_CHANNELS.INTELLIGENCE_REFRESH, {
       repositoryId: ' ',
     })).rejects.toThrow();
+  });
+
+  it('validates and delegates conflict preparation', async () => {
+    const session = {
+      id: 'session-1', repositoryId: 'repository-1', snapshotId: 'snapshot-1',
+      overlapId: 'overlap-1', targetBranch: 'main', targetCommitSha: null,
+      state: 'requested', classification: null, currentStage: 'Requested',
+      integrationBranch: null, integrationPath: null, retained: false,
+      cleanupPending: false, errorMessage: null, participants: [], files: [],
+      operations: [], createdAt: 1, updatedAt: 1, completedAt: null,
+    };
+    mocks.prepareConflict.mockResolvedValueOnce(session);
+
+    await expect(invoke(IPC_CHANNELS.INTELLIGENCE_CONFLICT_PREPARE, {
+      overlapId: 'overlap-1', targetBranch: 'main',
+    })).resolves.toEqual(session);
+    expect(mocks.prepareConflict).toHaveBeenCalledWith({
+      overlapId: 'overlap-1', targetBranch: 'main',
+    });
+    await expect(invoke(IPC_CHANNELS.INTELLIGENCE_CONFLICT_PREPARE, {
+      overlapId: 'overlap-1', targetBranch: '--unsafe',
+    })).rejects.toThrow();
+  });
+
+  it('broadcasts validated conflict session events', () => {
+    const send = vi.fn();
+    mocks.windows.push({ webContents: { send } });
+    const listener = mocks.subscribeConflictSessions.mock.calls[0]?.[0] as
+      | ((event: unknown) => void)
+      | undefined;
+
+    listener?.({
+      sessionId: 'session-1', repositoryId: 'repository-1',
+      state: 'conflict', updatedAt: 2, secret: '/tmp/worktree',
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      IPC_CHANNELS.INTELLIGENCE_RESOLUTION_CHANGED,
+      { sessionId: 'session-1', repositoryId: 'repository-1', state: 'conflict', updatedAt: 2 },
+    );
   });
 
   it('broadcasts validated intelligence snapshot events', () => {

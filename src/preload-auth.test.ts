@@ -140,6 +140,79 @@ describe('preload GitHub auth status subscription', () => {
     );
   });
 
+  it('forwards conflict preparation and validates the persisted session', async () => {
+    const api = mocks.exposed as {
+      intelligence: {
+        prepareConflict: (request: {
+          overlapId: string;
+          targetBranch: string;
+        }) => Promise<unknown>;
+      };
+    };
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      id: 'session-1',
+      repositoryId: 'repository-1',
+      snapshotId: 'snapshot-1',
+      overlapId: 'overlap-1',
+      targetBranch: 'main',
+      targetCommitSha: null,
+      state: 'requested',
+      classification: null,
+      currentStage: 'Requested',
+      integrationBranch: null,
+      integrationPath: null,
+      retained: false,
+      cleanupPending: false,
+      errorMessage: null,
+      participants: [],
+      files: [],
+      operations: [],
+      createdAt: 1,
+      updatedAt: 1,
+      completedAt: null,
+    });
+
+    await api.intelligence.prepareConflict({
+      overlapId: 'overlap-1',
+      targetBranch: 'main',
+    });
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.INTELLIGENCE_CONFLICT_PREPARE,
+      { overlapId: 'overlap-1', targetBranch: 'main' },
+    );
+  });
+
+  it('parses resolution events and removes the exact listener', () => {
+    const api = mocks.exposed as {
+      intelligence: {
+        onResolutionSessionChanged: (
+          listener: (event: unknown) => void,
+        ) => () => void;
+      };
+    };
+    const listener = vi.fn();
+    const cleanup = api.intelligence.onResolutionSessionChanged(listener);
+    const registered = mocks.listeners.get(
+      IPC_CHANNELS.INTELLIGENCE_RESOLUTION_CHANGED,
+    );
+
+    registered?.({}, {
+      sessionId: 'session-1', repositoryId: 'repository-1',
+      state: 'conflict', updatedAt: 2, secret: '/tmp/worktree',
+    });
+
+    expect(listener).toHaveBeenCalledWith({
+      sessionId: 'session-1', repositoryId: 'repository-1',
+      state: 'conflict', updatedAt: 2,
+    });
+    cleanup();
+    expect(mocks.removeListener).toHaveBeenCalledWith(
+      IPC_CHANNELS.INTELLIGENCE_RESOLUTION_CHANGED,
+      registered,
+    );
+  });
+
   it('parses intelligence events and removes the exact listener', () => {
     const api = mocks.exposed as {
       intelligence: {
