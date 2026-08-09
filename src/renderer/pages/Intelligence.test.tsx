@@ -6,9 +6,24 @@ import { MemoryRouter } from "react-router-dom";
 import type { Repository } from "../../shared/db/schema";
 import type { IntelligenceSnapshotDto } from "../../shared/ipc/schemas";
 
-const mocks = vi.hoisted(() => ({ useIntelligence: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	useIntelligence: vi.fn(),
+	useConflictPreparation: vi.fn(() => ({
+		branches: [{ name: "main", protected: false, headCommitSha: "sha" }],
+		targetBranch: "main",
+		selectTargetBranch: vi.fn(),
+		session: undefined,
+		loading: false,
+		preparing: false,
+		error: undefined,
+		prepare: vi.fn(),
+	})),
+}));
 vi.mock("../features/intelligence/hooks/use-intelligence", () => ({
 	useIntelligence: mocks.useIntelligence,
+}));
+vi.mock("../features/intelligence/hooks/use-conflict-preparation", () => ({
+	useConflictPreparation: mocks.useConflictPreparation,
 }));
 
 import { Intelligence } from "./Intelligence";

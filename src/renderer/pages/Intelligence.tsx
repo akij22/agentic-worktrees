@@ -13,12 +13,14 @@ import { Skeleton } from "../components/ui/skeleton";
 import { ConflictActions } from "../features/intelligence/components/ConflictActions";
 import { ConflictDetails } from "../features/intelligence/components/ConflictDetails";
 import { ConflictList } from "../features/intelligence/components/ConflictList";
+import { ConflictPreparation } from "../features/intelligence/components/ConflictPreparation";
 import { DiffComparison } from "../features/intelligence/components/DiffComparison";
 import { IntelligenceSummary } from "../features/intelligence/components/IntelligenceSummary";
 import {
 	selectConflicts,
 	worktreeFor,
 } from "../features/intelligence/components/conflict-view-model";
+import { useConflictPreparation } from "../features/intelligence/hooks/use-conflict-preparation";
 import { useIntelligence } from "../features/intelligence/hooks/use-intelligence";
 
 export const Intelligence = () => {
@@ -37,9 +39,22 @@ export const Intelligence = () => {
 		error,
 		refresh,
 	} = useIntelligence();
-	const conflicts = useMemo(
+	const allConflicts = useMemo(
 		() => (snapshot ? selectConflicts(snapshot) : []),
 		[snapshot],
+	);
+	const selectedBeforeConfirmation =
+		allConflicts.find(({ id }) => id === selectedOverlapId) ?? allConflicts[0];
+	const selectedRepository = repositories.find(({ id }) => id === selectedRepositoryId);
+	const preparation = useConflictPreparation(
+		selectedRepositoryId,
+		selectedBeforeConfirmation?.id,
+		selectedRepository?.defaultBranch,
+	);
+	const resolutionSessions = preparation.session ? [preparation.session] : [];
+	const conflicts = useMemo(
+		() => (snapshot ? selectConflicts(snapshot, resolutionSessions) : []),
+		[snapshot, preparation.session],
 	);
 
 	useEffect(() => {
@@ -52,6 +67,9 @@ export const Intelligence = () => {
 
 	const selectedConflict =
 		conflicts.find(({ id }) => id === selectedOverlapId) ?? conflicts[0];
+	const selectedSession = preparation.session?.overlapId === selectedConflict?.id
+		? preparation.session
+		: undefined;
 	const left =
 		snapshot && selectedConflict
 			? worktreeFor(snapshot, selectedConflict.leftWorktreeId)
@@ -215,12 +233,14 @@ export const Intelligence = () => {
 									conflicts={conflicts}
 									selectedId={selectedConflict.id}
 									worktrees={snapshot.worktrees}
+									sessions={resolutionSessions}
 									onSelect={setSelectedOverlapId}
 								/>
 								<ConflictDetails
 									overlap={selectedConflict}
 									left={left}
 									right={right}
+									session={selectedSession}
 								/>
 								<ConflictActions
 									overlap={selectedConflict}
@@ -229,6 +249,18 @@ export const Intelligence = () => {
 									independentWorktrees={independentWorktrees}
 									onOpenChat={openChat}
 									onCompare={setCompareOverlapId}
+									preparation={
+										<ConflictPreparation
+											branches={preparation.branches}
+											targetBranch={preparation.targetBranch}
+											selectTargetBranch={preparation.selectTargetBranch}
+											session={selectedSession}
+											loading={preparation.loading}
+											preparing={preparation.preparing}
+											error={preparation.error}
+											onPrepare={() => void preparation.prepare()}
+										/>
+									}
 								/>
 							</div>
 						) : (

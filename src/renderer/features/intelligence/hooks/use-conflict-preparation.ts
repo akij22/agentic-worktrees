@@ -79,7 +79,6 @@ export const useConflictPreparation = (
 			}));
 		} catch (cause) {
 			setError(message(cause));
-			throw cause;
 		} finally {
 			setPreparing(false);
 		}
