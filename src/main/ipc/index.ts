@@ -27,6 +27,13 @@ import {
   githubListReposRequestSchema,
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
+  intelligenceDiffComparisonRequestSchema,
+  intelligenceDiffComparisonSchema,
+  intelligenceOverlapDetailsSchema,
+  intelligenceOverlapRequestSchema,
+  intelligenceRepositoryRequestSchema,
+  intelligenceSnapshotEventSchema,
+  intelligenceSnapshotSchema,
   repositoryImportRemoteRequestSchema,
   workspaceCommitRequestSchema,
   workspaceDirectoryRequestSchema,
@@ -69,6 +76,7 @@ import { importLocalRepository } from '../repositories/local-repository-service'
 import { workspaceFileService } from '../workspace/workspace-file-service';
 import { workspaceGitService } from '../workspace/workspace-git-service';
 import { workspaceTerminalService } from '../workspace/workspace-terminal-service';
+import { intelligenceService } from '../intelligence';
 import {
   abortAgentSession,
   compactAgentSession,
@@ -368,7 +376,15 @@ const handleWorkspaceGitOpenPullRequest = async (
   const result = workspacePullRequestResultSchema.parse(
     await workspaceGitService.createPullRequest(request),
   );
-  const url = new URL(result.url);
+  let url: URL;
+  try {
+    url = new URL(result.url);
+  } catch (error) {
+    console.error('GitHub returned an invalid pull request URL.', error);
+    throw new Error('GitHub returned an unsupported pull request URL.', {
+      cause: error,
+    });
+  }
   if (url.protocol !== 'https:' || url.hostname !== 'github.com') {
     throw new Error('GitHub returned an unsupported pull request URL.');
   }
@@ -488,6 +504,45 @@ const handleCodingAgentPermissionRespond = async (
     request.runId,
     request.permissionId,
     request.response,
+  );
+};
+
+const handleIntelligenceSnapshotGet = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = intelligenceRepositoryRequestSchema.parse(rawRequest);
+  const snapshot = intelligenceService.getSnapshot(request.repositoryId);
+  return snapshot === null ? null : intelligenceSnapshotSchema.parse(snapshot);
+};
+
+const handleIntelligenceRefresh = async (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = intelligenceRepositoryRequestSchema.parse(rawRequest);
+  return intelligenceSnapshotSchema.parse(
+    await intelligenceService.refresh(request.repositoryId),
+  );
+};
+
+const handleIntelligenceOverlapGet = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = intelligenceOverlapRequestSchema.parse(rawRequest);
+  return intelligenceOverlapDetailsSchema.parse(
+    intelligenceService.getOverlap(request.overlapId),
+  );
+};
+
+const handleIntelligenceDiffCompare = (
+  _event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => {
+  const request = intelligenceDiffComparisonRequestSchema.parse(rawRequest);
+  return intelligenceDiffComparisonSchema.parse(
+    intelligenceService.compareDiffs(request.overlapId, request.targetId),
   );
 };
 
@@ -646,6 +701,26 @@ export const registerIpcHandlers = (): void => {
     IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND,
     requireAuthenticated(handleCodingAgentPermissionRespond),
   );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_REPOSITORIES,
+    requireAuthenticated(() => listRepositories(false)),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_GET,
+    requireAuthenticated(handleIntelligenceSnapshotGet),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_REFRESH,
+    requireAuthenticated(handleIntelligenceRefresh),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_OVERLAP_GET,
+    requireAuthenticated(handleIntelligenceOverlapGet),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.INTELLIGENCE_DIFF_COMPARE,
+    requireAuthenticated(handleIntelligenceDiffCompare),
+  );
   githubAuthService.onStatusChange((status) => {
     const publicStatus = githubAuthStatusSchema.parse(status);
     for (const window of BrowserWindow.getAllWindows()) {
@@ -653,8 +728,18 @@ export const registerIpcHandlers = (): void => {
     }
   });
   subscribeToAgentEvents((event) => {
+    if (event.runId) intelligenceService.scheduleRefreshForRun(event.runId);
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(IPC_CHANNELS.CODING_AGENT_EVENT, event);
+    }
+  });
+  intelligenceService.subscribe((event) => {
+    const publicEvent = intelligenceSnapshotEventSchema.parse(event);
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(
+        IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED,
+        publicEvent,
+      );
     }
   });
   workspaceTerminalService.subscribe((event) => {

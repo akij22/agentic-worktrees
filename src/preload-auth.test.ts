@@ -4,10 +4,10 @@ import { IPC_CHANNELS } from './shared/ipc/channels';
 
 const mocks = vi.hoisted(() => ({
   exposed: null as unknown,
-  listener: null as ((event: unknown, payload: unknown) => void) | null,
-  terminalListener: null as
-    | ((event: unknown, payload: unknown) => void)
-    | null,
+  listeners: new Map<
+    string,
+    (event: unknown, payload: unknown) => void
+  >(),
   removeListener: vi.fn(),
 }));
 
@@ -17,12 +17,8 @@ vi.mock('electron', () => ({
   },
   ipcRenderer: {
     invoke: vi.fn(),
-    on: vi.fn((_channel: string, listener: (event: unknown, payload: unknown) => void) => {
-      if (_channel === IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT) {
-        mocks.terminalListener = listener;
-      } else {
-        mocks.listener = listener;
-      }
+    on: vi.fn((channel: string, listener: (event: unknown, payload: unknown) => void) => {
+      mocks.listeners.set(channel, listener);
     }),
     removeListener: mocks.removeListener,
   },
@@ -31,8 +27,7 @@ vi.mock('electron', () => ({
 describe('preload GitHub auth status subscription', () => {
   beforeEach(async () => {
     vi.resetModules();
-    mocks.listener = null;
-    mocks.terminalListener = null;
+    mocks.listeners.clear();
     mocks.removeListener.mockClear();
     vi.mocked(ipcRenderer.invoke).mockClear();
     await import('./preload');
@@ -44,7 +39,7 @@ describe('preload GitHub auth status subscription', () => {
     };
     const listener = vi.fn();
     const cleanup = api.github.auth.onStatusChanged(listener);
-    mocks.listener?.({}, {
+    mocks.listeners.get(IPC_CHANNELS.GITHUB_AUTH_STATUS_CHANGED)?.({}, {
       state: 'signed_out', profile: null, installationCount: 0,
       persistent: true, message: null, refreshToken: 'secret',
     });
@@ -52,7 +47,9 @@ describe('preload GitHub auth status subscription', () => {
       state: 'signed_out', profile: null, installationCount: 0,
       persistent: true, message: null, errorCode: null, recoverable: false,
     });
-    const registered = mocks.listener;
+    const registered = mocks.listeners.get(
+      IPC_CHANNELS.GITHUB_AUTH_STATUS_CHANGED,
+    );
     cleanup();
     expect(mocks.removeListener).toHaveBeenCalledWith(
       IPC_CHANNELS.GITHUB_AUTH_STATUS_CHANGED,
@@ -143,6 +140,35 @@ describe('preload GitHub auth status subscription', () => {
     );
   });
 
+  it('parses intelligence events and removes the exact listener', () => {
+    const api = mocks.exposed as {
+      intelligence: {
+        onSnapshotChanged: (
+          listener: (event: unknown) => void,
+        ) => () => void;
+      };
+    };
+    const listener = vi.fn();
+    const cleanup = api.intelligence.onSnapshotChanged(listener);
+    const registered = mocks.listeners.get(
+      IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED,
+    );
+
+    registered?.({}, {
+      repositoryId: 'repository-1', snapshotId: 'snapshot-1',
+      completedAt: 2, secret: '/tmp/worktree',
+    });
+
+    expect(listener).toHaveBeenCalledWith({
+      repositoryId: 'repository-1', snapshotId: 'snapshot-1', completedAt: 2,
+    });
+    cleanup();
+    expect(mocks.removeListener).toHaveBeenCalledWith(
+      IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED,
+      registered,
+    );
+  });
+
   it('parses workspace terminal events and removes the exact listener', () => {
     const api = mocks.exposed as {
       workspace: {
@@ -153,7 +179,9 @@ describe('preload GitHub auth status subscription', () => {
     };
     const listener = vi.fn();
     const cleanup = api.workspace.terminal.onEvent(listener);
-    const registered = mocks.terminalListener;
+    const registered = mocks.listeners.get(
+      IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT,
+    );
 
     registered?.({}, {
       type: 'data',

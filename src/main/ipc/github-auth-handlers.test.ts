@@ -20,6 +20,12 @@ const mocks = vi.hoisted(() => ({
   searchFiles: vi.fn(),
   createPullRequest: vi.fn(),
   subscribeTerminal: vi.fn(),
+  refreshIntelligence: vi.fn(),
+  getIntelligenceSnapshot: vi.fn(),
+  getIntelligenceOverlap: vi.fn(),
+  compareIntelligenceDiffs: vi.fn(),
+  subscribeIntelligence: vi.fn(),
+  scheduleIntelligenceRefresh: vi.fn(),
   windows: [] as Array<{ webContents: { send: ReturnType<typeof vi.fn> } }>,
 }));
 
@@ -92,6 +98,17 @@ vi.mock('../workspace/workspace-terminal-service', () => ({
     restart: vi.fn(),
     dispose: vi.fn(),
     subscribe: mocks.subscribeTerminal,
+  },
+}));
+
+vi.mock('../intelligence', () => ({
+  intelligenceService: {
+    getSnapshot: mocks.getIntelligenceSnapshot,
+    refresh: mocks.refreshIntelligence,
+    getOverlap: mocks.getIntelligenceOverlap,
+    compareDiffs: mocks.compareIntelligenceDiffs,
+    subscribe: mocks.subscribeIntelligence,
+    scheduleRefreshForRun: mocks.scheduleIntelligenceRefresh,
   },
 }));
 
@@ -197,6 +214,11 @@ describe('GitHub authentication IPC handlers', () => {
     IPC_CHANNELS.CODING_AGENT_SESSION_SEND,
     IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,
     IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND,
+    IPC_CHANNELS.INTELLIGENCE_REPOSITORIES,
+    IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_GET,
+    IPC_CHANNELS.INTELLIGENCE_REFRESH,
+    IPC_CHANNELS.INTELLIGENCE_OVERLAP_GET,
+    IPC_CHANNELS.INTELLIGENCE_DIFF_COMPARE,
   ] as const;
 
   it.each(['signed_out', 'installation_required'])(
@@ -249,6 +271,41 @@ describe('GitHub authentication IPC handlers', () => {
       'worktree-1',
       'app',
       20,
+    );
+  });
+
+  it('validates and delegates an intelligence refresh', async () => {
+    const snapshot = {
+      id: 'snapshot-1', repositoryId: 'repository-1', startedAt: 1,
+      completedAt: 2, stale: false, refreshError: null, warnings: [],
+      worktrees: [], overlaps: [],
+    };
+    mocks.refreshIntelligence.mockResolvedValueOnce(snapshot);
+
+    await expect(invoke(IPC_CHANNELS.INTELLIGENCE_REFRESH, {
+      repositoryId: 'repository-1',
+    })).resolves.toEqual(snapshot);
+    expect(mocks.refreshIntelligence).toHaveBeenCalledWith('repository-1');
+    await expect(invoke(IPC_CHANNELS.INTELLIGENCE_REFRESH, {
+      repositoryId: ' ',
+    })).rejects.toThrow();
+  });
+
+  it('broadcasts validated intelligence snapshot events', () => {
+    const send = vi.fn();
+    mocks.windows.push({ webContents: { send } });
+    const listener = mocks.subscribeIntelligence.mock.calls[0]?.[0] as
+      | ((event: unknown) => void)
+      | undefined;
+
+    listener?.({
+      repositoryId: 'repository-1', snapshotId: 'snapshot-1',
+      completedAt: 2, secret: '/tmp/worktree',
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED,
+      { repositoryId: 'repository-1', snapshotId: 'snapshot-1', completedAt: 2 },
     );
   });
 
