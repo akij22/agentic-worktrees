@@ -32,16 +32,28 @@ export const conflictPresentation = (
 	session?: ConflictResolutionSessionDto,
 ): ConflictPresentation => {
 	if (session?.classification === "conflict") {
-		return { kind: "conflict", label: "Conflict", confirmation: "Git confirmed" };
+		return {
+			kind: "conflict",
+			label: "Conflict",
+			confirmation: "Git confirmed",
+		};
 	}
 	if (session?.classification === "review_required") {
-		return { kind: "review_required", label: "Review Required", confirmation: "Git mergeable" };
+		return {
+			kind: "review_required",
+			label: "Review Required",
+			confirmation: "Git mergeable",
+		};
 	}
 	if (session?.classification === "safe") {
 		return { kind: "safe", label: "Safe", confirmation: "Git mergeable" };
 	}
 	return predictedReasons.has(overlap.reasonCode)
-		? { kind: "predicted_conflict", label: "Predicted conflict", confirmation: "Not confirmed" }
+		? {
+				kind: "predicted_conflict",
+				label: "Predicted conflict",
+				confirmation: "Not confirmed",
+			}
 		: { kind: "overlap", label: "Overlap", confirmation: "Not confirmed" };
 };
 
@@ -51,12 +63,17 @@ export const selectConflicts = (
 ): IntelligenceOverlapDto[] => {
 	const latestByOverlap = new Map<string, ConflictResolutionSessionDto>();
 	for (const session of sessions) {
-		if (!latestByOverlap.has(session.overlapId)) latestByOverlap.set(session.overlapId, session);
+		if (!latestByOverlap.has(session.overlapId))
+			latestByOverlap.set(session.overlapId, session);
 	}
 	return snapshot.overlaps
 		.map((overlap, index) => ({ overlap, index }))
 		.filter(({ overlap }) => overlap.risk !== "low")
-		.filter(({ overlap }) => conflictPresentation(overlap, latestByOverlap.get(overlap.id)).kind !== "safe")
+		.filter(
+			({ overlap }) =>
+				conflictPresentation(overlap, latestByOverlap.get(overlap.id)).kind !==
+				"safe",
+		)
 		.sort(
 			(left, right) =>
 				riskRank[left.overlap.risk] - riskRank[right.overlap.risk] ||

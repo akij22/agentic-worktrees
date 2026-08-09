@@ -45,7 +45,9 @@ export const Intelligence = () => {
 	);
 	const selectedBeforeConfirmation =
 		allConflicts.find(({ id }) => id === selectedOverlapId) ?? allConflicts[0];
-	const selectedRepository = repositories.find(({ id }) => id === selectedRepositoryId);
+	const selectedRepository = repositories.find(
+		({ id }) => id === selectedRepositoryId,
+	);
 	const preparation = useConflictPreparation(
 		selectedRepositoryId,
 		selectedBeforeConfirmation?.id,
@@ -67,9 +69,10 @@ export const Intelligence = () => {
 
 	const selectedConflict =
 		conflicts.find(({ id }) => id === selectedOverlapId) ?? conflicts[0];
-	const selectedSession = preparation.session?.overlapId === selectedConflict?.id
-		? preparation.session
-		: undefined;
+	const selectedSession =
+		preparation.session?.overlapId === selectedConflict?.id
+			? preparation.session
+			: undefined;
 	const left =
 		snapshot && selectedConflict
 			? worktreeFor(snapshot, selectedConflict.leftWorktreeId)
