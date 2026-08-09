@@ -193,6 +193,157 @@ const bootstrapStatements = [
     CREATE UNIQUE INDEX IF NOT EXISTS coding_agent_session_diffs_run_file_unique
     ON coding_agent_session_diffs (run_id, file)
   `,
+  `
+    CREATE TABLE IF NOT EXISTS intelligence_snapshots (
+      id TEXT PRIMARY KEY NOT NULL,
+      repository_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      completed_at INTEGER NOT NULL,
+      source_metadata TEXT NOT NULL,
+      warnings TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS intelligence_snapshots_repository_id_unique
+    ON intelligence_snapshots (repository_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS intelligence_worktrees (
+      id TEXT PRIMARY KEY NOT NULL,
+      snapshot_id TEXT NOT NULL,
+      worktree_id TEXT NOT NULL,
+      run_id TEXT,
+      agent_kind TEXT,
+      agent_name TEXT,
+      agent_status TEXT NOT NULL,
+      task TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      base_branch TEXT,
+      additions INTEGER NOT NULL,
+      deletions INTEGER NOT NULL,
+      changed_file_count INTEGER NOT NULL,
+      independent INTEGER NOT NULL,
+      warning TEXT,
+      activity_updated_at INTEGER NOT NULL,
+      FOREIGN KEY (snapshot_id) REFERENCES intelligence_snapshots(id) ON DELETE CASCADE,
+      FOREIGN KEY (worktree_id) REFERENCES worktrees(id) ON DELETE RESTRICT,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS intelligence_worktrees_snapshot_worktree_unique
+    ON intelligence_worktrees (snapshot_id, worktree_id)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS intelligence_worktrees_snapshot_id_idx
+    ON intelligence_worktrees (snapshot_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS intelligence_changed_files (
+      id TEXT PRIMARY KEY NOT NULL,
+      intelligence_worktree_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      previous_path TEXT,
+      change_type TEXT NOT NULL,
+      folder_path TEXT NOT NULL,
+      module_path TEXT NOT NULL,
+      additions INTEGER NOT NULL,
+      deletions INTEGER NOT NULL,
+      ranges TEXT NOT NULL,
+      patch TEXT,
+      binary INTEGER NOT NULL,
+      fingerprint TEXT NOT NULL,
+      FOREIGN KEY (intelligence_worktree_id) REFERENCES intelligence_worktrees(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS intelligence_changed_files_worktree_path_unique
+    ON intelligence_changed_files (intelligence_worktree_id, path)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS intelligence_changed_files_worktree_id_idx
+    ON intelligence_changed_files (intelligence_worktree_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS intelligence_changed_symbols (
+      id TEXT PRIMARY KEY NOT NULL,
+      changed_file_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      name TEXT NOT NULL,
+      qualified_name TEXT NOT NULL,
+      declaration_start INTEGER NOT NULL,
+      declaration_end INTEGER NOT NULL,
+      changed_start INTEGER NOT NULL,
+      changed_end INTEGER NOT NULL,
+      FOREIGN KEY (changed_file_id) REFERENCES intelligence_changed_files(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS intelligence_changed_symbols_file_symbol_unique
+    ON intelligence_changed_symbols (
+      changed_file_id, qualified_name, declaration_start, declaration_end
+    )
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS intelligence_changed_symbols_changed_file_id_idx
+    ON intelligence_changed_symbols (changed_file_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS intelligence_overlaps (
+      id TEXT PRIMARY KEY NOT NULL,
+      snapshot_id TEXT NOT NULL,
+      left_intelligence_worktree_id TEXT NOT NULL,
+      right_intelligence_worktree_id TEXT NOT NULL,
+      risk TEXT NOT NULL,
+      category TEXT NOT NULL,
+      reason_code TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      actionable INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL,
+      FOREIGN KEY (snapshot_id) REFERENCES intelligence_snapshots(id) ON DELETE CASCADE,
+      FOREIGN KEY (left_intelligence_worktree_id) REFERENCES intelligence_worktrees(id) ON DELETE CASCADE,
+      FOREIGN KEY (right_intelligence_worktree_id) REFERENCES intelligence_worktrees(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS intelligence_overlaps_snapshot_pair_unique
+    ON intelligence_overlaps (
+      snapshot_id, left_intelligence_worktree_id, right_intelligence_worktree_id
+    )
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS intelligence_overlaps_snapshot_id_idx
+    ON intelligence_overlaps (snapshot_id)
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS intelligence_overlap_targets (
+      id TEXT PRIMARY KEY NOT NULL,
+      overlap_id TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      path TEXT NOT NULL,
+      symbol TEXT,
+      left_changed_file_id TEXT,
+      right_changed_file_id TEXT,
+      reason_code TEXT NOT NULL,
+      risk TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      FOREIGN KEY (overlap_id) REFERENCES intelligence_overlaps(id) ON DELETE CASCADE,
+      FOREIGN KEY (left_changed_file_id) REFERENCES intelligence_changed_files(id) ON DELETE CASCADE,
+      FOREIGN KEY (right_changed_file_id) REFERENCES intelligence_changed_files(id) ON DELETE CASCADE
+    )
+  `,
+  `
+    CREATE UNIQUE INDEX IF NOT EXISTS intelligence_overlap_targets_overlap_target_unique
+    ON intelligence_overlap_targets (overlap_id, target_type, path, symbol)
+  `,
+  `
+    CREATE INDEX IF NOT EXISTS intelligence_overlap_targets_overlap_id_idx
+    ON intelligence_overlap_targets (overlap_id)
+  `,
 ] as const;
 
 export const bootstrapSchemaSql = bootstrapStatements.join(';\n');

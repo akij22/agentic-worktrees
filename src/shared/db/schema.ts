@@ -218,6 +218,188 @@ export const codingAgentSessionDiffs = sqliteTable(
   }),
 );
 
+export const intelligenceSnapshots = sqliteTable(
+  'intelligence_snapshots',
+  {
+    id: text('id').primaryKey(),
+    repositoryId: text('repository_id')
+      .notNull()
+      .references(() => repositories.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
+    completedAt: integer('completed_at', { mode: 'timestamp_ms' }).notNull(),
+    sourceMetadata: text('source_metadata').notNull(),
+    warnings: text('warnings').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => ({
+    repositoryIdUnique: uniqueIndex(
+      'intelligence_snapshots_repository_id_unique',
+    ).on(table.repositoryId),
+  }),
+);
+
+export const intelligenceWorktrees = sqliteTable(
+  'intelligence_worktrees',
+  {
+    id: text('id').primaryKey(),
+    snapshotId: text('snapshot_id')
+      .notNull()
+      .references(() => intelligenceSnapshots.id, { onDelete: 'cascade' }),
+    worktreeId: text('worktree_id')
+      .notNull()
+      .references(() => worktrees.id, { onDelete: 'restrict' }),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    agentKind: text('agent_kind'),
+    agentName: text('agent_name'),
+    agentStatus: text('agent_status').notNull(),
+    task: text('task').notNull(),
+    branch: text('branch').notNull(),
+    baseBranch: text('base_branch'),
+    additions: integer('additions').notNull(),
+    deletions: integer('deletions').notNull(),
+    changedFileCount: integer('changed_file_count').notNull(),
+    independent: integer('independent', { mode: 'boolean' }).notNull(),
+    warning: text('warning'),
+    activityUpdatedAt: integer('activity_updated_at', { mode: 'timestamp_ms' })
+      .notNull(),
+  },
+  (table) => ({
+    snapshotWorktreeUnique: uniqueIndex(
+      'intelligence_worktrees_snapshot_worktree_unique',
+    ).on(table.snapshotId, table.worktreeId),
+    snapshotIdIdx: index('intelligence_worktrees_snapshot_id_idx').on(
+      table.snapshotId,
+    ),
+  }),
+);
+
+export const intelligenceChangedFiles = sqliteTable(
+  'intelligence_changed_files',
+  {
+    id: text('id').primaryKey(),
+    intelligenceWorktreeId: text('intelligence_worktree_id')
+      .notNull()
+      .references(() => intelligenceWorktrees.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    previousPath: text('previous_path'),
+    changeType: text('change_type').notNull(),
+    folderPath: text('folder_path').notNull(),
+    modulePath: text('module_path').notNull(),
+    additions: integer('additions').notNull(),
+    deletions: integer('deletions').notNull(),
+    ranges: text('ranges').notNull(),
+    patch: text('patch'),
+    binary: integer('binary', { mode: 'boolean' }).notNull(),
+    fingerprint: text('fingerprint').notNull(),
+  },
+  (table) => ({
+    worktreePathUnique: uniqueIndex(
+      'intelligence_changed_files_worktree_path_unique',
+    ).on(table.intelligenceWorktreeId, table.path),
+    worktreeIdIdx: index('intelligence_changed_files_worktree_id_idx').on(
+      table.intelligenceWorktreeId,
+    ),
+  }),
+);
+
+export const intelligenceChangedSymbols = sqliteTable(
+  'intelligence_changed_symbols',
+  {
+    id: text('id').primaryKey(),
+    changedFileId: text('changed_file_id')
+      .notNull()
+      .references(() => intelligenceChangedFiles.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    name: text('name').notNull(),
+    qualifiedName: text('qualified_name').notNull(),
+    declarationStart: integer('declaration_start').notNull(),
+    declarationEnd: integer('declaration_end').notNull(),
+    changedStart: integer('changed_start').notNull(),
+    changedEnd: integer('changed_end').notNull(),
+  },
+  (table) => ({
+    fileSymbolUnique: uniqueIndex(
+      'intelligence_changed_symbols_file_symbol_unique',
+    ).on(
+      table.changedFileId,
+      table.qualifiedName,
+      table.declarationStart,
+      table.declarationEnd,
+    ),
+    changedFileIdIdx: index(
+      'intelligence_changed_symbols_changed_file_id_idx',
+    ).on(table.changedFileId),
+  }),
+);
+
+export const intelligenceOverlaps = sqliteTable(
+  'intelligence_overlaps',
+  {
+    id: text('id').primaryKey(),
+    snapshotId: text('snapshot_id')
+      .notNull()
+      .references(() => intelligenceSnapshots.id, { onDelete: 'cascade' }),
+    leftIntelligenceWorktreeId: text('left_intelligence_worktree_id')
+      .notNull()
+      .references(() => intelligenceWorktrees.id, { onDelete: 'cascade' }),
+    rightIntelligenceWorktreeId: text('right_intelligence_worktree_id')
+      .notNull()
+      .references(() => intelligenceWorktrees.id, { onDelete: 'cascade' }),
+    risk: text('risk').notNull(),
+    category: text('category').notNull(),
+    reasonCode: text('reason_code').notNull(),
+    summary: text('summary').notNull(),
+    actionable: integer('actionable', { mode: 'boolean' }).notNull(),
+    sortOrder: integer('sort_order').notNull(),
+  },
+  (table) => ({
+    snapshotPairUnique: uniqueIndex(
+      'intelligence_overlaps_snapshot_pair_unique',
+    ).on(
+      table.snapshotId,
+      table.leftIntelligenceWorktreeId,
+      table.rightIntelligenceWorktreeId,
+    ),
+    snapshotIdIdx: index('intelligence_overlaps_snapshot_id_idx').on(
+      table.snapshotId,
+    ),
+  }),
+);
+
+export const intelligenceOverlapTargets = sqliteTable(
+  'intelligence_overlap_targets',
+  {
+    id: text('id').primaryKey(),
+    overlapId: text('overlap_id')
+      .notNull()
+      .references(() => intelligenceOverlaps.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').notNull(),
+    path: text('path').notNull(),
+    symbol: text('symbol'),
+    leftChangedFileId: text('left_changed_file_id').references(
+      () => intelligenceChangedFiles.id,
+      { onDelete: 'cascade' },
+    ),
+    rightChangedFileId: text('right_changed_file_id').references(
+      () => intelligenceChangedFiles.id,
+      { onDelete: 'cascade' },
+    ),
+    reasonCode: text('reason_code').notNull(),
+    risk: text('risk').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+  },
+  (table) => ({
+    overlapTargetUnique: uniqueIndex(
+      'intelligence_overlap_targets_overlap_target_unique',
+    ).on(table.overlapId, table.targetType, table.path, table.symbol),
+    overlapIdIdx: index('intelligence_overlap_targets_overlap_id_idx').on(
+      table.overlapId,
+    ),
+  }),
+);
+
 export type Repository = typeof repositories.$inferSelect;
 export type Worktree = typeof worktrees.$inferSelect;
 export type Run = typeof runs.$inferSelect;
@@ -227,3 +409,11 @@ export type CodingAgentInstallation =
   typeof codingAgentInstallations.$inferSelect;
 export type CodingAgentSession = typeof codingAgentSessions.$inferSelect;
 export type CodingAgentSessionDiff = typeof codingAgentSessionDiffs.$inferSelect;
+export type IntelligenceSnapshot = typeof intelligenceSnapshots.$inferSelect;
+export type IntelligenceWorktree = typeof intelligenceWorktrees.$inferSelect;
+export type IntelligenceChangedFile = typeof intelligenceChangedFiles.$inferSelect;
+export type IntelligenceChangedSymbol =
+  typeof intelligenceChangedSymbols.$inferSelect;
+export type IntelligenceOverlap = typeof intelligenceOverlaps.$inferSelect;
+export type IntelligenceOverlapTarget =
+  typeof intelligenceOverlapTargets.$inferSelect;
