@@ -127,6 +127,22 @@ describe('preload GitHub auth status subscription', () => {
     );
   });
 
+  it('forwards intelligence snapshot requests on the dedicated channel', async () => {
+    const api = mocks.exposed as {
+      intelligence: {
+        getSnapshot: (request: { repositoryId: string }) => Promise<unknown>;
+      };
+    };
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce(null);
+
+    await api.intelligence.getSnapshot({ repositoryId: 'repository-1' });
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_GET,
+      { repositoryId: 'repository-1' },
+    );
+  });
+
   it('parses workspace terminal events and removes the exact listener', () => {
     const api = mocks.exposed as {
       workspace: {

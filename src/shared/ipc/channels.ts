@@ -51,6 +51,12 @@ export const IPC_CHANNELS = {
   CODING_AGENT_SESSION_ABORT: 'coding-agent:session-abort',
   CODING_AGENT_PERMISSION_RESPOND: 'coding-agent:permission-respond',
   CODING_AGENT_EVENT: 'coding-agent:event',
+  INTELLIGENCE_REPOSITORIES: 'intelligence:repositories',
+  INTELLIGENCE_SNAPSHOT_GET: 'intelligence:snapshot-get',
+  INTELLIGENCE_REFRESH: 'intelligence:refresh',
+  INTELLIGENCE_OVERLAP_GET: 'intelligence:overlap-get',
+  INTELLIGENCE_DIFF_COMPARE: 'intelligence:diff-compare',
+  INTELLIGENCE_SNAPSHOT_CHANGED: 'intelligence:snapshot-changed',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

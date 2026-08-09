@@ -13,6 +13,10 @@ import type {
   EditorId,
   GitHubAuthStatusDto,
   GitHubDeviceChallengeDto,
+  IntelligenceDiffComparisonDto,
+  IntelligenceOverlapDetailsDto,
+  IntelligenceSnapshotDto,
+  IntelligenceSnapshotEventDto,
   RemoteRepositoryDto,
   WorkspaceEntryDto,
   WorkspaceFileSearchResultDto,
@@ -135,6 +139,25 @@ export interface Api {
         baseBranch: string;
       }) => Promise<WorkspacePullRequestResultDto>;
     };
+  };
+  intelligence: {
+    listRepositories: () => Promise<Repository[]>;
+    getSnapshot: (request: {
+      repositoryId: string;
+    }) => Promise<IntelligenceSnapshotDto | null>;
+    refresh: (request: {
+      repositoryId: string;
+    }) => Promise<IntelligenceSnapshotDto>;
+    getOverlap: (request: {
+      overlapId: string;
+    }) => Promise<IntelligenceOverlapDetailsDto>;
+    compareDiffs: (request: {
+      overlapId: string;
+      targetId?: string;
+    }) => Promise<IntelligenceDiffComparisonDto>;
+    onSnapshotChanged: (
+      listener: (event: IntelligenceSnapshotEventDto) => void,
+    ) => () => void;
   };
   codingAgent: {
     selectExecutable: (request: {

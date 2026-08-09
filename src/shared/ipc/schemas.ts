@@ -495,6 +495,134 @@ export const codingAgentUiEventSchema = z.object({
 
 export type CodingAgentUiEventDto = z.infer<typeof codingAgentUiEventSchema>;
 
+export const intelligenceRiskSchema = z.enum(['low', 'medium', 'high']);
+export const intelligenceTargetTypeSchema = z.enum([
+  'folder',
+  'module',
+  'file',
+  'symbol',
+]);
+
+export const intelligenceRepositoryRequestSchema = z.object({
+  repositoryId: z.string().trim().min(1),
+});
+
+export const intelligenceOverlapRequestSchema = z.object({
+  overlapId: z.string().trim().min(1),
+});
+
+export const intelligenceDiffComparisonRequestSchema =
+  intelligenceOverlapRequestSchema.extend({
+    targetId: z.string().trim().min(1).optional(),
+  });
+
+export const intelligenceFileSummarySchema = z.object({
+  path: z.string().min(1),
+  modulePath: z.string(),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  symbols: z.array(z.string()),
+});
+
+export const intelligenceWorktreeSchema = z.object({
+  worktreeId: z.string().min(1),
+  runId: z.string().min(1).nullable(),
+  task: z.string(),
+  branch: z.string(),
+  baseBranch: z.string().nullable(),
+  agentKind: codingAgentKindSchema.nullable(),
+  agentName: z.string().nullable(),
+  status: z.string(),
+  changedFileCount: z.number().int().nonnegative(),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  files: z.array(intelligenceFileSummarySchema),
+  independent: z.boolean(),
+  warning: z.string().nullable(),
+  updatedAt: z.number().int().nonnegative(),
+});
+
+export const intelligenceOverlapTargetSchema = z.object({
+  id: z.string().min(1).optional(),
+  type: intelligenceTargetTypeSchema,
+  path: z.string(),
+  symbol: z.string().nullable(),
+  leftFilePath: z.string().nullable(),
+  rightFilePath: z.string().nullable(),
+  reasonCode: z.string(),
+  risk: intelligenceRiskSchema,
+});
+
+export const intelligenceOverlapSchema = z.object({
+  id: z.string().min(1),
+  leftWorktreeId: z.string().min(1),
+  rightWorktreeId: z.string().min(1),
+  risk: intelligenceRiskSchema,
+  category: intelligenceTargetTypeSchema,
+  reasonCode: z.string(),
+  summary: z.string(),
+  actionable: z.boolean(),
+  targets: z.array(intelligenceOverlapTargetSchema),
+});
+
+export const intelligenceSnapshotSchema = z.object({
+  id: z.string().min(1),
+  repositoryId: z.string().min(1),
+  startedAt: z.number().int().nonnegative(),
+  completedAt: z.number().int().nonnegative(),
+  stale: z.boolean(),
+  refreshError: z.string().nullable(),
+  warnings: z.array(z.string()),
+  worktrees: z.array(intelligenceWorktreeSchema),
+  overlaps: z.array(intelligenceOverlapSchema),
+});
+
+export const intelligenceOverlapDetailsSchema = z.object({
+  overlap: intelligenceOverlapSchema,
+  left: intelligenceWorktreeSchema,
+  right: intelligenceWorktreeSchema,
+});
+
+export const intelligenceDiffFileSchema = z.object({
+  path: z.string().min(1),
+  modulePath: z.string(),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  patch: z.string().nullable(),
+  binary: z.boolean(),
+});
+
+export const intelligenceDiffSideSchema = z.object({
+  worktreeId: z.string().min(1),
+  runId: z.string().min(1).nullable(),
+  files: z.array(intelligenceDiffFileSchema),
+});
+
+export const intelligenceDiffComparisonSchema = z.object({
+  overlapId: z.string().min(1),
+  left: intelligenceDiffSideSchema,
+  right: intelligenceDiffSideSchema,
+});
+
+export const intelligenceSnapshotEventSchema = z.object({
+  repositoryId: z.string().min(1),
+  snapshotId: z.string().min(1),
+  completedAt: z.number().int().nonnegative(),
+});
+
+export type IntelligenceSnapshotDto = z.infer<typeof intelligenceSnapshotSchema>;
+export type IntelligenceWorktreeDto = z.infer<typeof intelligenceWorktreeSchema>;
+export type IntelligenceOverlapDto = z.infer<typeof intelligenceOverlapSchema>;
+export type IntelligenceOverlapDetailsDto = z.infer<
+  typeof intelligenceOverlapDetailsSchema
+>;
+export type IntelligenceDiffComparisonDto = z.infer<
+  typeof intelligenceDiffComparisonSchema
+>;
+export type IntelligenceSnapshotEventDto = z.infer<
+  typeof intelligenceSnapshotEventSchema
+>;
+
 export type GithubListReposRequest = z.infer<
   typeof githubListReposRequestSchema
 >;

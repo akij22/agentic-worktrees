@@ -4,6 +4,10 @@ import type { Api } from './shared/ipc/api';
 import {
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
+  intelligenceDiffComparisonSchema,
+  intelligenceOverlapDetailsSchema,
+  intelligenceSnapshotEventSchema,
+  intelligenceSnapshotSchema,
   workspaceDirectoryResponseSchema,
   workspaceFilePreviewSchema,
   workspaceFileSearchResponseSchema,
@@ -146,6 +150,45 @@ const api: Api = {
             request,
           ),
         ),
+    },
+  },
+  intelligence: {
+    listRepositories: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.INTELLIGENCE_REPOSITORIES),
+    getSnapshot: async (request) => {
+      const value = await ipcRenderer.invoke(
+        IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_GET,
+        request,
+      );
+      return value === null ? null : intelligenceSnapshotSchema.parse(value);
+    },
+    refresh: async (request) =>
+      intelligenceSnapshotSchema.parse(
+        await ipcRenderer.invoke(IPC_CHANNELS.INTELLIGENCE_REFRESH, request),
+      ),
+    getOverlap: async (request) =>
+      intelligenceOverlapDetailsSchema.parse(
+        await ipcRenderer.invoke(
+          IPC_CHANNELS.INTELLIGENCE_OVERLAP_GET,
+          request,
+        ),
+      ),
+    compareDiffs: async (request) =>
+      intelligenceDiffComparisonSchema.parse(
+        await ipcRenderer.invoke(
+          IPC_CHANNELS.INTELLIGENCE_DIFF_COMPARE,
+          request,
+        ),
+      ),
+    onSnapshotChanged: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: unknown) =>
+        listener(intelligenceSnapshotEventSchema.parse(payload));
+      ipcRenderer.on(IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED, handler);
+      return () =>
+        ipcRenderer.removeListener(
+          IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_CHANGED,
+          handler,
+        );
     },
   },
   codingAgent: {

@@ -9,6 +9,8 @@ import {
   editorOpenRequestSchema,
   githubAuthStatusSchema,
   githubDeviceChallengeSchema,
+  intelligenceRepositoryRequestSchema,
+  intelligenceSnapshotSchema,
   workspaceCommitRequestSchema,
   workspaceDirectoryRequestSchema,
   workspaceFileSearchRequestSchema,
@@ -149,6 +151,56 @@ describe('coding agent IPC schemas', () => {
     expect(() =>
       codingAgentSessionViewedRequestSchema.parse({ runId: '  ' }),
     ).toThrow();
+  });
+});
+
+describe('intelligence IPC schemas', () => {
+  const snapshot = {
+    id: 'snapshot-1',
+    repositoryId: 'repository-1',
+    startedAt: 1,
+    completedAt: 2,
+    stale: false,
+    refreshError: null,
+    warnings: [],
+    worktrees: [{
+      worktreeId: 'worktree-1',
+      runId: 'run-1',
+      task: 'Harden sessions',
+      branch: 'feat/sessions',
+      baseBranch: 'main',
+      agentKind: 'codex',
+      agentName: 'Codex',
+      status: 'busy',
+      changedFileCount: 1,
+      additions: 4,
+      deletions: 1,
+      files: [{
+        path: 'src/session.ts',
+        modulePath: 'src',
+        additions: 4,
+        deletions: 1,
+        symbols: ['createSession'],
+      }],
+      independent: false,
+      warning: null,
+      updatedAt: 2,
+    }],
+    overlaps: [],
+  };
+
+  it('accepts a public snapshot and strips unknown fields', () => {
+    expect(intelligenceSnapshotSchema.parse({
+      ...snapshot,
+      secret: '/tmp/private-worktree',
+    })).toEqual(snapshot);
+  });
+
+  it('requires a non-empty repository ID', () => {
+    expect(intelligenceRepositoryRequestSchema.parse({ repositoryId: 'repo-1' }))
+      .toEqual({ repositoryId: 'repo-1' });
+    expect(() => intelligenceRepositoryRequestSchema.parse({ repositoryId: ' ' }))
+      .toThrow();
   });
 });
 
