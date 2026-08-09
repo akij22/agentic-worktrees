@@ -1,16 +1,18 @@
 import { Bot, Clock3, FileCode2 } from "lucide-react";
 import type {
+	ConflictResolutionSessionDto,
 	IntelligenceOverlapDto,
 	IntelligenceWorktreeDto,
 } from "../../../../shared/ipc/schemas";
 import { cn } from "../../../lib/utils";
-import { conflictFileCount } from "./conflict-view-model";
+import { conflictFileCount, conflictPresentation } from "./conflict-view-model";
 import { RiskBadge } from "./RiskBadge";
 
 type Props = {
 	conflicts: IntelligenceOverlapDto[];
 	selectedId: string | null;
 	worktrees: IntelligenceWorktreeDto[];
+	sessions?: ConflictResolutionSessionDto[];
 	onSelect: (overlapId: string) => void;
 };
 
@@ -50,6 +52,7 @@ export const ConflictList = ({
 	conflicts,
 	selectedId,
 	worktrees,
+	sessions = [],
 	onSelect,
 }: Props) => (
 	<section
@@ -73,6 +76,10 @@ export const ConflictList = ({
 					({ worktreeId }) => worktreeId === conflict.rightWorktreeId,
 				);
 				const selected = selectedId === conflict.id;
+				const session = sessions.find(
+					({ overlapId }) => overlapId === conflict.id,
+				);
+				const presentation = conflictPresentation(conflict, session);
 				const updatedAt = Math.max(left?.updatedAt ?? 0, right?.updatedAt ?? 0);
 				return (
 					<button
@@ -101,9 +108,22 @@ export const ConflictList = ({
 								{right?.task ?? conflict.rightWorktreeId}
 							</h3>
 						</div>
-						<p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-							{conflict.summary}
-						</p>
+						<div className="mt-2 flex items-center justify-between gap-2">
+							<p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+								{conflict.summary}
+							</p>
+							<span
+								className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[8px] uppercase ${
+									presentation.kind === "conflict"
+										? "border-red-500/40 text-red-400"
+										: presentation.kind === "review_required"
+											? "border-amber-500/40 text-amber-400"
+											: "border-border text-muted-foreground"
+								}`}
+							>
+								{presentation.label} · {presentation.confirmation}
+							</span>
+						</div>
 						{conflict.targets[0]?.path ? (
 							<p className="mt-1 truncate font-mono text-[9px] text-foreground/70">
 								{conflict.targets[0].path}
@@ -128,7 +148,8 @@ export const ConflictList = ({
 			})}
 		</div>
 		<footer className="shrink-0 border-t border-border/80 px-4 py-3 font-mono text-[9px] text-muted-foreground">
-			Showing {conflicts.length} of {conflicts.length} conflicts
+			Showing {conflicts.length} attention finding
+			{conflicts.length === 1 ? "" : "s"}
 		</footer>
 	</section>
 );

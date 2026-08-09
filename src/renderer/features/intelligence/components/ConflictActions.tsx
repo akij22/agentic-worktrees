@@ -5,6 +5,7 @@ import {
 	MessageCircle,
 	ShieldCheck,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import type {
 	IntelligenceOverlapDto,
 	IntelligenceWorktreeDto,
@@ -18,6 +19,7 @@ type Props = {
 	independentWorktrees: IntelligenceWorktreeDto[];
 	onOpenChat: (worktreeId: string, runId: string) => void;
 	onCompare: (overlapId: string) => void;
+	preparation?: ReactNode;
 };
 
 const number = new Intl.NumberFormat("en-US");
@@ -111,6 +113,7 @@ export const ConflictActions = ({
 	independentWorktrees,
 	onOpenChat,
 	onCompare,
+	preparation,
 }: Props) => (
 	<aside
 		className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/35"
@@ -122,6 +125,7 @@ export const ConflictActions = ({
 			</h2>
 		</header>
 		<div className="min-h-0 flex-1 overflow-y-auto p-3">
+			{preparation ? <div className="mb-3">{preparation}</div> : null}
 			<h3 className="mb-2 text-xs font-medium">Involved worktrees</h3>
 			<div className="space-y-2">
 				<WorktreeCard worktree={left} onOpenChat={onOpenChat} />
