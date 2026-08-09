@@ -25,53 +25,76 @@ const number = new Intl.NumberFormat("en-US");
 const WorktreeCard = ({
 	worktree,
 	compact = false,
+	onOpenChat,
 }: {
 	worktree: IntelligenceWorktreeDto;
 	compact?: boolean;
-}) => (
-	<article className="rounded-lg border border-border/80 bg-background/35 p-3">
-		<div className="flex items-center justify-between gap-3">
-			<div className="flex min-w-0 items-center gap-2">
-				<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
-					<Bot className="size-4 text-muted-foreground" />
+	onOpenChat?: (worktreeId: string, runId: string) => void;
+}) => {
+	const content = (
+		<>
+			<div className="flex items-center justify-between gap-3">
+				<div className="flex min-w-0 items-center gap-2">
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
+						<Bot className="size-4 text-muted-foreground" />
+					</div>
+					<div className="min-w-0">
+						<h4 className="truncate text-xs font-semibold">{worktree.task}</h4>
+						<span className="font-mono text-[8px] uppercase text-muted-foreground">
+							{worktree.agentName ?? "Agent"}
+						</span>
+					</div>
 				</div>
-				<div className="min-w-0">
-					<h4 className="truncate text-xs font-semibold">{worktree.task}</h4>
-					<span className="font-mono text-[8px] uppercase text-muted-foreground">
-						{worktree.agentName ?? "Agent"}
+				<div className="flex shrink-0 gap-3 font-mono text-[9px]">
+					<span className="text-center">
+						<b className="block text-foreground">{worktree.changedFileCount}</b>
+						<small className="text-[8px] text-muted-foreground">files</small>
+					</span>
+					<span className="text-center">
+						<b className="block text-emerald-400">+{number.format(worktree.additions)}</b>
+						<small className="text-[8px] text-muted-foreground">added</small>
+					</span>
+					<span className="text-center">
+						<b className="block text-red-400">−{number.format(worktree.deletions)}</b>
+						<small className="text-[8px] text-muted-foreground">removed</small>
 					</span>
 				</div>
 			</div>
-			<div className="flex shrink-0 gap-3 font-mono text-[9px]">
-				<span className="text-center">
-					<b className="block text-foreground">{worktree.changedFileCount}</b>
-					<small className="text-[8px] text-muted-foreground">files</small>
-				</span>
-				<span className="text-center">
-					<b className="block text-emerald-400">
-						+{number.format(worktree.additions)}
-					</b>
-					<small className="text-[8px] text-muted-foreground">added</small>
-				</span>
-				<span className="text-center">
-					<b className="block text-red-400">
-						−{number.format(worktree.deletions)}
-					</b>
-					<small className="text-[8px] text-muted-foreground">removed</small>
-				</span>
+			<div className="mt-2 flex items-end justify-between gap-3">
+				<div className="min-w-0">
+					<p className="flex items-center gap-1.5 truncate font-mono text-[9px] text-muted-foreground">
+						<GitBranch className="size-3" />{worktree.branch}
+					</p>
+					{!compact && worktree.files[0] ? (
+						<p className="mt-1 truncate font-mono text-[8px] text-foreground/55">{worktree.files[0].path}</p>
+					) : null}
+				</div>
+				{worktree.runId && onOpenChat ? (
+					<span className="flex shrink-0 items-center gap-1 font-mono text-[8px] text-primary opacity-70 transition-opacity group-hover:opacity-100">
+						<MessageCircle className="size-3" /> Open chat
+					</span>
+				) : null}
 			</div>
-		</div>
-		<p className="mt-2 flex items-center gap-1.5 truncate font-mono text-[9px] text-muted-foreground">
-			<GitBranch className="size-3" />
-			{worktree.branch}
-		</p>
-		{!compact && worktree.files[0] ? (
-			<p className="mt-1 truncate font-mono text-[8px] text-foreground/55">
-				{worktree.files[0].path}
-			</p>
-		) : null}
-	</article>
-);
+		</>
+	);
+	const className = "w-full rounded-lg border border-border/80 bg-background/35 p-3 text-left";
+
+	if (worktree.runId && onOpenChat) {
+		const runId = worktree.runId;
+		return (
+			<button
+				type="button"
+				aria-label={`Open ${worktree.task} chat`}
+				onClick={() => onOpenChat(worktree.worktreeId, runId)}
+				className={`${className} group cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+			>
+				{content}
+			</button>
+		);
+	}
+
+	return <article className={className}>{content}</article>;
+};
 
 export const ConflictActions = ({
 	overlap,
@@ -93,25 +116,10 @@ export const ConflictActions = ({
 		<div className="min-h-0 flex-1 overflow-y-auto p-3">
 			<h3 className="mb-2 text-xs font-medium">Involved worktrees</h3>
 			<div className="space-y-2">
-				<WorktreeCard worktree={left} />
-				<WorktreeCard worktree={right} />
+				<WorktreeCard worktree={left} onOpenChat={onOpenChat} />
+				<WorktreeCard worktree={right} onOpenChat={onOpenChat} />
 			</div>
-			<div className="mt-3 space-y-2">
-				{[left, right].map((worktree) => (
-					<Button
-						key={worktree.worktreeId}
-						type="button"
-						className="w-full bg-red-600/80 text-white hover:bg-red-600"
-						disabled={!worktree.runId}
-						aria-label={`Open ${worktree.task} chat`}
-						onClick={() =>
-							worktree.runId && onOpenChat(worktree.worktreeId, worktree.runId)
-						}
-					>
-						<MessageCircle />
-						Open {worktree.task} chat
-					</Button>
-				))}
+			<div className="mt-3">
 				<Button
 					type="button"
 					variant="outline"
@@ -138,6 +146,7 @@ export const ConflictActions = ({
 							key={worktree.worktreeId}
 							worktree={worktree}
 							compact
+							onOpenChat={onOpenChat}
 						/>
 					))}
 				</div>

@@ -117,11 +117,33 @@ describe("conflict workspace", () => {
 			screen.getByRole("button", { name: "Open Home screen chat" }),
 		);
 		expect(onOpenChat).toHaveBeenCalledWith("left", "left-run");
+		fireEvent.click(
+			screen.getByRole("button", { name: "Open Settings cleanup chat" }),
+		);
+		expect(onOpenChat).toHaveBeenCalledWith("safe", "safe-run");
 		fireEvent.click(screen.getByRole("button", { name: "Compare diffs" }));
 		expect(onCompare).toHaveBeenCalledWith("conflict");
 		expect(
 			screen.getByRole("heading", { name: "Independent worktrees" }),
 		).toBeTruthy();
 		expect(screen.getByText("Settings cleanup")).toBeTruthy();
+	});
+
+	it("does not expose a chat button when a worktree has no run", () => {
+		const offline = { ...left, runId: null, task: "Offline task" };
+		render(
+			<ConflictActions
+				overlap={conflict}
+				left={offline}
+				right={right}
+				independentWorktrees={[]}
+				onOpenChat={() => undefined}
+				onCompare={() => undefined}
+			/>,
+		);
+
+		expect(
+			screen.queryByRole("button", { name: "Open Offline task chat" }),
+		).toBeNull();
 	});
 });
