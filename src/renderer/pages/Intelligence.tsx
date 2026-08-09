@@ -1,9 +1,19 @@
-import { Activity, FolderGit2, RefreshCw } from 'lucide-react';
+import { Activity, Clock3, FolderGit2, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
+import { AttentionPanel } from '../features/intelligence/components/AttentionPanel';
+import { DiffComparison } from '../features/intelligence/components/DiffComparison';
+import { IntelligenceSummary } from '../features/intelligence/components/IntelligenceSummary';
+import { OverlapDetails } from '../features/intelligence/components/OverlapDetails';
+import { WorktreeOverlapMap } from '../features/intelligence/components/WorktreeOverlapMap';
 import { Skeleton } from '../components/ui/skeleton';
 import { useIntelligence } from '../features/intelligence/hooks/use-intelligence';
 
 export const Intelligence = () => {
+  const navigate = useNavigate();
+  const [reviewOverlapId, setReviewOverlapId] = useState<string | null>(null);
+  const [compareOverlapId, setCompareOverlapId] = useState<string | null>(null);
   const {
     repositories,
     selectedRepositoryId,
@@ -14,6 +24,13 @@ export const Intelligence = () => {
     error,
     refresh,
   } = useIntelligence();
+  const openChat = (worktreeId: string, runId: string) => {
+    navigate(`/coding-agent/${encodeURIComponent(worktreeId)}/${encodeURIComponent(runId)}`);
+  };
+  const compare = (overlapId: string) => {
+    setReviewOverlapId(null);
+    setCompareOverlapId(overlapId);
+  };
 
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
@@ -73,6 +90,10 @@ export const Intelligence = () => {
             {error}
             {snapshot ? ' The last successful snapshot remains visible.' : ''}
           </div>
+        ) : snapshot?.stale ? (
+          <div className="mb-4 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300" role="status">
+            <Clock3 className="size-3.5" aria-hidden="true" /> Showing the last successful snapshot.
+          </div>
         ) : null}
 
         {loading && !snapshot ? (
@@ -105,17 +126,43 @@ export const Intelligence = () => {
             </div>
           </div>
         ) : snapshot ? (
-          <section
-            aria-label="Worktree intelligence results"
-            className="rounded-xl border border-border bg-card/30 p-5"
-          >
-            <h2 className="text-sm font-semibold">Analysis ready</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {snapshot.worktrees.length} worktrees · {snapshot.overlaps.length} relationships
-            </p>
-          </section>
+          <div className="space-y-4" aria-label="Worktree intelligence results">
+            <IntelligenceSummary snapshot={snapshot} />
+            {snapshot.warnings.length > 0 ? (
+              <ul className="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-2 text-[11px] text-amber-300">
+                {snapshot.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            ) : null}
+            <div className="grid min-h-[34rem] gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)]">
+              <WorktreeOverlapMap
+                snapshot={snapshot}
+                onReview={setReviewOverlapId}
+                onCompare={compare}
+                onOpenChat={openChat}
+              />
+              <AttentionPanel
+                overlaps={snapshot.overlaps}
+                onReview={setReviewOverlapId}
+                onCompare={compare}
+              />
+            </div>
+          </div>
         ) : null}
       </div>
+
+      <OverlapDetails
+        overlapId={reviewOverlapId}
+        open={reviewOverlapId !== null}
+        onClose={() => setReviewOverlapId(null)}
+        onCompare={compare}
+        onOpenChat={openChat}
+      />
+      <DiffComparison
+        overlapId={compareOverlapId}
+        open={compareOverlapId !== null}
+        onClose={() => setCompareOverlapId(null)}
+        onOpenChat={openChat}
+      />
     </section>
   );
 };
