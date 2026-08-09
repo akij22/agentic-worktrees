@@ -1,5 +1,5 @@
 export const isDashboardWorkspace = (pathname: string): boolean =>
-  pathname === '/';
+  pathname === '/' || pathname === '/intelligence';
 
 export const DASHBOARD_SIDEBAR_MIN_WIDTH = 72;
 export const DASHBOARD_SIDEBAR_EXPANDED_MIN_WIDTH = 192;

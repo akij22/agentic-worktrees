@@ -8,8 +8,9 @@ import {
 } from './app-shell-layout';
 
 describe('App shell layout', () => {
-  it('uses the repository workspace only for the Dashboard root', () => {
+  it('uses full-height workspaces for Dashboard and Intelligence', () => {
     expect(isDashboardWorkspace('/')).toBe(true);
+    expect(isDashboardWorkspace('/intelligence')).toBe(true);
     expect(isDashboardWorkspace('/coding-agent')).toBe(false);
     expect(isDashboardWorkspace('/coding-agent/worktree/run')).toBe(false);
     expect(isDashboardWorkspace('/settings')).toBe(false);
