@@ -25,6 +25,9 @@ export const useCodingAgentSessions = () => {
       ]);
       setStatus(nextStatus);
       setContexts(nextContexts);
+      setSessions(nextSessions);
+      setError(undefined);
+      if (showLoading) setLoading(false);
       const detailResults = await Promise.all(
         nextSessions.map(async (session) => {
           try {
