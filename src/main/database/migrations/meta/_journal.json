@@ -29,6 +29,20 @@
       "when": 1785178777171,
       "tag": "0003_clumsy_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786277372797,
+      "tag": "0004_safe_energizer",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1786294693415,
+      "tag": "0005_known_cobalt_man",
+      "breakpoints": true
     }
   ]
 }
