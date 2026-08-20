@@ -27,10 +27,10 @@ export const CommandApprovalCard = ({
   return (
     <section
       aria-label="Command approval required"
-      className="overflow-hidden rounded-xl border border-amber-500/45 bg-amber-500/[0.07] shadow-sm"
+      className="overflow-hidden rounded-2xl bg-amber-500/[0.07] shadow-[inset_3px_0_0_rgb(245_158_11)]"
     >
-      <div className="flex items-start gap-3 border-b border-amber-500/25 bg-amber-500/[0.08] px-4 py-3">
-        <div className="mt-0.5 rounded-md bg-amber-500/15 p-1.5 text-amber-700 dark:text-amber-300">
+      <div className="flex items-start gap-3 bg-amber-500/[0.08] px-4 py-3">
+        <div className="mt-0.5 rounded-xl bg-amber-500/15 p-1.5 text-amber-700 dark:text-amber-300">
           <ShieldAlert aria-hidden="true" className="size-4" />
         </div>
         <div className="min-w-0">
@@ -48,7 +48,7 @@ export const CommandApprovalCard = ({
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Command to run
             </p>
-            <div className="flex items-start gap-2 rounded-lg border border-border/70 bg-background/80 px-3 py-2.5 font-mono text-xs leading-5">
+            <div className="flex items-start gap-2 rounded-xl bg-background/80 px-3 py-2.5 font-mono text-xs leading-5">
               <Terminal aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
               <code className="min-w-0 break-all text-foreground">{command}</code>
             </div>
@@ -61,7 +61,7 @@ export const CommandApprovalCard = ({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-amber-500/20 bg-background/35 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 bg-background/35 px-4 py-3">
         <Button size="sm" onClick={() => onRespond("once")}>
           <Check aria-hidden="true" />
           Allow once

@@ -39,27 +39,27 @@ const getSessionStatus = ({
   if (session.errorMessage || session.status === "error") {
     return {
       label: "Error",
-      className: "border-destructive/35 bg-destructive/10 text-destructive",
+      className: "bg-destructive/10 text-destructive",
       spinning: false,
     };
   }
   if (session.status === "waiting_permission") {
     return {
       label: "Permission required",
-      className: "border-chart-4/50 bg-chart-4/10 text-amber-700 dark:text-chart-4",
+      className: "bg-chart-4/10 text-amber-700 dark:text-chart-4",
       spinning: false,
     };
   }
   if (detail?.isProcessing) {
     return {
       label: "Working",
-      className: "border-primary/30 bg-primary/10 text-primary",
+      className: "bg-primary/10 text-primary",
       spinning: true,
     };
   }
   return {
     label: "Ready",
-    className: "border-chart-3/35 bg-chart-3/10 text-emerald-700 dark:text-chart-3",
+    className: "bg-chart-3/10 text-emerald-700 dark:text-chart-3",
     spinning: false,
   };
 };
@@ -103,7 +103,7 @@ export const SecondarySessionSelector = ({
       <div className="flex h-full min-h-0 items-center justify-center bg-card p-6">
         <div
           role="status"
-          className="w-full max-w-2xl space-y-4 rounded-xl border border-border bg-background p-5 shadow-sm"
+          className="w-full max-w-2xl space-y-4 rounded-2xl bg-surface-raised/55 p-5 shadow-xl ring-1 ring-white/[0.05]"
         >
           <span className="sr-only">Loading coding agent chats</span>
           <Skeleton className="h-5 w-44" />
@@ -120,8 +120,8 @@ export const SecondarySessionSelector = ({
 
   return (
     <div className="flex h-full min-h-0 items-center justify-center bg-card p-6">
-      <div className="flex max-h-[calc(100%-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
-        <div className="shrink-0 border-b border-border p-5">
+      <div className="flex max-h-[calc(100%-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-surface-raised/45 shadow-xl ring-1 ring-white/[0.05]">
+        <div className="shrink-0 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold">Open a second chat</h2>
@@ -133,12 +133,12 @@ export const SecondarySessionSelector = ({
           </div>
 
           {unavailableMessage ? (
-            <p className="mt-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            <p className="mt-4 rounded-xl bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
               {unavailableMessage}
             </p>
           ) : null}
           {error ? (
-            <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="mt-4 rounded-xl bg-error-surface px-3 py-2 text-sm text-error-foreground">
               {error}
             </p>
           ) : null}
@@ -208,7 +208,7 @@ export const SecondarySessionSelector = ({
                     key={option.session.id}
                     type="button"
                     onClick={() => onSelect(option.session.id)}
-                    className="group w-full rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:border-primary/45 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="group w-full rounded-xl bg-card px-4 py-3 text-left transition-colors hover:bg-accent/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -221,7 +221,7 @@ export const SecondarySessionSelector = ({
                         </div>
                       </div>
                       <span
-                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[10px] font-medium ${status.className}`}
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 font-mono text-[10px] font-medium ${status.className}`}
                       >
                         {status.spinning ? (
                           <LoaderCircle
@@ -252,7 +252,7 @@ export const SecondarySessionSelector = ({
                       </span>
                     </div>
 
-                    <div className="mt-2 truncate rounded-md bg-muted/35 px-2.5 py-2 font-mono text-[11px] text-muted-foreground transition-colors group-hover:bg-background/80">
+                    <div className="mt-2 truncate rounded-lg bg-muted/35 px-2.5 py-2 font-mono text-[11px] text-muted-foreground transition-colors group-hover:bg-background/80">
                       <span className="mr-2 text-primary">&gt;</span>
                       {option.activity}
                     </div>

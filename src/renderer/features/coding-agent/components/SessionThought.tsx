@@ -18,7 +18,7 @@ export const SessionThought = ({ agentName, text }: Props) => {
       className="max-w-[48rem] animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out"
     >
       <div className="mb-1.5 text-xs font-semibold">{agentName}</div>
-      <div className="overflow-hidden rounded-lg border border-border/60 bg-muted/20 text-xs leading-5 text-muted-foreground/75">
+      <div className="overflow-hidden rounded-xl bg-muted/25 text-xs leading-5 text-muted-foreground/75">
         <button
           type="button"
           aria-label={
@@ -41,7 +41,7 @@ export const SessionThought = ({ agentName, text }: Props) => {
         <div
           id={contentId}
           hidden={!expanded}
-          className="border-t border-border/50 px-3 py-2.5 font-mono text-[11px] leading-5"
+          className="bg-background/35 px-3 py-2.5 font-mono text-[11px] leading-5"
         >
           <div className="whitespace-pre-wrap">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>

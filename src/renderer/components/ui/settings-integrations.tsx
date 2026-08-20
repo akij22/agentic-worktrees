@@ -199,13 +199,13 @@ export default function SettingsIntegrations({
 
             return (
               <div
-                className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-start"
+                className="flex flex-col gap-4 rounded-2xl bg-card/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] sm:flex-row sm:items-start"
                 key={integration.id}
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
                   <div className="flex items-start gap-3">
                     {integration.icon && (
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
                         <integration.icon className="size-5 text-muted-foreground" />
                       </div>
                     )}

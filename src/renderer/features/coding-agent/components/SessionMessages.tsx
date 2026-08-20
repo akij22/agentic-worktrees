@@ -63,7 +63,7 @@ export const SessionMessages = ({
   return (
     <div
       ref={messagesRef}
-      className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-6"
+      className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain bg-background px-5 py-6"
     >
     {messages.length === 0 ? (
       <div className="py-16 text-center text-sm text-muted-foreground">
@@ -92,7 +92,7 @@ export const SessionMessages = ({
             {message.role === "user" ? "You" : agentName}
           </div>
           {message.content.trim() && message.role === "user" ? (
-            <div className="whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/25 bg-primary/10 px-4 py-3 text-sm leading-6">
+            <div className="whitespace-pre-wrap rounded-2xl rounded-tr-md bg-message-surface px-4 py-3 text-sm leading-6 text-message-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               {message.content}
             </div>
           ) : null}
@@ -123,7 +123,7 @@ export const SessionMessages = ({
         onRespond={onRespondPermission}
       />
     ) : permission ? (
-      <div className="rounded-xl border border-chart-4/50 bg-chart-4/10 p-4">
+      <div className="rounded-2xl bg-chart-4/10 p-4 shadow-[inset_3px_0_0_var(--chart-4)]">
         <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Permission required · {permission.type}
         </div>

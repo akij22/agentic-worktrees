@@ -96,7 +96,7 @@ export const RepositorySidebar = ({
   };
 
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <aside className="relative z-10 flex h-full w-72 shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(112,185,238,0.45)]">
       <div className="shrink-0 px-3 pb-3 pt-5">
         <div className="mb-3 px-1">
           <div>
@@ -115,7 +115,7 @@ export const RepositorySidebar = ({
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder="Search repositories"
             aria-label="Search repositories"
-            className="h-8 bg-background pl-8 text-xs shadow-none"
+            className="h-9 rounded-xl border-transparent bg-sidebar-control-surface pl-8 text-xs shadow-none focus-visible:border-sidebar-ring/40"
           />
         </div>
       </div>
@@ -128,7 +128,7 @@ export const RepositorySidebar = ({
             ))}
           </div>
         ) : repositories.length === 0 ? (
-          <div className="mx-1 mt-2 rounded-md border border-dashed border-sidebar-border px-3 py-5 text-center">
+          <div className="mx-1 mt-2 rounded-2xl bg-sidebar-accent/35 px-3 py-6 text-center">
             <FolderGit2 className="mx-auto size-5 text-muted-foreground" />
             <p className="mt-2 text-xs font-medium text-foreground">
               No repositories found
@@ -148,10 +148,10 @@ export const RepositorySidebar = ({
                 <section
                   key={repository.id}
                   className={cn(
-                    'overflow-hidden rounded-md border transition-colors',
+                    'overflow-hidden rounded-xl transition-colors',
                     selected
-                      ? 'border-sidebar-border bg-sidebar-accent/65 text-sidebar-accent-foreground shadow-sm'
-                      : 'border-transparent text-sidebar-foreground hover:border-sidebar-border/70 hover:bg-sidebar-accent/35',
+                      ? 'bg-sidebar-row-selected text-sidebar-accent-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                      : 'text-sidebar-foreground hover:bg-sidebar-row-hover/70',
                   )}
                 >
                   <div className="flex min-w-0 items-stretch">
@@ -191,7 +191,7 @@ export const RepositorySidebar = ({
                       aria-expanded={expanded}
                       aria-controls={branchesId}
                       onClick={() => toggleRepository(repository.id, expanded)}
-                      className="flex w-9 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
+                      className="m-1 flex w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-control-surface hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
                     >
                       {branchList.status === 'ready' ? (
                         <span className="mr-0.5 font-mono text-[9px] tabular-nums">
@@ -213,7 +213,7 @@ export const RepositorySidebar = ({
                       id={branchesId}
                       role="group"
                       aria-label={`Branches for ${getRepositoryLabel(repository)}`}
-                      className="border-t border-sidebar-border/80 bg-sidebar/70 px-2 py-1"
+                      className="mx-1 mb-1 rounded-xl bg-black/25 px-2 py-1.5"
                     >
                       {branchList.status === 'idle' || branchList.status === 'loading' ? (
                         <div className="space-y-1 py-1" aria-label="Loading branches">
@@ -262,7 +262,7 @@ export const RepositorySidebar = ({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-sidebar-border p-2">
+      <div className="shrink-0 px-2 pb-3 pt-2">
         <div className="grid grid-cols-2 gap-1">
           <Button
             type="button"
@@ -325,7 +325,7 @@ const BranchRow = ({
     : undefined;
 
   return (
-    <li className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-[11px] text-sidebar-foreground">
+    <li className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] text-sidebar-foreground transition-colors hover:bg-sidebar-row-hover/55">
       <span className="min-w-0 flex-1 truncate font-mono" title={branch.name}>
         {branch.name}
       </span>

@@ -87,7 +87,7 @@ export const DiffComparison = ({
 			}}
 			className="flex max-h-[88vh] max-w-6xl flex-col overflow-hidden p-0"
 		>
-			<DialogHeader className="shrink-0 border-b border-border px-5 py-4">
+			<DialogHeader className="shrink-0 px-5 py-4">
 				<div className="flex items-start justify-between gap-4">
 					<div>
 						<DialogTitle>Diff comparison</DialogTitle>
@@ -119,9 +119,9 @@ export const DiffComparison = ({
 						{[comparison.left, comparison.right].map((side) => (
 							<section
 								key={side.worktreeId}
-								className="min-w-0 overflow-hidden rounded-lg border border-border bg-background/50"
+								className="min-w-0 overflow-hidden rounded-2xl bg-background/55"
 							>
-								<header className="flex items-center justify-between border-b border-border px-3 py-2">
+								<header className="flex items-center justify-between px-3 py-2">
 									<code className="text-[10px]">{side.worktreeId}</code>
 									<Button
 										type="button"

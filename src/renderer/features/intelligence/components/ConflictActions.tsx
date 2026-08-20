@@ -37,7 +37,7 @@ const WorktreeCard = ({
 		<>
 			<div className="flex items-center justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-2">
-					<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-muted/70">
 						<Bot className="size-4 text-muted-foreground" />
 					</div>
 					<div className="min-w-0">
@@ -87,7 +87,7 @@ const WorktreeCard = ({
 		</>
 	);
 	const className =
-		"w-full rounded-lg border border-border/80 bg-background/35 p-3 text-left";
+		"w-full rounded-xl bg-background/40 p-3 text-left";
 
 	if (worktree.runId && onOpenChat) {
 		const runId = worktree.runId;
@@ -96,7 +96,7 @@ const WorktreeCard = ({
 				type="button"
 				aria-label={`Open ${worktree.task} chat`}
 				onClick={() => onOpenChat(worktree.worktreeId, runId)}
-				className={`${className} group cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+				className={`${className} group cursor-pointer transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
 			>
 				{content}
 			</button>
@@ -116,10 +116,10 @@ export const ConflictActions = ({
 	preparation,
 }: Props) => (
 	<aside
-		className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/35"
+		className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
 		aria-labelledby="conflict-actions-heading"
 	>
-		<header className="flex h-12 shrink-0 items-center border-b border-border/80 px-4">
+		<header className="flex h-12 shrink-0 items-center px-4">
 			<h2 id="conflict-actions-heading" className="text-sm font-semibold">
 				Actions and quick context
 			</h2>
@@ -144,7 +144,7 @@ export const ConflictActions = ({
 				</Button>
 			</div>
 
-			<div className="my-4 border-t border-border/80" />
+			<div className="h-4" />
 			<div className="mb-2 flex items-center justify-between">
 				<h3 className="text-xs font-medium">Independent worktrees</h3>
 				<span className="rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono text-[9px] text-emerald-400">
@@ -163,7 +163,7 @@ export const ConflictActions = ({
 					))}
 				</div>
 			) : (
-				<div className="rounded-lg border border-dashed border-border p-4 text-center">
+				<div className="rounded-xl bg-background/35 p-4 text-center">
 					<ShieldCheck className="mx-auto size-5 text-muted-foreground" />
 					<p className="mt-2 text-[10px] text-muted-foreground">
 						Every active worktree has a detected relationship.

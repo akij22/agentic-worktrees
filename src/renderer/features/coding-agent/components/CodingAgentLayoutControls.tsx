@@ -30,7 +30,7 @@ export const CodingAgentLayoutControls = ({
   <div
     role="group"
     aria-label="Chat layout"
-    className="inline-flex items-center rounded-md border border-border bg-background p-0.5 shadow-sm"
+    className="inline-flex items-center rounded-xl bg-surface-raised/65 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
   >
     <Button
       type="button"

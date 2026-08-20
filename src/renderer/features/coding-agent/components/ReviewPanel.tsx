@@ -68,7 +68,7 @@ export const ReviewPanel = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-muted/20 xl:overflow-hidden">
-      <div className="shrink-0 border-b border-border px-4 py-3">
+      <div className="shrink-0 px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold">Revisione</h3>
@@ -95,7 +95,7 @@ export const ReviewPanel = ({
                     if (element) fileRefs.current.set(file.file, element);
                     else fileRefs.current.delete(file.file);
                   }}
-                  className={`overflow-hidden rounded-lg border bg-background transition-colors ${expanded ? "border-border shadow-sm" : "border-border/70 hover:border-border"}`}
+                  className={`overflow-hidden rounded-xl bg-background transition-colors ${expanded ? "shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" : "hover:bg-muted/25"}`}
                 >
                   <button
                     type="button"

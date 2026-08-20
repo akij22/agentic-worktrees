@@ -116,7 +116,7 @@ export const AIMessage = ({
               );
             },
             pre: ({ children }) => (
-              <pre className="mb-3 overflow-x-auto rounded-lg border border-border bg-muted/45 p-4 last:mb-0">
+              <pre className="mb-3 overflow-x-auto rounded-xl bg-muted/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] last:mb-0">
                 {children}
               </pre>
             ),

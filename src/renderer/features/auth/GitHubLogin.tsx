@@ -71,16 +71,16 @@ export const GitHubLogin = () => {
   const authErrorMessage = error ?? status.message;
 
   return (
-    <main className="relative isolate h-screen overflow-y-auto bg-[#160607] animate-in fade-in duration-300 ease-out">
+    <main className="relative isolate h-screen overflow-y-auto bg-background animate-in fade-in duration-300 ease-out">
       <img
         src={loginBackground}
         alt=""
         aria-hidden="true"
-        className="fixed inset-0 -z-30 h-full w-full object-cover object-center"
+        className="fixed inset-0 -z-30 h-full w-full object-cover object-center opacity-75 [filter:hue-rotate(205deg)_saturate(0.72)_brightness(0.7)]"
       />
       <div
         aria-hidden="true"
-        className="fixed inset-0 -z-20 bg-[linear-gradient(115deg,rgba(23,5,7,0.22)_0%,rgba(18,5,6,0.36)_48%,rgba(8,3,4,0.64)_100%)] dark:bg-[linear-gradient(115deg,rgba(8,2,3,0.44)_0%,rgba(8,2,3,0.58)_50%,rgba(3,1,2,0.78)_100%)]"
+        className="fixed inset-0 -z-20 bg-[linear-gradient(115deg,color-mix(in_oklab,var(--chrome)_38%,transparent)_0%,color-mix(in_oklab,var(--surface-overlay)_58%,transparent)_48%,color-mix(in_oklab,var(--canvas)_86%,transparent)_100%)]"
       />
       <div
         aria-hidden="true"
@@ -88,10 +88,10 @@ export const GitHubLogin = () => {
       />
 
       <div className="mx-auto flex min-h-full w-full max-w-6xl items-center justify-center px-5 py-10 sm:px-8 lg:pl-24 lg:pr-0">
-        <Card className="w-full max-w-md overflow-hidden border-white/35 bg-card/90 shadow-[0_32px_100px_-28px_rgba(0,0,0,0.85)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/80 dark:border-white/15 dark:bg-card/90 dark:supports-[backdrop-filter]:bg-card/75">
-          <CardHeader className="border-b border-border/70 bg-card/35 pb-5">
+        <Card className="w-full max-w-md overflow-hidden rounded-2xl bg-card/90 shadow-[0_32px_100px_-28px_rgba(0,0,0,0.85)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/80 dark:bg-card/90 dark:supports-[backdrop-filter]:bg-card/75">
+          <CardHeader className="bg-card/35 pb-5">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="flex size-10 items-center justify-center overflow-hidden rounded-md border border-border/80 bg-[#f8f5ef] shadow-sm">
+              <div className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-[#f8f5ef] shadow-sm">
                 <img src={appLogo} alt="" aria-hidden="true" className="h-full w-full object-cover" />
               </div>
               <Badge variant="outline" className="font-mono uppercase tracking-wider">
@@ -185,7 +185,7 @@ export const GitHubLogin = () => {
                   <button
                     type="button"
                     onClick={copyCode}
-                    className="flex w-full items-center justify-between rounded-lg border border-foreground/15 bg-foreground px-5 py-3.5 text-left text-background transition-opacity hover:opacity-90"
+                    className="flex w-full items-center justify-between rounded-xl bg-foreground px-5 py-3.5 text-left text-background transition-opacity hover:opacity-90"
                   >
                     <span className="font-mono text-2xl font-semibold tracking-[0.24em]">
                       {challenge.userCode}
@@ -210,7 +210,7 @@ export const GitHubLogin = () => {
                       <ExternalLink /> Open GitHub
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between border-t border-border pt-4">
+                  <div className="flex items-center justify-between pt-4">
                     <span
                       role="status"
                       aria-live="polite"
@@ -248,7 +248,7 @@ export const GitHubLogin = () => {
                     <img
                       src={status.profile.avatarUrl}
                       alt=""
-                      className="size-12 rounded-full border border-border"
+                      className="size-12 rounded-full"
                     />
                   ) : null}
                   <div className="min-w-0">

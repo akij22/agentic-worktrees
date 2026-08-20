@@ -92,9 +92,9 @@ export const Intelligence = () => {
 
 	return (
 		<section className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
-			<header className="flex min-h-24 shrink-0 items-start justify-between gap-6 border-b border-border/80 bg-card/20 px-6 py-5">
+			<header className="flex min-h-24 shrink-0 items-start justify-between gap-6 px-6 py-5">
 				<div className="flex min-w-0 items-start gap-3">
-					<div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border border-red-500/25 bg-red-500/[0.07] text-red-400">
+					<div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-500/[0.09] text-red-400">
 						<GitCompareArrows aria-hidden="true" className="size-4" />
 					</div>
 					<div>
@@ -115,7 +115,7 @@ export const Intelligence = () => {
 						value={selectedRepositoryId ?? ""}
 						onChange={(event) => selectRepository(event.target.value)}
 						disabled={repositories.length === 0}
-						className="h-9 min-w-52 rounded-md border border-input bg-background px-3 font-mono text-xs shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+						className="h-9 min-w-52 rounded-xl border border-transparent bg-muted/65 px-3 font-mono text-xs outline-none transition-colors focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
 					>
 						{repositories.map((repository) => (
 							<option key={repository.id} value={repository.id}>
@@ -142,7 +142,7 @@ export const Intelligence = () => {
 			<div className="min-h-0 flex-1 overflow-y-auto p-4 xl:p-5">
 				{error ? (
 					<div
-						className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+						className="mb-3 rounded-xl bg-error-surface px-3 py-2 text-xs text-error-foreground"
 						role="alert"
 					>
 						{error}
@@ -150,7 +150,7 @@ export const Intelligence = () => {
 					</div>
 				) : snapshot?.stale ? (
 					<div
-						className="mb-3 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300"
+						className="mb-3 flex items-center gap-2 rounded-xl bg-warning-surface px-3 py-2 text-xs text-warning-foreground"
 						role="status"
 					>
 						<Clock3 className="size-3.5" aria-hidden="true" /> Showing the last
@@ -162,17 +162,17 @@ export const Intelligence = () => {
 					<div className="space-y-3" aria-label="Loading conflicts">
 						<div className="grid gap-3 md:grid-cols-4">
 							{Array.from({ length: 4 }).map((_, index) => (
-								<Skeleton key={index} className="h-20 rounded-lg" />
+								<Skeleton key={index} className="h-20 rounded-2xl" />
 							))}
 						</div>
 						<div className="grid gap-3 xl:grid-cols-[0.9fr_1.45fr_0.95fr]">
-							<Skeleton className="h-[35rem] rounded-lg" />
-							<Skeleton className="h-[35rem] rounded-lg" />
-							<Skeleton className="h-[35rem] rounded-lg" />
+							<Skeleton className="h-[35rem] rounded-2xl" />
+							<Skeleton className="h-[35rem] rounded-2xl" />
+							<Skeleton className="h-[35rem] rounded-2xl" />
 						</div>
 					</div>
 				) : repositories.length === 0 ? (
-					<div className="flex min-h-80 items-center justify-center rounded-lg border border-dashed border-border bg-card/20 px-8 text-center">
+					<div className="flex min-h-80 items-center justify-center rounded-2xl bg-card/35 px-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
 						<div>
 							<FolderGit2
 								aria-hidden="true"
@@ -187,7 +187,7 @@ export const Intelligence = () => {
 						</div>
 					</div>
 				) : snapshot && snapshot.worktrees.length === 0 ? (
-					<div className="flex min-h-80 items-center justify-center rounded-lg border border-dashed border-border bg-card/20 px-8 text-center">
+					<div className="flex min-h-80 items-center justify-center rounded-2xl bg-card/35 px-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
 						<div>
 							<GitCompareArrows
 								aria-hidden="true"
@@ -208,14 +208,14 @@ export const Intelligence = () => {
 					>
 						<IntelligenceSummary snapshot={snapshot} />
 						{snapshot.warnings.length > 0 ? (
-							<ul className="rounded-md border border-amber-500/30 bg-amber-500/5 px-4 py-2 text-[10px] text-amber-300">
+							<ul className="rounded-xl bg-warning-surface px-4 py-2 text-[10px] text-warning-foreground">
 								{snapshot.warnings.map((warning) => (
 									<li key={warning}>{warning}</li>
 								))}
 							</ul>
 						) : null}
 						{conflicts.length === 0 ? (
-							<div className="flex min-h-[28rem] items-center justify-center rounded-lg border border-border/80 bg-card/30 px-8 text-center">
+							<div className="flex min-h-[28rem] items-center justify-center rounded-2xl bg-card/35 px-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
 								<div>
 									<ShieldCheck
 										className="mx-auto size-9 text-emerald-400"
@@ -267,7 +267,7 @@ export const Intelligence = () => {
 								/>
 							</div>
 						) : (
-							<div className="flex min-h-64 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/5 text-center">
+							<div className="flex min-h-64 items-center justify-center rounded-2xl bg-error-surface/70 text-center">
 								<div>
 									<AlertTriangle className="mx-auto size-7 text-destructive" />
 									<h2 className="mt-2 text-sm font-semibold">

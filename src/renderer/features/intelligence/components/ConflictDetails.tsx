@@ -24,10 +24,10 @@ export const ConflictDetails = ({ overlap, left, right, session }: Props) => {
 	const presentation = conflictPresentation(overlap, session);
 	return (
 		<section
-			className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/35"
+			className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
 			aria-labelledby="conflict-details-heading"
 		>
-			<header className="flex h-12 shrink-0 items-center justify-between border-b border-border/80 px-4">
+			<header className="flex h-12 shrink-0 items-center justify-between px-4">
 				<h2 id="conflict-details-heading" className="text-sm font-semibold">
 					Conflict details
 				</h2>
@@ -56,7 +56,7 @@ export const ConflictDetails = ({ overlap, left, right, session }: Props) => {
 					</p>
 				</div>
 
-				<div className="grid gap-x-5 gap-y-2 rounded-lg border border-border/80 bg-background/25 p-3 text-[11px] sm:grid-cols-[9rem_1fr]">
+				<div className="grid gap-x-5 gap-y-2 rounded-xl bg-background/35 p-3 text-[11px] sm:grid-cols-[9rem_1fr]">
 					<span className="text-muted-foreground">Finding</span>
 					<strong className="font-medium">
 						{presentation.label} · {presentation.confirmation}
@@ -85,7 +85,7 @@ export const ConflictDetails = ({ overlap, left, right, session }: Props) => {
 					rightTask={right.task}
 				/>
 			</div>
-			<footer className="flex shrink-0 items-center gap-2 border-t border-border/80 bg-blue-500/[0.04] px-4 py-3 text-[10px] text-blue-300">
+			<footer className="flex shrink-0 items-center gap-2 bg-blue-500/[0.06] px-4 py-3 text-[10px] text-blue-300">
 				<Info className="size-3.5" /> Static predictions are not confirmed until
 				Git simulation completes.
 			</footer>

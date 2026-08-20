@@ -157,7 +157,7 @@ export const CodingAgentWorkspace = ({
   const roundedPrimaryPanelPercent = Math.round(primaryPanelPercent);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <div
         ref={workspaceRef}
         style={workspaceStyle}
@@ -215,7 +215,7 @@ export const CodingAgentWorkspace = ({
                 event.preventDefault();
                 setIsResizing(true);
               }}
-              className={`dual-chat-divider group relative z-10 flex touch-none cursor-col-resize items-center justify-center border-x border-border/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+              className={`dual-chat-divider group relative z-10 flex touch-none cursor-col-resize items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
                 isResizing ? "bg-primary/10" : "bg-transparent hover:bg-primary/5"
               }`}
             >

@@ -7,7 +7,7 @@ const Card = ({
 }: React.ComponentProps<'div'>) => (
   <div
     className={cn(
-      'rounded-lg border border-border bg-card text-card-foreground shadow-sm',
+      'rounded-2xl bg-card text-card-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_20px_48px_-40px_rgba(112,185,238,0.5)]',
       className,
     )}
     {...props}

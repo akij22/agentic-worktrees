@@ -49,7 +49,7 @@ export const IntelligenceSummary = ({
 			{metrics.map(({ label, value, icon: Icon, valueTone, iconTone }) => (
 				<article
 					key={label}
-					className="flex min-h-20 items-center gap-4 rounded-lg border border-border/80 bg-card/45 px-4 py-3 shadow-sm"
+					className="flex min-h-20 items-center gap-4 rounded-2xl bg-card/55 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025),0_10px_30px_-24px_rgba(0,0,0,0.9)]"
 				>
 					<div
 						className={`flex size-11 shrink-0 items-center justify-center rounded-full ${iconTone}`}

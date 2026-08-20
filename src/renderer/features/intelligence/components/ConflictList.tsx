@@ -34,7 +34,7 @@ const Agent = ({
 	worktree: IntelligenceWorktreeDto | undefined;
 }) => (
 	<div className="flex min-w-0 items-center gap-2">
-		<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted/60">
+		<div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-muted/70">
 			<Bot className="size-4 text-muted-foreground" aria-hidden="true" />
 		</div>
 		<div className="min-w-0">
@@ -56,10 +56,10 @@ export const ConflictList = ({
 	onSelect,
 }: Props) => (
 	<section
-		className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/35"
+		className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
 		aria-labelledby="conflict-list-heading"
 	>
-		<header className="flex h-12 shrink-0 items-center justify-between border-b border-border/80 px-4">
+		<header className="flex h-12 shrink-0 items-center justify-between px-4">
 			<h2 id="conflict-list-heading" className="text-sm font-semibold">
 				Conflict list
 			</h2>
@@ -88,16 +88,13 @@ export const ConflictList = ({
 						onClick={() => onSelect(conflict.id)}
 						aria-pressed={selected}
 						className={cn(
-							"w-full rounded-lg border bg-background/45 p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-							conflict.risk === "high"
-								? "border-red-500/35"
-								: "border-amber-500/30",
+							"w-full rounded-xl bg-background/45 p-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 							selected &&
 								conflict.risk === "high" &&
-								"border-red-500 bg-red-500/[0.06] shadow-[inset_3px_0_0_rgb(239_68_68)]",
+								"bg-red-500/[0.06] shadow-[inset_3px_0_0_rgb(239_68_68)]",
 							selected &&
 								conflict.risk === "medium" &&
-								"border-amber-500 bg-amber-500/[0.05] shadow-[inset_3px_0_0_rgb(245_158_11)]",
+								"bg-amber-500/[0.05] shadow-[inset_3px_0_0_rgb(245_158_11)]",
 						)}
 					>
 						<div className="flex items-center gap-2">
@@ -113,12 +110,12 @@ export const ConflictList = ({
 								{conflict.summary}
 							</p>
 							<span
-								className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[8px] uppercase ${
+								className={`shrink-0 rounded-full bg-muted/70 px-1.5 py-0.5 font-mono text-[8px] uppercase ${
 									presentation.kind === "conflict"
-										? "border-red-500/40 text-red-400"
+										? "text-red-400"
 										: presentation.kind === "review_required"
-											? "border-amber-500/40 text-amber-400"
-											: "border-border text-muted-foreground"
+											? "text-amber-400"
+											: "text-muted-foreground"
 								}`}
 							>
 								{presentation.label} · {presentation.confirmation}
@@ -133,7 +130,7 @@ export const ConflictList = ({
 							<Agent worktree={left} />
 							<Agent worktree={right} />
 						</div>
-						<div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2 font-mono text-[9px] text-muted-foreground">
+						<div className="mt-3 flex items-center justify-between pt-1 font-mono text-[9px] text-muted-foreground">
 							<span className="flex items-center gap-1">
 								<Clock3 className="size-3" />
 								{relativeUpdate(updatedAt)}
@@ -147,7 +144,7 @@ export const ConflictList = ({
 				);
 			})}
 		</div>
-		<footer className="shrink-0 border-t border-border/80 px-4 py-3 font-mono text-[9px] text-muted-foreground">
+		<footer className="shrink-0 px-4 py-3 font-mono text-[9px] text-muted-foreground">
 			Showing {conflicts.length} attention finding
 			{conflicts.length === 1 ? "" : "s"}
 		</footer>
