@@ -140,7 +140,7 @@ export const CodingAgentProjectSidebar = ({
   return (
     <aside
       style={{ width }}
-      className="relative z-10 flex h-full min-h-0 shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(112,185,238,0.4)]"
+      className="relative z-10 flex h-full min-h-0 shrink-0 flex-col bg-sidebar-secondary text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(0,0,0,0.9)]"
     >
       <div className="flex h-16 shrink-0 items-center justify-between px-4">
         <div>

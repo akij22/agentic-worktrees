@@ -96,7 +96,7 @@ export const RepositorySidebar = ({
   };
 
   return (
-    <aside className="relative z-10 flex h-full w-72 shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(112,185,238,0.45)]">
+    <aside className="relative z-10 flex h-full w-72 shrink-0 flex-col bg-sidebar-secondary text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(0,0,0,0.9)]">
       <div className="shrink-0 px-3 pb-3 pt-5">
         <div className="mb-3 px-1">
           <div>
