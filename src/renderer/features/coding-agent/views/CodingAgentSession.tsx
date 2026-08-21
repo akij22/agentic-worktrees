@@ -218,8 +218,8 @@ export const CodingAgentSession = ({
     }
   };
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <section className="flex min-h-16 shrink-0 items-center border-b border-border bg-gradient-to-r from-card via-card to-muted/30 px-6 py-2">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <section className="flex min-h-16 shrink-0 items-center bg-background px-6 py-2">
         <div className="flex min-w-0 flex-1 items-center gap-6">
           {headerTitle ? (
             <h1 className="shrink-0 text-base font-semibold tracking-tight">
@@ -284,8 +284,8 @@ export const CodingAgentSession = ({
             : "grid-rows-1"
         }`}
       >
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border xl:border-b-0">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-background xl:border-b-0">
+          <div className="flex items-center justify-between bg-background px-5 py-3">
             <span className="truncate text-xs font-medium">
               {session.title}
             </span>
@@ -369,7 +369,7 @@ export const CodingAgentSession = ({
                 event.preventDefault();
                 setIsResizing(true);
               }}
-              className={`group relative hidden touch-none cursor-col-resize items-center justify-center border-x border-border/60 bg-transparent transition-colors xl:flex ${isResizing ? "bg-primary/10" : "hover:bg-primary/5"}`}
+              className={`group relative hidden touch-none cursor-col-resize items-center justify-center bg-transparent transition-colors xl:flex ${isResizing ? "bg-primary/10" : "hover:bg-primary/5"}`}
             >
               <span
                 className={`h-8 w-px rounded-full transition-all ${isResizing ? "h-12 bg-primary" : "bg-border group-hover:h-12 group-hover:bg-primary/70"}`}

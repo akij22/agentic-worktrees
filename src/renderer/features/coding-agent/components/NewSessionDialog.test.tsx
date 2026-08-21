@@ -242,13 +242,16 @@ describe("NewSessionDialog", () => {
   let root: import("react-dom/client").Root;
   const createSession = vi.fn<() => Promise<CodingAgentSessionDto>>();
 
-  const renderDialog = async (open: boolean) => {
+  const renderDialog = async (
+    open: boolean,
+    availableContexts = contexts,
+  ) => {
     await act(async () => {
       root.render(
         <MemoryRouter>
           <NewSessionDialog
             open={open}
-            contexts={contexts}
+            contexts={availableContexts}
             installations={installations}
             onClose={vi.fn()}
           />
@@ -354,5 +357,76 @@ describe("NewSessionDialog", () => {
       ),
     ).toBe("/coding-agent/worktree/run");
 
+  });
+
+  it("groups worktrees by project without exposing repository paths", async () => {
+    const groupedContexts = [
+      {
+        repository: {
+          id: "project-a",
+          name: "MatchMovie",
+          fullName: "owner/MatchMovie",
+          localRootPath: "/Users/example/projects/MatchMovie",
+        },
+        worktree: {
+          id: "worktree-a-1",
+          name: "wt-home",
+          branchName: "fix/home-page",
+        },
+      },
+      {
+        repository: {
+          id: "project-a",
+          name: "MatchMovie",
+          fullName: "owner/MatchMovie",
+          localRootPath: "/Users/example/projects/MatchMovie",
+        },
+        worktree: {
+          id: "worktree-a-2",
+          name: "wt-search",
+          branchName: "feat/search",
+        },
+      },
+      {
+        repository: {
+          id: "project-b",
+          name: "skratch_clone",
+          fullName: "FLUTTER/skratch_clone",
+          localRootPath: "/Users/example/projects/skratch_clone",
+        },
+        worktree: {
+          id: "worktree-b-1",
+          name: "wt-opt",
+          branchName: "fix/opt",
+        },
+      },
+    ] as CodingAgentWorktreeContextDto[];
+
+    await renderDialog(true, groupedContexts);
+
+    const worktreeSelect = findAll(
+      container,
+      (element) => element.getAttribute("id") === "agent-worktree",
+    )[0];
+    const groups = findAll(
+      worktreeSelect,
+      (element) => element.tagName === "OPTGROUP",
+    );
+    const options = findAll(
+      worktreeSelect,
+      (element) => element.tagName === "OPTION",
+    );
+
+    expect(groups.map((group) => group.getAttribute("label"))).toEqual([
+      "MatchMovie",
+      "skratch_clone",
+    ]);
+    expect(options.map((option) => option.textContent)).toEqual([
+      "wt-home · fix/home-page",
+      "wt-search · feat/search",
+      "wt-opt · fix/opt",
+    ]);
+    expect(worktreeSelect.textContent).not.toContain("owner/MatchMovie");
+    expect(worktreeSelect.textContent).not.toContain("/Users/example/projects");
   });
 });

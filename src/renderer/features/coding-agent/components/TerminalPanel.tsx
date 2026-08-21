@@ -78,10 +78,13 @@ export const TerminalPanel = ({
       fontSize: 12,
       lineHeight: 1.25,
       theme: {
-        background: '#0f1115',
-        foreground: '#e5e7eb',
-        cursor: '#ef4444',
-        selectionBackground: '#7f1d1d80',
+        background: '#17212b',
+        foreground: '#e2f1fc',
+        cursor: '#70b9ee',
+        selectionBackground: '#2f526b',
+        scrollbarSliderBackground: '#4e5b65',
+        scrollbarSliderHoverBackground: '#64727c',
+        scrollbarSliderActiveBackground: '#70b9ee',
       },
     });
     const fitAddon = new FitAddon();
@@ -196,8 +199,8 @@ export const TerminalPanel = ({
   };
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-[#0f1115]" aria-label="Terminale del worktree">
-      <header className="flex min-h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3 text-gray-300">
+    <section className="flex min-h-0 flex-1 flex-col bg-terminal-background text-terminal-foreground" aria-label="Terminale del worktree">
+      <header className="flex min-h-11 shrink-0 items-center gap-2 border-b border-toolbar-border px-3 text-terminal-foreground">
         {exitCode !== undefined ? (
           <Button
             type="button"
@@ -206,7 +209,7 @@ export const TerminalPanel = ({
             aria-label={`Riavvia terminale · codice ${exitCode}`}
             disabled={restarting}
             onClick={() => void restart()}
-            className="h-7 border-white/15 bg-white/5 px-2 text-[10px] text-gray-200 hover:bg-white/10 hover:text-white"
+            className="h-7 border-toolbar-border bg-toolbar-control px-2 text-[10px] text-toolbar-control-foreground hover:bg-toolbar-control-hover hover:text-toolbar-control-foreground"
           >
             {restarting ? (
               <LoaderCircle
@@ -223,7 +226,7 @@ export const TerminalPanel = ({
       {error ? (
         <div
           role="alert"
-          className="flex items-start gap-2 border-b border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] text-red-200"
+          className="flex items-start gap-2 border-b border-error/30 bg-error-surface px-3 py-2 text-[11px] text-error-foreground"
         >
           <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           {error}

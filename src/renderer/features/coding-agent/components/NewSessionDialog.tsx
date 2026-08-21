@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
   CodingAgentInstallationStatusDto,
@@ -33,6 +33,31 @@ export const NewSessionDialog = ({
   onClose,
 }: Props) => {
   const navigate = useNavigate();
+  const projectGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        contexts: CodingAgentWorktreeContextDto[];
+      }
+    >();
+
+    for (const context of contexts) {
+      const group = groups.get(context.repository.id);
+      if (group) {
+        group.contexts.push(context);
+      } else {
+        groups.set(context.repository.id, {
+          id: context.repository.id,
+          name: context.repository.name,
+          contexts: [context],
+        });
+      }
+    }
+
+    return [...groups.values()];
+  }, [contexts]);
   const [worktreeId, setWorktreeId] = useState(initialWorktreeId ?? "");
   const [agentKind, setAgentKind] = useState<CodingAgentKindDto | "">("");
   const [title, setTitle] = useState("New coding session");
@@ -99,10 +124,14 @@ export const NewSessionDialog = ({
             value={worktreeId}
             onChange={(event) => setWorktreeId(event.target.value)}
           >
-            {contexts.map(({ worktree, repository }) => (
-              <option key={worktree.id} value={worktree.id}>
-                {repository.fullName} · {worktree.name} ({worktree.branchName})
-              </option>
+            {projectGroups.map((project) => (
+              <optgroup key={project.id} label={project.name}>
+                {project.contexts.map(({ worktree }) => (
+                  <option key={worktree.id} value={worktree.id}>
+                    {worktree.name} · {worktree.branchName}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </Select>
         </div>

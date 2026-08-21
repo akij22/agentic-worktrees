@@ -24,9 +24,9 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex min-h-72 flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex min-h-72 flex-col overflow-hidden rounded-2xl bg-card text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_20px_46px_-38px_rgba(112,185,238,0.45)] transition-all hover:-translate-y-0.5 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <div className="flex items-start justify-between gap-4 border-b border-border bg-muted/30 px-4 py-3.5">
+      <div className="flex items-start justify-between gap-4 bg-muted/30 px-4 py-3.5">
         <div className="min-w-0 space-y-1.5">
           <h3 className="truncate text-base font-semibold tracking-tight">
             {session.title}
@@ -40,7 +40,7 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
         </div>
         {isProcessing ? (
           <span
-            className="flex shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 font-mono text-[11px] text-primary"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/12 px-2.5 py-1 font-mono text-[11px] text-primary"
             title="The agent is processing a request"
           >
             <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
@@ -50,7 +50,7 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
       </div>
       <div className="flex flex-1 flex-col gap-4 px-4 py-4">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="shrink-0 rounded border border-border bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">
+          <span className="shrink-0 rounded-full bg-muted/55 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide">
             {session.agentName}
           </span>
           <span className="flex min-w-0 items-center gap-1.5 font-mono">
@@ -60,20 +60,20 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
             </span>
           </span>
         </div>
-        <div className="min-h-16 rounded-lg border border-border bg-background/70 px-3 py-2.5 font-mono text-xs leading-5 text-muted-foreground shadow-inner">
+        <div className="min-h-16 rounded-xl bg-background/70 px-3 py-2.5 font-mono text-xs leading-5 text-muted-foreground shadow-inner">
           <span className="mr-2 text-primary">&gt;</span>
           <span className="line-clamp-2">
             {compactActivity(detail?.lastActivity)}
           </span>
         </div>
         <div className="mt-auto flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
             <GridIcon name="files" />
             {detail?.changedFiles ?? 0} file
             {(detail?.changedFiles ?? 0) === 1 ? "" : "s"}
           </span>
           {(detail?.additions ?? 0) > 0 || (detail?.deletions ?? 0) > 0 ? (
-            <span className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
+            <span className="rounded-lg bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
               <span className="text-chart-3">+{detail?.additions ?? 0}</span>{" "}
               <span className="text-destructive">
                 −{detail?.deletions ?? 0}
@@ -86,7 +86,7 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
         </div>
       </div>
       <div className="h-px w-full bg-primary" aria-hidden="true" />
-      <div className="flex items-center justify-between border-t border-border bg-muted/20 px-4 py-2.5">
+      <div className="flex items-center justify-between bg-muted/20 px-4 py-2.5">
         <span className="truncate font-mono text-[11px] text-muted-foreground">
           {context?.worktree.name ?? "Unavailable worktree"}
         </span>

@@ -140,9 +140,9 @@ export const CodingAgentProjectSidebar = ({
   return (
     <aside
       style={{ width }}
-      className="flex h-full min-h-0 shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground"
+      className="relative z-10 flex h-full min-h-0 shrink-0 flex-col bg-sidebar-secondary text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(0,0,0,0.9)]"
     >
-      <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border px-4">
+      <div className="flex h-16 shrink-0 items-center justify-between px-4">
         <div>
           <h1 className="text-sm font-semibold tracking-tight text-foreground">
             Projects
@@ -200,7 +200,7 @@ export const CodingAgentProjectSidebar = ({
                         return next;
                       })
                     }
-                    className="group flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                    className="group flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                   >
                     {expanded ? (
                       <ChevronDown
@@ -220,13 +220,13 @@ export const CodingAgentProjectSidebar = ({
                     <span className="min-w-0 flex-1 truncate">
                       {project.name}
                     </span>
-                    <span className="rounded border border-border bg-background/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                    <span className="rounded-full bg-sidebar-control-surface px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                       {project.sessions.length}
                     </span>
                   </button>
 
                   {expanded ? (
-                    <div className="ml-5 border-l border-sidebar-border pl-2">
+                    <div className="ml-5 border-l border-sidebar-border/45 pl-2">
                       {project.sessions.length === 0 ? (
                         <p className="px-2.5 py-2 text-[11px] text-muted-foreground">
                           No chats yet
@@ -241,10 +241,10 @@ export const CodingAgentProjectSidebar = ({
                             type="button"
                             aria-current={active ? "page" : undefined}
                             onClick={() => onOpenSession(session)}
-                            className={`relative mb-1 flex w-full items-start gap-2.5 overflow-hidden rounded-md border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring ${
+                            className={`relative mb-1 flex w-full items-start gap-2.5 overflow-hidden rounded-xl px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring ${
                               active
-                                ? "border-primary/45 bg-primary/10 text-foreground"
-                                : "border-transparent text-sidebar-foreground hover:border-sidebar-border hover:bg-sidebar-accent"
+                                ? "bg-sidebar-row-selected text-foreground shadow-[inset_3px_0_0_var(--primary)]"
+                                : "text-sidebar-foreground hover:bg-sidebar-row-hover/70"
                             }`}
                           >
                             {active ? (
@@ -291,7 +291,7 @@ export const CodingAgentProjectSidebar = ({
 
       {error ? (
         <p
-          className="border-t border-destructive/30 bg-destructive/10 px-4 py-3 text-xs leading-5 text-destructive"
+          className="m-2 rounded-xl bg-error-surface px-4 py-3 text-xs leading-5 text-error-foreground"
           role="alert"
         >
           {error}

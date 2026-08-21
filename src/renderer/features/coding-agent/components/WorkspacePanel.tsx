@@ -42,10 +42,10 @@ export const WorkspacePanel = ({
 
   return (
     <aside className="flex min-h-0 flex-col bg-muted/20 xl:overflow-hidden">
-      <header className="shrink-0 border-b border-border bg-card/65 px-3 py-3">
+      <header className="shrink-0 bg-card/45 px-3 py-3">
         <nav
           aria-label="Workspace tools"
-          className="grid grid-cols-3 gap-1 rounded-lg border border-border/70 bg-background/55 p-1 shadow-sm"
+          className="grid grid-cols-3 gap-1 rounded-xl bg-background/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
         >
           {workspacePanelModes.map((candidate) => {
             const Icon = modeIcons[candidate];
@@ -56,7 +56,7 @@ export const WorkspacePanel = ({
                 type="button"
                 aria-pressed={active}
                 onClick={() => setMode(candidate)}
-                className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   active
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'

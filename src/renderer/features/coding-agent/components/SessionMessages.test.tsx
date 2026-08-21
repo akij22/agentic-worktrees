@@ -21,5 +21,6 @@ describe("SessionMessages", () => {
     expect(markup).toContain("min-h-0");
     expect(markup).toContain("overflow-y-auto");
     expect(markup).toContain("overscroll-contain");
+    expect(markup).toContain("bg-background");
   });
 });

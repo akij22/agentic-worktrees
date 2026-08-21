@@ -107,7 +107,7 @@ export const WorkspaceGitActions = ({
 
   return (
     <>
-      <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-card/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-card/85">
+      <div className="sticky top-0 z-10 shrink-0 bg-card/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-card/85">
         <div className="grid grid-cols-3 gap-2">
           <Button
             type="button"

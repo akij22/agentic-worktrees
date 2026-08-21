@@ -100,7 +100,7 @@ export const Settings = () => {
         onDisconnect={handleDisconnect}
       />
       {error || status?.installations.find(({ error }) => error)?.error ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-xl bg-error-surface px-3 py-2 text-sm text-error-foreground">
           {error ?? status?.installations.find(({ error }) => error)?.error}
         </p>
       ) : null}

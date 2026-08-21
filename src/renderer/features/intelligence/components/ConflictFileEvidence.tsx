@@ -52,7 +52,7 @@ export const ConflictFileEvidence = ({
 							: "Not confirmed"}
 				</span>
 			</div>
-			<div className="overflow-hidden rounded-lg border border-border/80">
+			<div className="overflow-hidden rounded-xl bg-background/35">
 				<div className="grid grid-cols-[minmax(10rem,1.5fr)_minmax(6rem,0.7fr)_minmax(6rem,0.7fr)_minmax(8rem,0.8fr)] gap-2 bg-muted/30 px-3 py-2 font-mono text-[8px] uppercase tracking-wide text-muted-foreground">
 					<span>File</span>
 					<span>{leftTask}</span>
@@ -62,7 +62,7 @@ export const ConflictFileEvidence = ({
 				{files.map((file, index) => (
 					<article
 						key={`${file.path}-${index}`}
-						className="border-t border-border/70 px-3 py-2.5 first:border-t-0"
+						className="mx-1 rounded-lg px-2 py-2.5 odd:bg-muted/15"
 					>
 						<div className="grid grid-cols-[minmax(10rem,1.5fr)_minmax(6rem,0.7fr)_minmax(6rem,0.7fr)_minmax(8rem,0.8fr)] items-center gap-2 text-[10px]">
 							<code className="truncate" title={file.path}>
@@ -83,7 +83,7 @@ export const ConflictFileEvidence = ({
 								{file.rightPath ? "● Modified" : "—"}
 							</span>
 							<span
-								className={`w-fit rounded border px-1.5 py-0.5 font-mono text-[8px] uppercase ${file.kind === "git_conflict" ? "border-red-500/40 bg-red-500/10 text-red-400" : "border-amber-500/30 bg-amber-500/10 text-amber-400"}`}
+								className={`w-fit rounded-full px-1.5 py-0.5 font-mono text-[8px] uppercase ${file.kind === "git_conflict" ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"}`}
 							>
 								{file.kind === "git_conflict"
 									? "Git conflict"
@@ -93,7 +93,7 @@ export const ConflictFileEvidence = ({
 						{file.symbol ||
 						file.gitStages.length > 0 ||
 						file.markerRanges.length > 0 ? (
-							<div className="mt-2 flex flex-wrap gap-2 border-t border-border/50 pt-2 font-mono text-[8px] text-muted-foreground">
+							<div className="mt-2 flex flex-wrap gap-2 pt-1 font-mono text-[8px] text-muted-foreground">
 								{file.symbol ? (
 									<span className="flex items-center gap-1">
 										<Code2 className="size-3" />

@@ -67,7 +67,7 @@ const SummaryCard = ({
   value: string;
   detail: string;
 }) => (
-  <div className="rounded-xl border border-border bg-card/70 px-4 py-3 shadow-sm">
+  <div className="rounded-2xl bg-card/75 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_18px_36px_-32px_rgba(112,185,238,0.5)]">
     <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
       {label}
     </p>
@@ -139,9 +139,9 @@ export const RepositoryWorkspace = ({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="flex min-h-24 shrink-0 items-start justify-between gap-6 border-b border-border bg-card/20 px-6 py-5">
+      <header className="flex min-h-24 shrink-0 items-start justify-between gap-6 bg-background px-7 py-6">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground shadow-sm">
+          <div className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-2xl bg-surface-raised text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <FolderGit2 aria-hidden="true" className="size-4.5" />
           </div>
           <div className="min-w-0">
@@ -190,7 +190,7 @@ export const RepositoryWorkspace = ({
         </Button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 lg:px-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-3 lg:px-7">
         <div className="mx-auto max-w-[1440px] space-y-7">
           <div className="grid gap-3 md:grid-cols-3">
             <SummaryCard
@@ -234,9 +234,9 @@ export const RepositoryWorkspace = ({
               description="Active isolated environments for this repository."
             />
             {worktrees.length === 0 ? (
-              <div className="flex flex-col gap-4 rounded-xl border border-dashed border-border bg-card/30 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-4 rounded-2xl bg-card/45 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
                     <GitBranch aria-hidden="true" className="size-4.5" />
                   </div>
                   <div>
@@ -261,7 +261,7 @@ export const RepositoryWorkspace = ({
                 </Button>
               </div>
             ) : (
-              <div className="grid overflow-hidden rounded-xl border border-border bg-card/40 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid overflow-hidden rounded-2xl bg-card/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_20px_42px_-36px_rgba(112,185,238,0.45)] xl:grid-cols-[minmax(0,1fr)_320px]">
                 <WorktreeList
                   worktrees={worktrees}
                   selectedWorktree={selectedWorktree}
@@ -323,8 +323,8 @@ const BranchTable = ({
   );
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card/40">
-      <div className="grid min-w-[680px] grid-cols-[minmax(220px,1.4fr)_minmax(150px,.8fr)_minmax(120px,.65fr)_150px] gap-4 border-b border-border bg-muted/35 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+    <div className="overflow-hidden rounded-2xl bg-card/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_20px_42px_-36px_rgba(112,185,238,0.45)]">
+      <div className="grid min-w-[680px] grid-cols-[minmax(220px,1.4fr)_minmax(150px,.8fr)_minmax(120px,.65fr)_150px] gap-4 bg-surface-raised/45 px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         <span>Branch</span>
         <span>Worktree</span>
         <span>Chat status</span>
@@ -364,13 +364,13 @@ const BranchTable = ({
             </p>
           </div>
         ) : (
-          <div className="min-w-[680px] divide-y divide-border/70">
+          <div className="min-w-[680px] space-y-1 p-1.5">
             {branchList.branches.map((branch) => {
               const worktree = worktreeByBranch.get(branch.name);
               return (
                 <div
                   key={branch.name}
-                  className="grid grid-cols-[minmax(220px,1.4fr)_minmax(150px,.8fr)_minmax(120px,.65fr)_150px] items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/20"
+                  className="grid grid-cols-[minmax(220px,1.4fr)_minmax(150px,.8fr)_minmax(120px,.65fr)_150px] items-center gap-4 rounded-xl px-3.5 py-3 transition-colors hover:bg-muted/35"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -434,7 +434,7 @@ const BranchTable = ({
         )}
       </div>
       {branchList.status === 'ready' && branchList.branches.length > 0 ? (
-        <div className="border-t border-border bg-muted/15 px-4 py-2 text-[10px] text-muted-foreground">
+        <div className="bg-surface-raised/25 px-5 py-2.5 text-[10px] text-muted-foreground">
           Showing {countLabel(branchList.branches.length, 'branch', 'branches')}
         </div>
       ) : null}
@@ -453,8 +453,8 @@ const WorktreeList = ({
   sessionsByWorktreeId: Record<string, CodingAgentSessionDto | undefined>;
   onSelectWorktree: (worktreeId: string) => void;
 }) => (
-  <div className="min-w-0 border-b border-border xl:border-b-0 xl:border-r">
-    <div className="grid min-w-[540px] grid-cols-[minmax(220px,1.3fr)_minmax(130px,.7fr)_minmax(120px,.65fr)_28px] items-center gap-3 border-b border-border bg-muted/35 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+  <div className="min-w-0 xl:border-r xl:border-white/[0.045]">
+    <div className="grid min-w-[540px] grid-cols-[minmax(220px,1.3fr)_minmax(130px,.7fr)_minmax(120px,.65fr)_28px] items-center gap-3 bg-surface-raised/45 px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
       <span>Worktree / branch</span>
       <span>Base branch</span>
       <span>Chat status</span>
@@ -471,10 +471,10 @@ const WorktreeList = ({
               aria-current={selected ? 'true' : undefined}
               onClick={() => onSelectWorktree(worktree.id)}
               className={cn(
-                'grid w-full grid-cols-[minmax(220px,1.3fr)_minmax(130px,.7fr)_minmax(120px,.65fr)_28px] items-center gap-3 rounded-lg border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'grid w-full grid-cols-[minmax(220px,1.3fr)_minmax(130px,.7fr)_minmax(120px,.65fr)_28px] items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 selected
-                  ? 'border-primary/30 bg-primary/8'
-                  : 'border-transparent hover:border-border hover:bg-muted/30',
+                  ? 'bg-sidebar-row-selected/75 shadow-[inset_3px_0_0_var(--primary)]'
+                  : 'hover:bg-muted/35',
               )}
             >
               <span className="min-w-0">
@@ -507,8 +507,8 @@ const WorktreeDetails = ({
   chatSummary: WorktreeChatSummaryState;
   onOpenCodingAgent: (worktree: Worktree) => void;
 }) => (
-  <aside className="flex min-w-0 flex-col bg-card/50">
-    <div className="border-b border-border px-5 py-4">
+  <aside className="flex min-w-0 flex-col bg-surface-raised/30">
+    <div className="px-5 pb-3 pt-5">
       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         Selected worktree
       </p>
@@ -521,7 +521,7 @@ const WorktreeDetails = ({
       <Detail label="Local path" value={worktree.path} mono />
       <WorktreeChatSummary summary={chatSummary} />
     </div>
-    <div className="mt-auto border-t border-border p-4">
+    <div className="mt-auto p-4 pt-2">
       <Button
         type="button"
         className="w-full"
@@ -565,7 +565,7 @@ const WorktreeChatSummary = ({
 }) => {
   if (summary.status === 'loading') {
     return (
-      <section className="border-t border-border pt-4">
+      <section className="pt-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           Coding Agent
         </p>
@@ -576,7 +576,7 @@ const WorktreeChatSummary = ({
 
   if (summary.status === 'error') {
     return (
-      <section className="border-t border-border pt-4">
+      <section className="pt-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           Coding Agent
         </p>
@@ -593,14 +593,14 @@ const WorktreeChatSummary = ({
   const changedFiles = summary.snapshot.diff;
 
   return (
-    <section className="space-y-4 border-t border-border pt-4">
+    <section className="space-y-4 pt-2">
       <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         Coding Agent
       </p>
       <div>
         <p className="text-xs font-semibold text-foreground">Latest message</p>
         {lastMessage ? (
-          <div className="mt-2 line-clamp-4 rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+          <div className="mt-2 line-clamp-4 rounded-xl bg-background/55 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
             {lastMessage.content}
           </div>
         ) : (

@@ -170,12 +170,12 @@ export const SessionComposer = ({
     onSend();
   };
   return (
-    <div className="relative border-t border-border bg-muted/15 p-4">
+    <div className="relative bg-background px-4 pb-4 pt-2">
       {slashCommands.length > 0 ? (
         <div
           role="listbox"
           aria-label="Session slash commands"
-          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-xl"
+          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 overflow-hidden rounded-2xl bg-popover p-1.5 shadow-xl ring-1 ring-white/[0.06]"
         >
           {slashCommands.map((command, index) => (
             <button
@@ -183,7 +183,7 @@ export const SessionComposer = ({
               type="button"
               role="option"
               aria-selected={index === selectedSuggestionIndex}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
                 index === selectedSuggestionIndex
                   ? "bg-accent text-accent-foreground"
                   : "text-foreground hover:bg-muted"
@@ -200,7 +200,7 @@ export const SessionComposer = ({
               </span>
             </button>
           ))}
-          <p className="border-t border-border px-3 pb-1 pt-2 text-[10px] text-muted-foreground">
+          <p className="px-3 pb-1 pt-2 text-[10px] text-muted-foreground">
             ↑↓ navigate · Enter select · Esc close
           </p>
         </div>
@@ -208,7 +208,7 @@ export const SessionComposer = ({
         <div
           role="listbox"
           aria-label="Worktree files"
-          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 max-h-72 overflow-auto rounded-lg border border-border bg-popover p-1 shadow-xl"
+          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 max-h-72 overflow-auto rounded-2xl bg-popover p-1.5 shadow-xl ring-1 ring-white/[0.06]"
         >
           {fileSuggestions.loading ? (
             <p className="px-3 py-2 text-xs text-muted-foreground">
@@ -233,7 +233,7 @@ export const SessionComposer = ({
                 role="option"
                 aria-label={path}
                 aria-selected={index === selectedSuggestionIndex}
-                className={`block w-full truncate rounded-md px-3 py-2 text-left font-mono text-xs transition-colors ${
+                className={`block w-full truncate rounded-xl px-3 py-2 text-left font-mono text-xs transition-colors ${
                   index === selectedSuggestionIndex
                     ? "bg-accent text-accent-foreground"
                     : "text-foreground hover:bg-muted"
@@ -247,12 +247,12 @@ export const SessionComposer = ({
               </button>
             ))
           )}
-          <p className="border-t border-border px-3 pb-1 pt-2 text-[10px] text-muted-foreground">
+          <p className="px-3 pb-1 pt-2 text-[10px] text-muted-foreground">
             ↑↓ navigate · Enter select · Esc close
           </p>
         </div>
       ) : null}
-      <div className="rounded-xl border border-input bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
+      <div className="rounded-2xl border border-input/80 bg-black p-2 shadow-[0_18px_42px_-32px_rgba(112,185,238,0.55)] focus-within:ring-2 focus-within:ring-ring">
         <textarea
           ref={textareaRef}
           value={draft}

@@ -102,10 +102,10 @@ export const AppShell = () => {
     <div ref={shellRef} className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <aside
         style={{ width: `${dashboardSidebarWidth}px` }}
-        className="flex min-h-[20rem] w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+        className="relative z-20 flex min-h-[20rem] w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(112,185,238,0.4)]"
       >
         <div
-          className={`flex h-16 items-center border-b border-sidebar-border ${
+          className={`flex h-16 items-center ${
             isDashboardSidebarCollapsed
               ? 'justify-center px-2'
               : 'gap-2.5 px-5'
@@ -159,7 +159,7 @@ export const AppShell = () => {
         </nav>
 
         <div
-          className={`border-t border-sidebar-border ${
+          className={`${
             isDashboardSidebarCollapsed ? 'p-2' : 'p-3'
           }`}
         >
@@ -168,7 +168,7 @@ export const AppShell = () => {
             onClick={toggleTheme}
             aria-label={theme === 'dark' ? 'Attiva tema chiaro' : 'Attiva tema scuro'}
             title={theme === 'dark' ? 'Attiva tema chiaro' : 'Attiva tema scuro'}
-            className={`inline-flex h-10 w-full items-center rounded-md text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
+            className={`inline-flex h-10 w-full items-center rounded-xl text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
               isDashboardSidebarCollapsed
                 ? 'justify-center px-2'
                 : 'gap-3 px-3'
@@ -247,7 +247,7 @@ export const AppShell = () => {
         ) : (
           <>
             {!isCodingAgentSession ? (
-              <header className="flex h-16 shrink-0 items-center border-b border-border px-6">
+              <header className="flex h-16 shrink-0 items-center px-6">
                 <h1 className="text-base font-semibold tracking-tight">
                   {navItems.find((i) =>
                     i.end ? i.to === location.pathname : location.pathname.startsWith(i.to),

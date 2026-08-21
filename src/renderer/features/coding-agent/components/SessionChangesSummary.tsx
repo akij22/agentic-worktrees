@@ -18,9 +18,9 @@ export const SessionChangesSummary = ({
   return (
     <section
       aria-label="Changes summary"
-      className="max-w-[48rem] overflow-hidden rounded-xl border border-border bg-muted/30"
+      className="max-w-[48rem] overflow-hidden rounded-2xl bg-muted/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="text-xs font-semibold">Changes</span>
           <Badge variant="outline" className="font-mono text-[11px]">
@@ -35,7 +35,7 @@ export const SessionChangesSummary = ({
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss changes summary"
-          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <X aria-hidden="true" className="size-3.5" />
         </button>
@@ -46,7 +46,7 @@ export const SessionChangesSummary = ({
             key={file.file}
             type="button"
             onClick={() => onSelectFile(file.file)}
-            className="group flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           >
             <FileCode2
               aria-hidden="true"

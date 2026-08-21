@@ -131,7 +131,7 @@ export const CodingAgentLanding = ({
         ) : (
           <div className="grid h-full min-h-[28rem] place-items-center px-8 text-center">
             <div className="max-w-md">
-              <div className="mx-auto mb-5 grid size-12 place-items-center rounded-xl border border-border bg-muted/30 font-mono text-base text-muted-foreground">
+              <div className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-muted/40 font-mono text-base text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 &gt;_
               </div>
               {configuredInstallations.length === 0 && !loading ? (

@@ -46,9 +46,9 @@ export const SessionStatusPopup = ({
     role="status"
     aria-live="polite"
     aria-label={`${session.agentName} session status`}
-    className="absolute bottom-full right-4 z-50 mb-3 w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-lg border border-border bg-popover shadow-2xl"
+    className="absolute bottom-full right-4 z-50 mb-3 w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-2xl bg-popover shadow-2xl ring-1 ring-white/[0.06]"
   >
-    <div className="flex items-start justify-between border-b border-border bg-muted/35 px-4 py-3">
+    <div className="flex items-start justify-between bg-muted/35 px-4 py-3">
       <div>
         <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em]">
           {session.agentName} status
@@ -68,7 +68,7 @@ export const SessionStatusPopup = ({
         <X className="size-3.5" aria-hidden="true" />
       </Button>
     </div>
-    <div className="border-b border-border px-4 py-3">
+    <div className="px-4 py-3">
       <div className="flex items-end justify-between gap-3">
         <Detail
           label="Context used"
@@ -105,7 +105,7 @@ export const SessionStatusPopup = ({
       />
     </dl>
     {error ? (
-      <p className="border-t border-destructive/25 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+      <p className="m-2 rounded-xl bg-error-surface px-4 py-2 text-xs text-error-foreground">
         {error}
       </p>
     ) : null}

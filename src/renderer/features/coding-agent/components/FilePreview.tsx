@@ -21,7 +21,7 @@ export const FilePreview = ({
   error,
 }: FilePreviewProps) => (
   <section className="flex min-h-0 flex-1 flex-col bg-background/40" aria-label="Anteprima file">
-    <header className="flex min-h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+    <header className="flex min-h-11 shrink-0 items-center gap-2 px-3">
       <Eye aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
       <span
         className="min-w-0 flex-1 truncate font-mono text-[11px] font-medium"
@@ -51,7 +51,7 @@ export const FilePreview = ({
       ) : error ? (
         <div
           role="alert"
-          className="m-3 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+          className="m-3 flex items-start gap-2 rounded-xl bg-error-surface p-3 text-xs text-error-foreground"
         >
           <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           {error}

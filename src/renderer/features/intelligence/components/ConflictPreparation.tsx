@@ -83,7 +83,7 @@ export const ConflictPreparation = ({
 
 	return (
 		<section
-			className="rounded-lg border border-border/80 bg-background/30 p-3"
+			className="rounded-xl bg-background/35 p-3"
 			aria-labelledby="prepare-conflict-heading"
 		>
 			<div className="flex items-start justify-between gap-3">
@@ -101,12 +101,12 @@ export const ConflictPreparation = ({
 				</div>
 				{session?.classification ? (
 					<span
-						className={`rounded-full border px-2 py-0.5 font-mono text-[8px] uppercase ${
+						className={`rounded-full bg-muted/70 px-2 py-0.5 font-mono text-[8px] uppercase ${
 							session.classification === "conflict"
-								? "border-red-500/40 text-red-400"
+								? "text-red-400"
 								: session.classification === "review_required"
-									? "border-amber-500/40 text-amber-400"
-									: "border-emerald-500/40 text-emerald-400"
+									? "text-amber-400"
+									: "text-emerald-400"
 						}`}
 					>
 						{session.classification.replaceAll("_", " ")}
@@ -116,7 +116,7 @@ export const ConflictPreparation = ({
 
 			{session && transient.has(session.state) ? (
 				<div
-					className="mt-3 flex items-center gap-2 rounded-md border border-blue-500/25 bg-blue-500/[0.06] px-3 py-2 text-[10px] text-blue-300"
+					className="mt-3 flex items-center gap-2 rounded-xl bg-blue-500/[0.08] px-3 py-2 text-[10px] text-blue-300"
 					role="status"
 				>
 					<LoaderCircle className="size-3.5 animate-spin" />{" "}
@@ -129,7 +129,7 @@ export const ConflictPreparation = ({
 				</div>
 			) : session?.state === "failed" ? (
 				<div
-					className="mt-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[10px] text-destructive"
+					className="mt-3 flex items-start gap-2 rounded-xl bg-error-surface px-3 py-2 text-[10px] text-error-foreground"
 					role="alert"
 				>
 					<TriangleAlert className="mt-0.5 size-3.5" />
@@ -153,7 +153,7 @@ export const ConflictPreparation = ({
 							id="integration-editor"
 							value={editorId ?? ""}
 							onChange={(event) => setEditorId(event.target.value as EditorId)}
-							className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px]"
+							className="h-8 min-w-0 flex-1 rounded-xl border border-transparent bg-muted/65 px-2 text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							{editors.map((editor) => (
 								<option key={editor.id} value={editor.id}>
@@ -185,7 +185,7 @@ export const ConflictPreparation = ({
 						value={targetBranch}
 						onChange={(event) => selectTargetBranch(event.target.value)}
 						disabled={loading || preparing || branches.length === 0}
-						className="h-8 w-full rounded-md border border-input bg-background px-2 font-mono text-[10px]"
+						className="h-8 w-full rounded-xl border border-transparent bg-muted/65 px-2 font-mono text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					>
 						{branches.length === 0 ? (
 							<option value="">No branches available</option>

@@ -145,7 +145,7 @@ export const FileBrowserPanel = ({
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,42%)_minmax(0,1fr)]">
-      <section className="min-h-0 overflow-auto border-b border-border bg-muted/10 p-2" aria-label="Albero file">
+      <section className="min-h-0 overflow-auto bg-muted/10 p-2" aria-label="Albero file">
         {rootState.loading && !rootState.loaded ? (
           <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
             <LoaderCircle
@@ -157,7 +157,7 @@ export const FileBrowserPanel = ({
         ) : rootState.error ? (
           <div
             role="alert"
-            className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+            className="flex items-start gap-2 rounded-xl bg-error-surface p-3 text-xs text-error-foreground"
           >
             <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             {rootState.error}

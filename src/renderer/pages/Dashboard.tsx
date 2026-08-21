@@ -598,7 +598,7 @@ export const Dashboard = () => {
 
 				{loadState.status === "error" ? (
 					<section className="flex min-w-0 flex-1 items-center justify-center p-8">
-						<div className="max-w-md rounded-lg border border-destructive/40 bg-destructive/5 px-8 py-7 text-center">
+						<div className="max-w-md rounded-2xl bg-error-surface/70 px-8 py-7 text-center">
 							<h2 className="text-base font-semibold text-destructive">
 								Failed to load repositories
 							</h2>
@@ -618,7 +618,7 @@ export const Dashboard = () => {
 					</section>
 				) : loadState.status === "success" && repositories.length === 0 ? (
 					<section className="flex min-w-0 flex-1 items-center justify-center p-8">
-						<div className="max-w-md rounded-lg border border-dashed border-border px-8 py-10 text-center">
+						<div className="max-w-md rounded-2xl bg-card/40 px-8 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
 							<h2 className="text-base font-semibold">No repositories</h2>
 							<p className="mt-2 text-sm text-muted-foreground">
 								Add a local repository or select repositories from the connected
@@ -885,7 +885,7 @@ export const Dashboard = () => {
 					<div className="mt-4 grid gap-3">
 						<button
 							type="button"
-							className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
+							className="rounded-2xl bg-muted/40 p-4 text-left transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							onClick={() => void importLocalRepository()}
 							disabled={addRepository.mode !== "idle"}
 						>
@@ -897,14 +897,14 @@ export const Dashboard = () => {
 						</button>
 
 						{addRepository.mode === "remote-loading" && (
-							<p className="rounded-md border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+							<p className="rounded-xl bg-muted/35 px-3 py-3 text-sm text-muted-foreground">
 								Loading repositories from GitHub…
 							</p>
 						)}
 
 						{(addRepository.mode === "remote-selecting" ||
 							addRepository.mode === "remote-importing") && (
-							<div className="rounded-lg border border-border bg-muted/20 p-3">
+							<div className="rounded-2xl bg-muted/25 p-3">
 								<div className="mb-2 flex items-center justify-between gap-3">
 									<div>
 										<div className="text-sm font-semibold">
@@ -949,7 +949,7 @@ export const Dashboard = () => {
 									</Button>
 								</div>
 
-								<div className="max-h-64 overflow-y-auto rounded-md border border-border bg-background">
+								<div className="max-h-64 space-y-1 overflow-y-auto rounded-xl bg-background/70 p-1">
 									{addRepository.remoteCandidates.length === 0 ? (
 										<p className="px-3 py-4 text-sm text-muted-foreground">
 											No repositories are available from this GitHub account.
@@ -962,7 +962,7 @@ export const Dashboard = () => {
 											return (
 												<label
 													key={repository.githubRepoId}
-													className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-muted/50"
+													className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-muted/50"
 												>
 													<input
 														type="checkbox"
@@ -1006,7 +1006,7 @@ export const Dashboard = () => {
 
 						<button
 							type="button"
-							className="rounded-lg border border-border bg-muted/40 p-4 text-left transition-colors hover:bg-muted"
+							className="rounded-2xl bg-muted/40 p-4 text-left transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							onClick={() => void importRemoteRepositories()}
 							disabled={addRepository.mode !== "idle"}
 						>
