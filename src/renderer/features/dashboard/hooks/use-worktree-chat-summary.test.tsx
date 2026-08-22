@@ -69,6 +69,7 @@ const createSnapshot = (worktree: Worktree): CodingAgentSessionSnapshotDto => ({
 			role: "assistant",
 			content: `${worktree.name} summary`,
 			reasoning: "",
+			tools: [],
 			createdAt: 0,
 			completedAt: 0,
 		},

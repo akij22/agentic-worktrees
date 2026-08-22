@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../../components/ui/button";
 import { AIMessage } from "./AIMessage";
 import { SessionThought } from "./SessionThought";
+import { ToolCallGroup } from "./ToolCallGroup";
 import { CommandApprovalCard } from "./CommandApprovalCard";
 import { buildSessionMessageEntries } from "../lib/session-messages";
 import type { PendingPermission } from "../types";
@@ -70,15 +71,19 @@ export const SessionMessages = ({
         Ask {agentName} to make a change in this worktree.
       </div>
     ) : null}
-    {entries.map((entry) => {
+    {entries.map((entry, index) => {
       if (entry.kind === "thought") {
         return (
           <SessionThought
             agentName={agentName}
             key={entry.key}
             text={entry.text}
+            streaming={busy && index === entries.length - 1}
           />
         );
+      }
+      if (entry.kind === "tools") {
+        return <ToolCallGroup key={entry.key} tools={entry.tools} />;
       }
       const { message } = entry;
       return (
@@ -88,11 +93,17 @@ export const SessionMessages = ({
             message.role === "user" ? "ml-auto max-w-[46rem]" : "max-w-[48rem]"
           }
         >
-          <div className="mb-1.5 text-xs font-semibold">
+          <div
+            className={
+              message.role === "user"
+                ? "mb-1.5 text-right text-xs font-semibold"
+                : "mb-1.5 text-xs font-semibold"
+            }
+          >
             {message.role === "user" ? "You" : agentName}
           </div>
           {message.content.trim() && message.role === "user" ? (
-            <div className="whitespace-pre-wrap rounded-2xl rounded-tr-md bg-message-surface px-4 py-3 text-sm leading-6 text-message-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="ml-auto w-fit max-w-full whitespace-pre-wrap rounded-2xl rounded-tr-md bg-message-surface px-4 py-3 text-sm leading-6 text-message-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               {message.content}
             </div>
           ) : null}
@@ -108,7 +119,11 @@ export const SessionMessages = ({
       );
     })}
     {transientThought ? (
-      <SessionThought agentName={agentName} text={transientThought} />
+      <SessionThought
+        agentName={agentName}
+        text={transientThought}
+        streaming={busy}
+      />
     ) : null}
     {activity && busy ? (
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">

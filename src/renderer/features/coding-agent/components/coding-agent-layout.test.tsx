@@ -89,6 +89,37 @@ describe("coding agent layout components", () => {
     expect(markup).toContain("File");
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("/workspace/agentic-worktrees");
+    expect(markup).not.toContain("Hide workspace panel");
+  });
+
+  it("exposes a single workspace toggle next to the dual chat control", () => {
+    const markup = renderToStaticMarkup(
+      <CodingAgentLayoutControls
+        mode="single"
+        onModeChange={() => undefined}
+        workspaceOpen
+        onWorkspaceOpenChange={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Single chat view"');
+    expect(markup).toContain('aria-label="Dual chat view"');
+    expect(markup).toContain('aria-label="Hide workspace panel"');
+    expect(markup).toContain('aria-pressed="true"');
+  });
+
+  it("switches the workspace toggle label while the panel is hidden", () => {
+    const markup = renderToStaticMarkup(
+      <CodingAgentLayoutControls
+        mode="single"
+        onModeChange={() => undefined}
+        workspaceOpen={false}
+        onWorkspaceOpenChange={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('aria-label="Show workspace panel"');
+    expect(markup).not.toContain('aria-label="Hide workspace panel"');
   });
 
   it("renders file diffs as independently expandable sections", () => {

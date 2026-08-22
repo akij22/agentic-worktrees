@@ -68,6 +68,7 @@ const chatSummary: WorktreeChatSummaryState = {
         role: 'assistant',
         content: 'Implemented the repository workspace.',
         reasoning: '',
+        tools: [],
         createdAt: 0,
         completedAt: 0,
       },

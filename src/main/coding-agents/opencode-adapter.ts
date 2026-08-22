@@ -15,6 +15,7 @@ import type {
   CodingAgentMessage,
   CodingAgentModel,
   CodingAgentSessionUsage,
+  CodingAgentToolCall,
 } from './types';
 import { readOpenCodeSessionId, reserveLocalPort } from './opencode-utils';
 
@@ -248,6 +249,51 @@ const normalizeDiff = (value: unknown): CodingAgentDiff => {
   };
 };
 
+const readToolTitle = (
+  input: Record<string, unknown>,
+  fallbackTitle: string | undefined,
+): string => {
+  if (fallbackTitle && fallbackTitle.trim()) return fallbackTitle;
+  const candidate = Object.values(input).find(
+    (value): value is string =>
+      typeof value === 'string' && value.trim().length > 0,
+  );
+  if (candidate) return candidate;
+  const keys = Object.keys(input);
+  return keys.length > 0 ? keys.join(', ') : 'Running';
+};
+
+const toToolCalls = (parts: Part[]): CodingAgentToolCall[] =>
+  parts.flatMap((part): CodingAgentToolCall[] => {
+    if (part.type !== 'tool') return [];
+    const { state } = part;
+    const input = 'input' in state && state.input ? state.input : {};
+    const base = {
+      id: part.callID || part.id,
+      tool: part.tool,
+      title: readToolTitle(input, 'title' in state ? state.title : undefined),
+    };
+    if (state.status === 'completed') {
+      return [
+        {
+          ...base,
+          status: 'completed' as const,
+          detail: state.output ?? '',
+        },
+      ];
+    }
+    if (state.status === 'error') {
+      return [{ ...base, status: 'error' as const, detail: state.error }];
+    }
+    return [
+      {
+        ...base,
+        status: state.status === 'pending' ? ('pending' as const) : ('running' as const),
+        detail: '',
+      },
+    ];
+  });
+
 const toMessage = (info: Message, parts: Part[]): CodingAgentMessage => ({
   id: info.id,
   role: info.role,
@@ -267,6 +313,7 @@ const toMessage = (info: Message, parts: Part[]): CodingAgentMessage => ({
       )
       .at(-1)?.text ?? '',
   ),
+  tools: toToolCalls(parts),
   createdAt: info.time.created,
   completedAt:
     info.role === 'assistant'

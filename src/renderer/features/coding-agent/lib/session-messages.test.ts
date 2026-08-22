@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
+import type {
+  CodingAgentMessageDto,
+  CodingAgentToolCallDto,
+} from "../../../../shared/ipc/schemas";
 import { buildSessionMessageEntries } from "./session-messages";
+
+const tool = (
+  overrides: Partial<CodingAgentToolCallDto> & { id: string },
+): CodingAgentToolCallDto => ({
+  tool: "bash",
+  status: "running",
+  title: "npm test",
+  detail: "",
+  ...overrides,
+});
 
 const message = (
   overrides: Partial<CodingAgentMessageDto> & { id: string },
@@ -8,6 +21,7 @@ const message = (
   role: "assistant",
   content: "",
   reasoning: "",
+  tools: [],
   createdAt: 0,
   completedAt: null,
   ...overrides,
@@ -86,10 +100,63 @@ describe("buildSessionMessageEntries", () => {
     ]);
   });
 
-  it("skips assistant messages without content or reasoning", () => {
+  it("skips assistant messages without content, reasoning, or tools", () => {
     const entries = buildSessionMessageEntries([
       message({ id: "a1", content: "   ", reasoning: "  " }),
     ]);
     expect(entries).toEqual([]);
+  });
+
+  it("groups consecutive tool updates into one merged entry", () => {
+    const first = tool({ id: "t1", status: "running" });
+    const second = tool({ id: "t2", title: "npm run lint" });
+    const entries = buildSessionMessageEntries([
+      message({ id: "a1", tools: [first] }),
+      message({ id: "a2", tools: [tool({ id: "t1", status: "completed" }), second] }),
+    ]);
+    expect(entries).toEqual([
+      {
+        kind: "tools",
+        key: "tools:a1",
+        tools: [
+          tool({ id: "t1", status: "completed" }),
+          tool({ id: "t2", title: "npm run lint" }),
+        ],
+      },
+    ]);
+  });
+
+  it("closes an open tool entry when assistant content arrives", () => {
+    const done = message({
+      id: "a2",
+      content: "All checks pass.",
+      tools: [tool({ id: "t1", status: "completed" })],
+    });
+    const entries = buildSessionMessageEntries([
+      message({ id: "a1", tools: [tool({ id: "t0" })] }),
+      done,
+      message({ id: "a3", tools: [tool({ id: "t9", title: "git status" })] }),
+    ]);
+    expect(entries).toEqual([
+      {
+        kind: "tools",
+        key: "tools:a1",
+        tools: [tool({ id: "t0" }), tool({ id: "t1", status: "completed" })],
+      },
+      { kind: "assistant", message: done },
+      {
+        kind: "tools",
+        key: "tools:a3",
+        tools: [tool({ id: "t9", title: "git status" })],
+      },
+    ]);
+  });
+
+  it("keeps tool-only messages instead of dropping them", () => {
+    const entries = buildSessionMessageEntries([
+      message({ id: "a1", tools: [tool({ id: "t1", status: "completed", detail: "ok" })] }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ kind: "tools" });
   });
 });

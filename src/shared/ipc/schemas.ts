@@ -384,11 +384,22 @@ export const codingAgentSessionSchema = z.object({
 
 export type CodingAgentSessionDto = z.infer<typeof codingAgentSessionSchema>;
 
+export const codingAgentToolCallSchema = z.object({
+	id: z.string(),
+	tool: z.string(),
+	status: z.enum(["pending", "running", "completed", "error"]),
+	title: z.string(),
+	detail: z.string(),
+});
+
+export type CodingAgentToolCallDto = z.infer<typeof codingAgentToolCallSchema>;
+
 export const codingAgentMessageSchema = z.object({
 	id: z.string(),
 	role: z.enum(["user", "assistant"]),
 	content: z.string(),
 	reasoning: z.string(),
+	tools: z.array(codingAgentToolCallSchema).default([]),
 	createdAt: z.number(),
 	completedAt: z.number().nullable(),
 });

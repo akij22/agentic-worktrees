@@ -18,11 +18,26 @@ export interface CodingAgentModel {
   isDefault: boolean;
 }
 
+export type CodingAgentToolCallStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'error';
+
+export interface CodingAgentToolCall {
+  id: string;
+  tool: string;
+  status: CodingAgentToolCallStatus;
+  title: string;
+  detail: string;
+}
+
 export interface CodingAgentMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   reasoning: string;
+  tools: CodingAgentToolCall[];
   createdAt: number;
   completedAt: number | null;
 }

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import type { CodingAgentDiffDto } from '../../../../shared/ipc/schemas';
+import { cn } from '../../../lib/utils';
 import { FileBrowserPanel } from './FileBrowserPanel';
 import { ReviewPanel } from './ReviewPanel';
 import { TerminalPanel } from './TerminalPanel';
@@ -41,10 +42,13 @@ export const WorkspacePanel = ({
   const [mode, setMode] = useState<WorkspacePanelMode>('review');
 
   return (
-    <aside className="flex min-h-0 flex-col bg-muted/20 xl:overflow-hidden">
+    <aside
+      aria-label="Workspace tools"
+      className="flex min-h-0 flex-col bg-muted/20 xl:overflow-hidden"
+    >
       <header className="shrink-0 bg-card/45 px-3 py-3">
         <nav
-          aria-label="Workspace tools"
+          aria-label="Workspace modes"
           className="grid grid-cols-3 gap-1 rounded-xl bg-background/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
         >
           {workspacePanelModes.map((candidate) => {
@@ -56,11 +60,12 @@ export const WorkspacePanel = ({
                 type="button"
                 aria-pressed={active}
                 onClick={() => setMode(candidate)}
-                className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={cn(
+                  'inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   active
                     ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
               >
                 <Icon aria-hidden="true" className="size-3.5 shrink-0" />
                 <span className="truncate">

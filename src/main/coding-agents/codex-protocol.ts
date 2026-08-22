@@ -3,6 +3,7 @@ import type {
   CodingAgentDiff,
   CodingAgentMessage,
   CodingAgentModel,
+  CodingAgentToolCall,
 } from './types';
 import type { CodexRequestId } from './codex-app-server-client';
 
@@ -283,6 +284,90 @@ export const readCodexThread = (value: unknown): CodexThreadSnapshot =>
 const toMilliseconds = (timestamp: number | null): number =>
   timestamp === null ? 0 : timestamp * 1_000;
 
+const codexToolStatuses: Record<string, CodingAgentToolCall['status']> = {
+  inProgress: 'running',
+  completed: 'completed',
+  failed: 'error',
+  declined: 'error',
+};
+
+const readCodexToolStatus = (
+  status: unknown,
+): CodingAgentToolCall['status'] =>
+  typeof status === 'string' && status in codexToolStatuses
+    ? codexToolStatuses[status]
+    : 'running';
+
+const readCommandTitle = (item: Record<string, unknown>): string => {
+  const command = item.command;
+  if (typeof command === 'string') return command;
+  if (Array.isArray(command)) {
+    return command.filter((part) => typeof part === 'string').join(' ');
+  }
+  return 'Command execution';
+};
+
+const readStringField = (item: Record<string, unknown>, field: string) => {
+  const value = item[field];
+  return typeof value === 'string' ? value : '';
+};
+
+const toCodexToolCall = (item: {
+  type: string;
+  id?: string;
+}): CodingAgentToolCall | null => {
+  const record = item as Record<string, unknown>;
+  const id = item.id ?? `${item.type}:tool`;
+  if (item.type === 'commandExecution') {
+    return {
+      id,
+      tool: 'bash',
+      status: readCodexToolStatus(record.status),
+      title: readCommandTitle(record),
+      detail: readStringField(record, 'aggregatedOutput'),
+    };
+  }
+  if (item.type === 'fileChange') {
+    const rawChanges = Array.isArray(record.changes) ? record.changes : [];
+    const paths = rawChanges
+      .map((change) =>
+        change && typeof change === 'object' && 'path' in change &&
+          typeof change.path === 'string'
+          ? change.path
+          : null,
+      )
+      .filter((path): path is string => path !== null);
+    return {
+      id,
+      tool: 'edit',
+      status: readCodexToolStatus(record.status),
+      title: paths.length > 0 ? paths.join(', ') : 'File changes',
+      detail: '',
+    };
+  }
+  if (item.type === 'mcpToolCall') {
+    const server = readStringField(record, 'server');
+    const tool = readStringField(record, 'tool');
+    return {
+      id,
+      tool: 'mcp',
+      status: readCodexToolStatus(record.status),
+      title: server && tool ? `${server} · ${tool}` : 'MCP tool call',
+      detail: '',
+    };
+  }
+  if (item.type === 'webSearch') {
+    return {
+      id,
+      tool: 'web_search',
+      status: 'completed',
+      title: readStringField(record, 'query') || 'Web search',
+      detail: '',
+    };
+  }
+  return null;
+};
+
 export const readCodexMessages = (
   thread: CodexThreadSnapshot,
 ): CodingAgentMessage[] => {
@@ -307,6 +392,7 @@ export const readCodexMessages = (
           .map((input) => input.text)
           .join('\n'),
         reasoning: '',
+        tools: [],
         createdAt: toMilliseconds(turn.startedAt),
         completedAt: null,
       });
@@ -315,6 +401,7 @@ export const readCodexMessages = (
     const assistantMessages: CodingAgentMessage[] = [];
     let pendingReasoning: string[] = [];
     let pendingReasoningId: string | undefined;
+    let pendingTools: CodingAgentToolCall[] = [];
 
     for (const item of turn.items) {
       if (item.type === 'reasoning') {
@@ -326,21 +413,27 @@ export const readCodexMessages = (
         pendingReasoningId ??= item.id;
         continue;
       }
-      if (item.type !== 'agentMessage') continue;
+      if (item.type !== 'agentMessage') {
+        const toolCall = toCodexToolCall(item);
+        if (toolCall) pendingTools.push(toolCall);
+        continue;
+      }
 
       assistantMessages.push({
         id: item.id ?? `${turn.id}:assistant:${assistantMessages.length}`,
         role: 'assistant',
         content: item.text ?? '',
         reasoning: pendingReasoning.join('\n'),
+        tools: pendingTools,
         createdAt: toMilliseconds(turn.startedAt),
         completedAt: null,
       });
       pendingReasoning = [];
       pendingReasoningId = undefined;
+      pendingTools = [];
     }
 
-    if (pendingReasoning.length > 0) {
+    if (pendingReasoning.length > 0 || pendingTools.length > 0) {
       assistantMessages.push({
         id:
           pendingReasoningId ??
@@ -348,6 +441,7 @@ export const readCodexMessages = (
         role: 'assistant',
         content: '',
         reasoning: pendingReasoning.join('\n'),
+        tools: pendingTools,
         createdAt: toMilliseconds(turn.startedAt),
         completedAt: null,
       });
