@@ -249,8 +249,52 @@ describe('Codex protocol projection', () => {
         role: 'assistant',
         content: '',
         reasoning: 'Running the final verification',
+        tools: [],
         createdAt: 10_000,
         completedAt: 12_000,
+      },
+    ]);
+  });
+
+  it('attaches command executions and file changes to the following assistant message', () => {
+    const messages = readCodexMessages(
+      threadWithTurns([
+        {
+          type: 'commandExecution',
+          id: 'cmd-1',
+          command: ['npm', 'test'],
+          status: 'completed',
+          aggregatedOutput: 'all tests passed',
+        },
+        {
+          type: 'fileChange',
+          id: 'fc-1',
+          changes: [{ path: 'src/app.ts' }],
+          status: 'completed',
+        },
+        {
+          type: 'agentMessage',
+          id: 'a1',
+          text: 'Done.',
+        },
+      ]),
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].tools).toEqual([
+      {
+        id: 'cmd-1',
+        tool: 'bash',
+        status: 'completed',
+        title: 'npm test',
+        detail: 'all tests passed',
+      },
+      {
+        id: 'fc-1',
+        tool: 'edit',
+        status: 'completed',
+        title: 'src/app.ts',
+        detail: '',
       },
     ]);
   });

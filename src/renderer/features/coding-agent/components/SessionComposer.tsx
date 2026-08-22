@@ -1,5 +1,4 @@
 import {
-  type ChangeEvent,
   type KeyboardEvent,
   useEffect,
   useRef,
@@ -10,7 +9,7 @@ import type {
   CodingAgentSessionDto,
 } from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
-import { Select } from "../../../components/ui/select";
+import { PickerMenu } from "./PickerMenu";
 import {
   filterSlashCommands,
   type SlashCommandId,
@@ -58,12 +57,13 @@ export const SessionComposer = ({
   onStop,
   onSlashCommand,
 }: Props) => {
-  const modelSelectRef = useRef<HTMLSelectElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCaretRef = useRef<number | undefined>(undefined);
   const [caret, setCaret] = useState(draft.length);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const [dismissedMentionKey, setDismissedMentionKey] = useState<string>();
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [reasoningPickerOpen, setReasoningPickerOpen] = useState(false);
   const slashCommands = filterSlashCommands(draft);
   const detectedMention =
     slashCommands.length === 0
@@ -100,15 +100,7 @@ export const SessionComposer = ({
   const executeSlashCommand = (command: SlashCommandId) => {
     onDraftChange("");
     if (command === "model") {
-      const select = modelSelectRef.current;
-      select?.focus();
-      if (select && "showPicker" in select) {
-        try {
-          select.showPicker();
-        } catch {
-          // Keeping focus on the select provides a keyboard-accessible fallback.
-        }
-      }
+      setModelPickerOpen(true);
       return;
     }
     onSlashCommand(command);
@@ -154,8 +146,21 @@ export const SessionComposer = ({
       onSend();
     }
   };
-  const onModelSelect = (event: ChangeEvent<HTMLSelectElement>) =>
-    onModelChange(event.target.value);
+  const modelOptions = models.map((model) => ({
+    id: `${model.providerId}::${model.modelId}`,
+    label: model.modelName,
+    hint: model.providerName,
+  }));
+  const selectedModel = models.find(
+    (model) => `${model.providerId}::${model.modelId}` === modelKey,
+  );
+  const reasoningOptions = [
+    { id: "", label: "Default" },
+    ...reasoningVariants.map((variant) => ({
+      id: variant,
+      label: variant.charAt(0).toUpperCase() + variant.slice(1),
+    })),
+  ];
   const submit = () => {
     const selectedCommand = slashCommands[selectedSuggestionIndex];
     if (selectedCommand) {
@@ -270,46 +275,57 @@ export const SessionComposer = ({
           disabled={locked}
           className="block w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
         />
-        <div className="flex items-center justify-between px-1 pt-2">
+        <div className="flex items-center justify-between gap-3 px-1 pt-2">
           <div className="flex min-w-0 items-center gap-2">
-            <Select
-              ref={modelSelectRef}
-              aria-label="AI model"
+            <PickerMenu
+              ariaLabel="AI model"
+              open={modelPickerOpen}
+              onOpenChange={setModelPickerOpen}
+              options={
+                loadingModels
+                  ? [{ id: modelKey, label: "Loading models…" }]
+                  : modelOptions.length > 0
+                    ? modelOptions
+                    : [
+                        {
+                          id: `${session.providerId}::${session.modelId}`,
+                          label: session.modelId,
+                          hint: session.providerId,
+                        },
+                      ]
+              }
               value={modelKey}
-              onChange={onModelSelect}
+              onChange={onModelChange}
+              display={
+                loadingModels
+                  ? "Loading models…"
+                  : selectedModel
+                    ? selectedModel.modelName
+                    : session.modelId
+              }
+              searchable
+              searchPlaceholder="Search models…"
+              emptyLabel="No matching models"
               disabled={loadingModels || changingModel || models.length === 0}
-              className="h-7 w-44 border-border bg-muted/40 px-2 font-mono text-[11px] shadow-none"
-            >
-              {loadingModels ? <option>Loading models…</option> : null}
-              {!loadingModels && models.length === 0 ? (
-                <option value={`${session.providerId}::${session.modelId}`}>
-                  {session.providerId}/{session.modelId}
-                </option>
-              ) : null}
-              {models.map((model) => (
-                <option
-                  key={`${model.providerId}:${model.modelId}`}
-                  value={`${model.providerId}::${model.modelId}`}
-                >
-                  {model.providerName} · {model.modelName}
-                </option>
-              ))}
-            </Select>
+              triggerClassName="max-w-52"
+            />
             {reasoningVariants.length > 0 ? (
-              <Select
-                aria-label="Reasoning level"
+              <PickerMenu
+                ariaLabel="Reasoning level"
+                open={reasoningPickerOpen}
+                onOpenChange={setReasoningPickerOpen}
+                options={reasoningOptions}
                 value={reasoningVariant}
-                onChange={(event) => onReasoningChange(event.target.value)}
+                onChange={onReasoningChange}
+                display={
+                  reasoningVariant
+                    ? reasoningVariant.charAt(0).toUpperCase() +
+                      reasoningVariant.slice(1)
+                    : "Reasoning · default"
+                }
                 disabled={locked}
-                className="h-7 w-32 border-border bg-muted/40 px-2 font-mono text-[11px] capitalize shadow-none"
-              >
-                <option value="">Reasoning · default</option>
-                {reasoningVariants.map((variant) => (
-                  <option key={variant} value={variant} className="capitalize">
-                    Reasoning · {variant}
-                  </option>
-                ))}
-              </Select>
+                triggerClassName="max-w-40"
+              />
             ) : null}
             <span className="hidden text-xs text-muted-foreground 2xl:inline">
               Enter to send · Shift + Enter for newline

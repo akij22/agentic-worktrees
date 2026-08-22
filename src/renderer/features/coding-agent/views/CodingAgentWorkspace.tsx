@@ -86,6 +86,7 @@ export const CodingAgentWorkspace = ({
   const secondaryPanelRef = useRef<HTMLDivElement>(null);
   const dualLayoutButtonRef = useRef<HTMLButtonElement>(null);
   const [mode, setMode] = useState<CodingAgentLayoutMode>("single");
+  const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [primaryPanelWidth, setPrimaryPanelWidth] = useState<number>();
   const [primaryPanelPercent, setPrimaryPanelPercent] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
@@ -174,12 +175,16 @@ export const CodingAgentWorkspace = ({
             key={primaryRunId}
             runId={primaryRunId}
             showInspection={!isSecondaryMounted}
+            workspaceOpen={workspaceOpen}
+            onWorkspaceOpenChange={setWorkspaceOpen}
             headerTitle="Coding Agent"
             headerActions={
               <CodingAgentLayoutControls
                 mode={mode}
                 onModeChange={handleModeChange}
                 dualButtonRef={dualLayoutButtonRef}
+                workspaceOpen={workspaceOpen}
+                onWorkspaceOpenChange={setWorkspaceOpen}
               />
             }
           />

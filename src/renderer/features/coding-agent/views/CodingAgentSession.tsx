@@ -60,22 +60,36 @@ export const CodingAgentSession = ({
   showInspection = true,
   headerTitle,
   headerActions,
+  workspaceOpen: workspaceOpenProp,
+  onWorkspaceOpenChange,
 }: {
   runId: string;
   showInspection?: boolean;
   headerTitle?: string;
   headerActions?: ReactNode;
+  workspaceOpen?: boolean;
+  onWorkspaceOpenChange?: (open: boolean) => void;
 }) => {
   const sessionState = useCodingAgentSession(runId);
   const [draft, setDraft] = useState("");
   const splitRef = useRef<HTMLDivElement>(null);
   const [diffPanelWidth, setDiffPanelWidth] = useState(368);
   const [isResizing, setIsResizing] = useState(false);
+  const [fallbackWorkspaceOpen, setFallbackWorkspaceOpen] = useState(true);
+  const workspaceOpen = workspaceOpenProp ?? fallbackWorkspaceOpen;
+  const setWorkspaceOpen = onWorkspaceOpenChange ?? setFallbackWorkspaceOpen;
   const [editors, setEditors] = useState<AvailableEditorDto[]>([]);
   const [editorError, setEditorError] = useState<EditorError>();
   const [statusPopup, setStatusPopup] = useState<StatusPopupState>();
   const clearFocusedDiffFile = useCallback(
     () => sessionState.selectSummaryFile(undefined),
+    [sessionState.selectSummaryFile],
+  );
+  const selectDiffFile = useCallback(
+    (file?: string) => {
+      if (file !== undefined) setWorkspaceOpen(true);
+      sessionState.selectSummaryFile(file);
+    },
     [sessionState.selectSummaryFile],
   );
   const openLinkedDiffFile = useCallback(
@@ -86,10 +100,10 @@ export const CodingAgentSession = ({
         sessionState.snapshot?.context.worktree.path ?? "",
       );
       if (!file) return false;
-      sessionState.selectSummaryFile(file);
+      selectDiffFile(file);
       return true;
     },
-    [sessionState.selectSummaryFile, sessionState.snapshot],
+    [selectDiffFile, sessionState.snapshot],
   );
   useEffect(() => {
     if (!isResizing) return;
@@ -151,6 +165,7 @@ export const CodingAgentSession = ({
       </p>
     );
   const { session, context, messages, diff } = sessionState.snapshot;
+  const inspectionVisible = showInspection && workspaceOpen;
   const busy = ["busy", "creating", "aborting"].includes(session.status);
   const lastMessage = messages.at(-1);
   const agentFinished =
@@ -226,24 +241,30 @@ export const CodingAgentSession = ({
               {headerTitle}
             </h1>
           ) : null}
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             <div className="flex min-w-0 items-center gap-3">
-              <h2 className="shrink-0 font-mono text-base font-semibold">
+              <h2
+                className="min-w-0 truncate font-mono text-base font-semibold"
+                title={context.worktree.name}
+              >
                 {context.worktree.name}
               </h2>
-              <span className="shrink-0 font-mono text-sm text-muted-foreground">
+              <span
+                className="min-w-0 shrink-[2] truncate font-mono text-sm text-muted-foreground"
+                title={context.worktree.branchName}
+              >
                 {context.worktree.branchName}
               </span>
               <Badge
                 variant="outline"
-                className="min-w-0 max-w-full truncate font-mono text-[11px]"
+                className="min-w-0 max-w-full shrink-[3] truncate font-mono text-[11px]"
                 title={context.repository.fullName}
               >
                 {context.repository.fullName}
               </Badge>
               <DropdownMenu
                 label="Open in editor"
-                className="shrink-0"
+                className="ml-auto shrink-0"
                 items={editors.map((editor) => ({
                   id: editor.id,
                   label: editor.name,
@@ -273,13 +294,13 @@ export const CodingAgentSession = ({
         style={
           {
             "--session-workspace-columns": getSessionWorkspaceColumns(
-              showInspection,
+              inspectionVisible,
               diffPanelWidth,
             ),
           } as CSSProperties
         }
         className={`grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:[grid-template-columns:var(--session-workspace-columns)] ${
-          showInspection
+          inspectionVisible
             ? "grid-rows-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-rows-1"
             : "grid-rows-1"
         }`}
@@ -308,7 +329,7 @@ export const CodingAgentSession = ({
             {sessionState.changesSummary ? (
               <SessionChangesSummary
                 diff={sessionState.changesSummary}
-                onSelectFile={sessionState.selectSummaryFile}
+                onSelectFile={(file) => selectDiffFile(file)}
                 onDismiss={sessionState.dismissChangesSummary}
               />
             ) : null}
@@ -345,7 +366,7 @@ export const CodingAgentSession = ({
             />
           </div>
         </section>
-        {showInspection ? (
+        {inspectionVisible ? (
           <>
             <div
               role="separator"

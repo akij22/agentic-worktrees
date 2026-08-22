@@ -38,6 +38,7 @@ import type {
   CodingAgentPermission,
   CodingAgentRunStatus,
   CodingAgentSessionUsage,
+  CodingAgentToolCall,
 } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -121,6 +122,7 @@ const harnessKinds = Object.keys(harnesses) as CodingAgentKind[];
 const startupPromises = new Map<CodingAgentKind, Promise<void>>();
 const listeners = new Set<(event: AgentUiEvent) => void>();
 const reasoningByRun = new Map<string, Map<string, string>>();
+const toolsByRun = new Map<string, Map<string, CodingAgentToolCall[]>>();
 
 const persistSessionDiffs = (
   runId: string,
@@ -439,11 +441,21 @@ const replaceProjectedMessages = (
         .map((message) => [message.id, message.reasoning]),
     ),
   );
+  toolsByRun.set(
+    runId,
+    new Map(
+      messages
+        .filter((message) => message.tools.length > 0)
+        .map((message) => [message.id, message.tools]),
+    ),
+  );
   db.transaction((tx) => {
     tx.delete(runMessages).where(eq(runMessages.runId, runId)).run();
     const visible = messages.filter(
       (message) =>
-        message.content.trim().length > 0 || message.reasoning.trim().length > 0,
+        message.content.trim().length > 0 ||
+        message.reasoning.trim().length > 0 ||
+        message.tools.length > 0,
     );
     visible.forEach((message, index) => {
       tx.insert(runMessages)
@@ -817,6 +829,8 @@ export const getAgentSessionSnapshot = async (
       role: message.role === 'user' ? ('user' as const) : ('assistant' as const),
       content: message.content,
       reasoning: reasoningByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ?? '',
+      tools:
+        toolsByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ?? [],
       createdAt: message.createdAt.getTime(),
       completedAt: message.completedAt?.getTime() ?? null,
     }));
