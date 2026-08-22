@@ -94,6 +94,7 @@ out/
 # Superpowers planning artifacts
 docs/superpowers/
 .superpowers/sdd
+.worktrees/
 
 # Local agent skills
 .agents/
