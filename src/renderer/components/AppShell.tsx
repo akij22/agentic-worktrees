@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { useTheme } from '../lib/use-theme';
 import appLogo from '../assets/agentic-worktrees-logo.png';
+import commentIcon from '../../../docs/assets/comment.png';
+import folderIcon from '../../../docs/assets/folder.png';
+import pullIcon from '../../../docs/assets/pull.png';
+import settingIcon from '../../../docs/assets/setting.png';
 import { RouteTransition } from './RouteTransition';
 import {
   clampDashboardSidebarWidth,
@@ -17,54 +20,57 @@ const navItems = [
     to: '/',
     label: 'Dashboard',
     end: true,
-    icon: (
+    icon: folderIcon,
+    /* icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
         <rect x="3" y="3" width="7" height="7" rx="1" />
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <rect x="14" y="14" width="7" height="7" rx="1" />
       </svg>
-    ),
+    ), */
   },
   {
     to: '/coding-agent',
     label: 'Coding Agent',
     end: false,
-    icon: (
+    icon: commentIcon,
+    /* icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
         <path d="M8 9 5 12l3 3M16 9l3 3-3 3M14 5l-4 14" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-    ),
+    ), */
   },
   {
     to: '/intelligence',
     label: 'Intelligence',
     end: false,
-    icon: (
+    icon: pullIcon,
+    /* icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
         <circle cx="5" cy="12" r="2.5" />
         <circle cx="18" cy="5" r="2.5" />
         <circle cx="18" cy="19" r="2.5" />
         <path d="m7.3 10.8 8.4-4.6M7.3 13.2l8.4 4.6" strokeLinecap="round" />
       </svg>
-    ),
+    ), */
   },
   {
     to: '/settings',
     label: 'Settings',
     end: false,
-    icon: (
+    icon: settingIcon,
+    /* icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.3 2.3-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V20.5h-3.25v-.1A1.7 1.7 0 0 0 10.23 18.84a1.7 1.7 0 0 0-1.88.34l-.06.06-2.3-2.3.06-.06A1.7 1.7 0 0 0 6.39 15a1.7 1.7 0 0 0-1.56-1.04h-.1v-3.25h.1A1.7 1.7 0 0 0 6.39 9.67a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.3-2.3.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.04-1.56v-.1h3.25v.1a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.3 2.3-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.04h.1v3.25h-.1A1.7 1.7 0 0 0 19.4 15Z" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-    ),
+    ), */
   },
 ];
 
 export const AppShell = () => {
   const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
   const shellRef = useRef<HTMLDivElement>(null);
   const [dashboardSidebarWidth, setDashboardSidebarWidth] = useState(
     DASHBOARD_SIDEBAR_DEFAULT_WIDTH,
@@ -148,7 +154,14 @@ export const AppShell = () => {
                 }`
               }
             >
-              <span className="h-5 w-5 shrink-0">{item.icon}</span>
+              <span className="h-5 w-5 shrink-0">
+                <img
+                  src={item.icon}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full object-contain brightness-0 invert"
+                />
+              </span>
               {isDashboardSidebarCollapsed ? (
                 <span className="sr-only">{item.label}</span>
               ) : (
@@ -158,41 +171,6 @@ export const AppShell = () => {
           ))}
         </nav>
 
-        <div
-          className={`${
-            isDashboardSidebarCollapsed ? 'p-2' : 'p-3'
-          }`}
-        >
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={theme === 'dark' ? 'Attiva tema chiaro' : 'Attiva tema scuro'}
-            title={theme === 'dark' ? 'Attiva tema chiaro' : 'Attiva tema scuro'}
-            className={`inline-flex h-10 w-full items-center rounded-xl text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
-              isDashboardSidebarCollapsed
-                ? 'justify-center px-2'
-                : 'gap-3 px-3'
-            }`}
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-              {theme === 'dark' ? (
-                <>
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" strokeLinecap="round" />
-                </>
-              ) : (
-                <path d="M20.5 15.6A8.5 8.5 0 0 1 8.4 3.5 8.5 8.5 0 1 0 20.5 15.6Z" strokeLinecap="round" strokeLinejoin="round" />
-              )}
-            </svg>
-            {isDashboardSidebarCollapsed ? (
-              <span className="sr-only">
-                {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-              </span>
-            ) : (
-              theme === 'dark' ? 'Light theme' : 'Dark theme'
-            )}
-          </button>
-        </div>
       </aside>
 
       <div
