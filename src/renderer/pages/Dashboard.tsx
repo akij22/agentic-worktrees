@@ -598,7 +598,7 @@ export const Dashboard = () => {
 
 				{loadState.status === "error" ? (
 					<section className="flex min-w-0 flex-1 items-center justify-center p-8">
-						<div className="max-w-md rounded-2xl bg-error-surface/70 px-8 py-7 text-center">
+						<div className="max-w-md rounded-xl border border-error-foreground/10 bg-error-surface/70 px-8 py-7 text-center">
 							<h2 className="text-base font-semibold text-destructive">
 								Failed to load repositories
 							</h2>
@@ -618,7 +618,7 @@ export const Dashboard = () => {
 					</section>
 				) : loadState.status === "success" && repositories.length === 0 ? (
 					<section className="flex min-w-0 flex-1 items-center justify-center p-8">
-						<div className="max-w-md rounded-2xl bg-card/40 px-8 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+						<div className="surface-panel max-w-md px-8 py-10 text-center">
 							<h2 className="text-base font-semibold">No repositories</h2>
 							<p className="mt-2 text-sm text-muted-foreground">
 								Add a local repository or select repositories from the connected
@@ -885,7 +885,7 @@ export const Dashboard = () => {
 					<div className="mt-4 grid gap-3">
 						<button
 							type="button"
-							className="rounded-2xl bg-muted/40 p-4 text-left transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="rounded-xl border border-white/[0.045] bg-muted/40 p-4 text-left transition-colors hover:border-primary/15 hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 							onClick={() => void importLocalRepository()}
 							disabled={addRepository.mode !== "idle"}
 						>
@@ -904,7 +904,7 @@ export const Dashboard = () => {
 
 						{(addRepository.mode === "remote-selecting" ||
 							addRepository.mode === "remote-importing") && (
-							<div className="rounded-2xl bg-muted/25 p-3">
+							<div className="rounded-xl border border-white/[0.04] bg-muted/25 p-3">
 								<div className="mb-2 flex items-center justify-between gap-3">
 									<div>
 										<div className="text-sm font-semibold">
@@ -1006,7 +1006,7 @@ export const Dashboard = () => {
 
 						<button
 							type="button"
-							className="rounded-2xl bg-muted/40 p-4 text-left transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="rounded-xl border border-white/[0.045] bg-muted/40 p-4 text-left transition-colors hover:border-primary/15 hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 							onClick={() => void importRemoteRepositories()}
 							disabled={addRepository.mode !== "idle"}
 						>

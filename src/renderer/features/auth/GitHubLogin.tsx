@@ -9,7 +9,6 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
-import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import {
   Card,
@@ -76,29 +75,26 @@ export const GitHubLogin = () => {
         src={loginBackground}
         alt=""
         aria-hidden="true"
-        className="fixed inset-0 -z-30 h-full w-full object-cover object-center opacity-75 [filter:hue-rotate(205deg)_saturate(0.72)_brightness(0.7)]"
+        className="fixed inset-0 -z-30 h-full w-full object-cover object-center opacity-45 [filter:hue-rotate(208deg)_saturate(0.42)_brightness(0.5)]"
       />
       <div
         aria-hidden="true"
-        className="fixed inset-0 -z-20 bg-[linear-gradient(115deg,color-mix(in_oklab,var(--chrome)_38%,transparent)_0%,color-mix(in_oklab,var(--surface-overlay)_58%,transparent)_48%,color-mix(in_oklab,var(--canvas)_86%,transparent)_100%)]"
+        className="fixed inset-0 -z-20 bg-[linear-gradient(115deg,color-mix(in_oklab,var(--chrome)_76%,transparent)_0%,color-mix(in_oklab,var(--surface-overlay)_68%,transparent)_48%,color-mix(in_oklab,var(--canvas)_94%,transparent)_100%)]"
       />
       <div
         aria-hidden="true"
-        className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_67%_34%,rgba(255,255,255,0.14),transparent_30%)] opacity-70 dark:opacity-40"
+        className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_67%_34%,rgba(138,180,248,0.13),transparent_32%)] opacity-70"
       />
 
       <div className="mx-auto flex min-h-full w-full max-w-6xl items-center justify-center px-5 py-10 sm:px-8 lg:pl-24 lg:pr-0">
-        <Card className="w-full max-w-md overflow-hidden rounded-2xl bg-card/90 shadow-[0_32px_100px_-28px_rgba(0,0,0,0.85)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/80 dark:bg-card/90 dark:supports-[backdrop-filter]:bg-card/75">
-          <CardHeader className="bg-card/35 pb-5">
+        <Card className="w-full max-w-md overflow-hidden rounded-xl bg-card/90 shadow-[0_34px_110px_-30px_rgba(0,0,0,0.95)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/[0.82]">
+          <CardHeader className="border-b border-white/[0.045] bg-card/45 pb-5">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-[#f8f5ef] shadow-sm">
-                <img src={appLogo} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+              <div className="flex size-10 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#f5f3ee] shadow-sm">
+                <img src={appLogo} alt="Agentic Worktrees" className="h-full w-full object-cover" />
               </div>
-              <Badge variant="outline" className="font-mono uppercase tracking-wider">
-                GitHub connection
-              </Badge>
             </div>
-            <h1 className="text-xl font-semibold leading-none tracking-tight">
+            <h1 className="text-xl font-semibold leading-none tracking-[-0.022em]">
               Agentic Worktrees
             </h1>
             <CardDescription className="mt-1 leading-5">

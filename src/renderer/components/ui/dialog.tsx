@@ -32,12 +32,12 @@ export const Dialog = ({
       aria-modal="true"
     >
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70 backdrop-blur-md"
         onClick={() => onOpenChange(false)}
       />
       <div
         className={cn(
-          'relative z-10 mx-4 w-full max-w-lg rounded-2xl bg-card p-6 text-card-foreground shadow-2xl ring-1 ring-white/[0.06]',
+          'relative z-10 mx-4 w-full max-w-lg rounded-xl border border-white/[0.075] bg-card/95 p-6 text-card-foreground shadow-2xl backdrop-blur-xl',
           className,
         )}
       >
@@ -62,7 +62,7 @@ export const DialogTitle = ({
   ...props
 }: React.ComponentProps<'h2'>) => (
   <h2
-    className={cn('text-lg font-semibold leading-none tracking-tight', className)}
+    className={cn('text-lg font-semibold leading-none tracking-[-0.018em]', className)}
     {...props}
   />
 );

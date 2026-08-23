@@ -25,7 +25,7 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex min-h-72 flex-col overflow-hidden rounded-2xl bg-card text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_20px_46px_-38px_rgba(112,185,238,0.45)] transition-all hover:-translate-y-0.5 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="surface-panel group flex min-h-72 flex-col overflow-hidden text-left transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary/20 hover:bg-surface-raised hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
     >
       <div className="flex items-start justify-between gap-4 bg-muted/30 px-4 py-3.5">
         <div className="min-w-0 space-y-1.5">

@@ -103,7 +103,7 @@ export const SessionMessages = ({
             {message.role === "user" ? "You" : agentName}
           </div>
           {message.content.trim() && message.role === "user" ? (
-            <div className="ml-auto w-fit max-w-full whitespace-pre-wrap rounded-2xl rounded-tr-md bg-message-surface px-4 py-3 text-sm leading-6 text-message-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="ml-auto w-fit max-w-full whitespace-pre-wrap rounded-xl rounded-tr-sm border border-primary/10 bg-message-surface px-4 py-3 text-sm leading-6 text-message-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               {message.content}
             </div>
           ) : null}
@@ -138,7 +138,7 @@ export const SessionMessages = ({
         onRespond={onRespondPermission}
       />
     ) : permission ? (
-      <div className="rounded-2xl bg-chart-4/10 p-4 shadow-[inset_3px_0_0_var(--chart-4)]">
+      <div className="rounded-xl border border-chart-4/10 bg-chart-4/10 p-4 shadow-[inset_2px_0_0_var(--chart-4)]">
         <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Permission required · {permission.type}
         </div>

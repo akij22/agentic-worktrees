@@ -103,7 +103,7 @@ export const SecondarySessionSelector = ({
       <div className="flex h-full min-h-0 items-center justify-center bg-card p-6">
         <div
           role="status"
-          className="w-full max-w-2xl space-y-4 rounded-2xl bg-surface-raised/55 p-5 shadow-xl ring-1 ring-white/[0.05]"
+          className="w-full max-w-2xl space-y-4 rounded-xl border border-white/[0.065] bg-surface-raised/75 p-5 shadow-xl"
         >
           <span className="sr-only">Loading coding agent chats</span>
           <Skeleton className="h-5 w-44" />
@@ -120,7 +120,7 @@ export const SecondarySessionSelector = ({
 
   return (
     <div className="flex h-full min-h-0 items-center justify-center bg-card p-6">
-      <div className="flex max-h-[calc(100%-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-surface-raised/45 shadow-xl ring-1 ring-white/[0.05]">
+      <div className="flex max-h-[calc(100%-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-white/[0.065] bg-surface-raised/75 shadow-xl">
         <div className="shrink-0 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>

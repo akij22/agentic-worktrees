@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  FolderGit2,
+  GitPullRequestArrow,
+  MessageSquareCode,
+  Settings2,
+  type LucideIcon,
+} from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import appLogo from '../assets/agentic-worktrees-logo.png';
-import commentIcon from '../../../docs/assets/comment.png';
-import folderIcon from '../../../docs/assets/folder.png';
-import pullIcon from '../../../docs/assets/pull.png';
-import settingIcon from '../../../docs/assets/setting.png';
+import { cn } from '../lib/utils';
 import { RouteTransition } from './RouteTransition';
 import {
   clampDashboardSidebarWidth,
@@ -15,59 +19,79 @@ import {
   isDashboardWorkspace,
 } from './app-shell-layout';
 
-const navItems = [
+type NavItem = {
+  to: string;
+  label: string;
+  end: boolean;
+  icon: LucideIcon;
+  placement: 'main' | 'footer';
+};
+
+const navItems: NavItem[] = [
   {
     to: '/',
     label: 'Dashboard',
     end: true,
-    icon: folderIcon,
-    /* icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-      </svg>
-    ), */
+    icon: FolderGit2,
+    placement: 'main',
   },
   {
     to: '/coding-agent',
     label: 'Coding Agent',
     end: false,
-    icon: commentIcon,
-    /* icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        <path d="M8 9 5 12l3 3M16 9l3 3-3 3M14 5l-4 14" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ), */
+    icon: MessageSquareCode,
+    placement: 'main',
   },
   {
     to: '/intelligence',
     label: 'Intelligence',
     end: false,
-    icon: pullIcon,
-    /* icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        <circle cx="5" cy="12" r="2.5" />
-        <circle cx="18" cy="5" r="2.5" />
-        <circle cx="18" cy="19" r="2.5" />
-        <path d="m7.3 10.8 8.4-4.6M7.3 13.2l8.4 4.6" strokeLinecap="round" />
-      </svg>
-    ), */
+    icon: GitPullRequestArrow,
+    placement: 'main',
   },
   {
     to: '/settings',
     label: 'Settings',
     end: false,
-    icon: settingIcon,
-    /* icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.3 2.3-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.04 1.56V20.5h-3.25v-.1A1.7 1.7 0 0 0 10.23 18.84a1.7 1.7 0 0 0-1.88.34l-.06.06-2.3-2.3.06-.06A1.7 1.7 0 0 0 6.39 15a1.7 1.7 0 0 0-1.56-1.04h-.1v-3.25h.1A1.7 1.7 0 0 0 6.39 9.67a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.3-2.3.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.04-1.56v-.1h3.25v.1a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.3 2.3-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.04h.1v3.25h-.1A1.7 1.7 0 0 0 19.4 15Z" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ), */
+    icon: Settings2,
+    placement: 'footer',
   },
 ];
+
+const SidebarNavItem = ({
+  item,
+  collapsed,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+}) => {
+  const Icon = item.icon;
+
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      title={collapsed ? item.label : undefined}
+      className={({ isActive }) =>
+        cn(
+          'group flex h-10 items-center rounded-lg text-[13px] font-medium transition-[background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60',
+          collapsed ? 'justify-center px-2' : 'gap-3 px-3',
+          isActive
+            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_8px_22px_-18px_rgba(138,180,248,0.75)]'
+            : 'text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        )
+      }
+    >
+      <span className="flex size-5 shrink-0 items-center justify-center">
+        <Icon
+          aria-hidden="true"
+          className="size-[17px] stroke-[1.75] transition-colors group-aria-[current=page]:text-primary"
+        />
+      </span>
+      {collapsed ? <span className="sr-only">{item.label}</span> : item.label}
+    </NavLink>
+  );
+};
 
 export const AppShell = () => {
   const location = useLocation();
@@ -108,7 +132,7 @@ export const AppShell = () => {
     <div ref={shellRef} className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       <aside
         style={{ width: `${dashboardSidebarWidth}px` }}
-        className="relative z-20 flex min-h-[20rem] w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(112,185,238,0.4)]"
+        className="relative z-20 flex min-h-[20rem] w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[12px_0_32px_-28px_rgba(0,0,0,0.95)]"
       >
         <div
           className={`flex h-16 items-center ${
@@ -117,14 +141,14 @@ export const AppShell = () => {
               : 'gap-2.5 px-5'
           }`}
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#f8f5ef] shadow-sm">
-            <img src={appLogo} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+          <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#f5f3ee] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_7px_20px_-12px_rgba(0,0,0,0.9)]">
+            <img src={appLogo} alt="Agentic Worktrees" className="h-full w-full object-cover" />
           </div>
           <span
             className={
               isDashboardSidebarCollapsed
                 ? 'sr-only'
-                : 'font-semibold tracking-tight text-foreground'
+                : 'text-sm font-semibold tracking-[-0.018em] text-foreground'
             }
           >
             Agentic Worktrees
@@ -137,72 +161,28 @@ export const AppShell = () => {
           }`}
         >
           {navItems
-            .filter((item) => item.to !== '/settings')
+            .filter((item) => item.placement === 'main')
             .map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              title={isDashboardSidebarCollapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                `flex h-10 items-center rounded-md text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
-                  isDashboardSidebarCollapsed
-                    ? 'justify-center px-2'
-                    : 'gap-3 px-3'
-                } ${
-                  isActive
-                    ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                }`
-              }
-            >
-              <span className="h-5 w-5 shrink-0">
-                <img
-                  src={item.icon}
-                  alt=""
-                  aria-hidden="true"
-                  className="h-full w-full object-contain brightness-0 invert"
-                />
-              </span>
-              {isDashboardSidebarCollapsed ? (
-                <span className="sr-only">{item.label}</span>
-              ) : (
-                item.label
-              )}
-            </NavLink>
+              <SidebarNavItem
+                key={item.to}
+                item={item}
+                collapsed={isDashboardSidebarCollapsed}
+              />
             ))}
         </nav>
 
         <div
           className={`pb-3 ${isDashboardSidebarCollapsed ? 'px-2' : 'px-3'}`}
         >
-          <NavLink
-            to="/settings"
-            title={isDashboardSidebarCollapsed ? 'Settings' : undefined}
-            className={({ isActive }) =>
-              `flex h-10 items-center rounded-md text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
-                isDashboardSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } ${
-                isActive
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-              }`
-            }
-          >
-            <span className="h-5 w-5 shrink-0">
-              <img
-                src={settingIcon}
-                alt=""
-                aria-hidden="true"
-                className="h-full w-full object-contain brightness-0 invert"
+          {navItems
+            .filter((item) => item.placement === 'footer')
+            .map((item) => (
+              <SidebarNavItem
+                key={item.to}
+                item={item}
+                collapsed={isDashboardSidebarCollapsed}
               />
-            </span>
-            {isDashboardSidebarCollapsed ? (
-              <span className="sr-only">Settings</span>
-            ) : (
-              'Settings'
-            )}
-          </NavLink>
+            ))}
         </div>
 
       </aside>

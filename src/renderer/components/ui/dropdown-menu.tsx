@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 
@@ -49,17 +50,17 @@ export const DropdownMenu = <T extends string>({
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-raised/65 px-3 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-white/[0.065] bg-surface-raised/65 px-3 text-xs font-semibold text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         {label}
-        <span aria-hidden="true">▾</span>
+        <ChevronDown aria-hidden="true" className="size-3.5 stroke-[1.8]" />
       </button>
       {open && (
         <div
           id={menuId}
           role="menu"
           aria-label={label}
-          className="absolute right-0 z-10 mt-1 min-w-48 rounded-xl bg-popover p-1.5 text-popover-foreground shadow-xl ring-1 ring-white/[0.06]"
+          className="absolute right-0 z-10 mt-1.5 min-w-48 rounded-lg border border-white/[0.075] bg-popover/95 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl"
         >
           {items.map((item, index) => (
             <button
@@ -98,7 +99,7 @@ export const DropdownMenu = <T extends string>({
                   triggerRef.current?.focus();
                 }
               }}
-              className="flex w-full items-center rounded-lg px-2.5 py-2 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+              className="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
             >
               {item.iconSrc && (
                 <span

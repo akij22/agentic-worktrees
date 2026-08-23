@@ -18,7 +18,7 @@ export const SessionChangesSummary = ({
   return (
     <section
       aria-label="Changes summary"
-      className="max-w-[48rem] overflow-hidden rounded-2xl bg-muted/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      className="max-w-[48rem] overflow-hidden rounded-xl border border-white/[0.055] bg-muted/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
     >
       <div className="flex items-center justify-between gap-3 px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2.5">

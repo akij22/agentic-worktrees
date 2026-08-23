@@ -234,10 +234,10 @@ export const CodingAgentSession = ({
   };
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <section className="flex min-h-16 shrink-0 items-center bg-background px-6 py-2">
+      <section className="flex min-h-16 shrink-0 items-center border-b border-border/60 bg-background/95 px-6 py-2 backdrop-blur-xl">
         <div className="flex min-w-0 flex-1 items-center gap-6">
           {headerTitle ? (
-            <h1 className="shrink-0 text-base font-semibold tracking-tight">
+            <h1 className="shrink-0 text-base font-semibold tracking-[-0.018em]">
               {headerTitle}
             </h1>
           ) : null}

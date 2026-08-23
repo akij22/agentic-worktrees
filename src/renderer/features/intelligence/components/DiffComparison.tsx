@@ -119,7 +119,7 @@ export const DiffComparison = ({
 						{[comparison.left, comparison.right].map((side) => (
 							<section
 								key={side.worktreeId}
-								className="min-w-0 overflow-hidden rounded-2xl bg-background/55"
+								className="min-w-0 overflow-hidden rounded-xl border border-white/[0.045] bg-background/55"
 							>
 								<header className="flex items-center justify-between px-3 py-2">
 									<code className="text-[10px]">{side.worktreeId}</code>

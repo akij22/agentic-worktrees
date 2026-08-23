@@ -46,7 +46,7 @@ export const WorkspacePanel = ({
       aria-label="Workspace tools"
       className="flex min-h-0 flex-col bg-muted/20 xl:overflow-hidden"
     >
-      <header className="shrink-0 bg-card/45 px-3 py-3">
+      <header className="shrink-0 border-b border-border/60 bg-card/75 px-3 py-3">
         <nav
           aria-label="Workspace modes"
           className="grid grid-cols-3 gap-1 rounded-xl bg-background/70 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"

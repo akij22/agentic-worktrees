@@ -134,8 +134,8 @@ export const PickerMenu = ({
         disabled={disabled}
         onClick={() => onOpenChange(!open)}
         className={cn(
-          "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-full border border-border/70 bg-muted/40 px-2.5 text-[11px] font-medium text-foreground transition-colors hover:bg-muted hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-          open && "bg-muted text-accent-foreground ring-1 ring-ring/60",
+          "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-white/[0.065] bg-muted/40 px-2.5 text-[11px] font-semibold text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50",
+          open && "border-primary/35 bg-muted text-accent-foreground ring-1 ring-ring/30",
           triggerClassName,
         )}
       >
@@ -153,7 +153,7 @@ export const PickerMenu = ({
           role="listbox"
           aria-label={ariaLabel}
           onKeyDown={onKeyDown}
-          className="absolute bottom-full left-0 z-30 mb-1.5 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-popover p-1 shadow-2xl ring-1 ring-white/[0.08]"
+          className="absolute bottom-full left-0 z-30 mb-1.5 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-white/[0.075] bg-popover/95 p-1 shadow-2xl backdrop-blur-xl"
         >
           {searchable ? (
             <div className="relative mb-1">
@@ -169,7 +169,7 @@ export const PickerMenu = ({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={searchPlaceholder}
-                className="h-8 w-full rounded-lg bg-muted/40 pl-8 pr-2 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-8 w-full rounded-md border border-white/[0.055] bg-background/55 pl-8 pr-2 text-xs outline-none placeholder:text-placeholder focus-visible:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring/30"
               />
             </div>
           ) : null}
@@ -196,7 +196,7 @@ export const PickerMenu = ({
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => !option.disabled && commit(option.id)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors",
                       index === activeIndex && "bg-accent text-accent-foreground",
                       isSelected && "font-semibold",
                       option.disabled && "cursor-not-allowed opacity-50",

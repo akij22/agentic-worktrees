@@ -70,6 +70,9 @@ export const TerminalPanel = ({
     if (!container) return;
 
     disposedRef.current = false;
+    const rootStyle = window.getComputedStyle(document.documentElement);
+    const terminalColor = (property: string) =>
+      rootStyle.getPropertyValue(property).trim();
     const terminal = new Terminal({
       convertEol: true,
       cursorBlink: true,
@@ -78,13 +81,15 @@ export const TerminalPanel = ({
       fontSize: 12,
       lineHeight: 1.25,
       theme: {
-        background: '#17212b',
-        foreground: '#e2f1fc',
-        cursor: '#70b9ee',
-        selectionBackground: '#2f526b',
-        scrollbarSliderBackground: '#4e5b65',
-        scrollbarSliderHoverBackground: '#64727c',
-        scrollbarSliderActiveBackground: '#70b9ee',
+        background: terminalColor('--terminal-background'),
+        foreground: terminalColor('--terminal-foreground'),
+        cursor: terminalColor('--terminal-cursor'),
+        selectionBackground: terminalColor('--terminal-selection'),
+        scrollbarSliderBackground: terminalColor('--terminal-scrollbar'),
+        scrollbarSliderHoverBackground: terminalColor(
+          '--terminal-scrollbar-hover',
+        ),
+        scrollbarSliderActiveBackground: terminalColor('--terminal-cursor'),
       },
     });
     const fitAddon = new FitAddon();
