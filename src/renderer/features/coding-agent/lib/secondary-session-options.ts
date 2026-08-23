@@ -4,6 +4,7 @@ import type {
 } from "../../../../shared/ipc/schemas";
 import type { SessionGridDetail } from "../types";
 import { compactActivity } from "./formatters";
+import { getWorkspaceShortLabel } from "./workspace-labels";
 
 export type SecondarySessionOption = {
   session: CodingAgentSessionDto;
@@ -43,7 +44,7 @@ export const buildSecondarySessionOptions = ({
         session,
         repository:
           context?.repository.fullName ?? "Unavailable repository",
-        branch: context?.worktree.branchName ?? "missing worktree",
+        branch: context ? getWorkspaceShortLabel(context) : "missing workspace",
         activity: compactActivity(detail?.lastActivity),
         detail,
       };

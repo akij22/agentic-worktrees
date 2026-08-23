@@ -9,6 +9,7 @@ import {
 } from "../lib/formatters";
 import type { SessionGridDetail } from "../types";
 import { GridIcon } from "./GridIcon";
+import { getWorkspaceShortLabel } from "../lib/workspace-labels";
 
 type Props = {
   session: CodingAgentSessionDto;
@@ -34,7 +35,7 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
           <div className="flex items-center gap-1.5 font-mono text-xs text-primary">
             <GridIcon name="branch" />
             <span className="truncate">
-              {context?.worktree.branchName ?? "missing worktree"}
+              {context ? getWorkspaceShortLabel(context) : "missing workspace"}
             </span>
           </div>
         </div>
@@ -88,7 +89,7 @@ export const SessionCard = ({ session, context, detail, onOpen }: Props) => {
       <div className="h-px w-full bg-primary" aria-hidden="true" />
       <div className="flex items-center justify-between bg-muted/20 px-4 py-2.5">
         <span className="truncate font-mono text-[11px] text-muted-foreground">
-          {context?.worktree.name ?? "Unavailable worktree"}
+          {context ? getWorkspaceShortLabel(context) : "Unavailable workspace"}
         </span>
         <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary transition-transform group-hover:translate-x-0.5">
           Open session

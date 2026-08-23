@@ -57,17 +57,11 @@ export const RepositorySidebar = ({
   onSelect,
 }: RepositorySidebarProps) => {
   const [expandedRepositoryIds, setExpandedRepositoryIds] = useState<Set<string>>(
-    () => new Set(selectedRepositoryId ? [selectedRepositoryId] : []),
+    () => new Set(),
   );
 
   useEffect(() => {
     if (!selectedRepositoryId) return;
-    setExpandedRepositoryIds((current) => {
-      if (current.has(selectedRepositoryId)) return current;
-      const next = new Set(current);
-      next.add(selectedRepositoryId);
-      return next;
-    });
     onBranchesRequested(selectedRepositoryId);
   }, [onBranchesRequested, selectedRepositoryId]);
 

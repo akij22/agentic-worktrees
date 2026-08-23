@@ -7,6 +7,18 @@ type TableInfoRow = {
 };
 
 export const applyDatabaseUpgrades = (sqlite: Database.Database): void => {
+	const worktreeColumns = sqlite
+		.prepare("PRAGMA table_info(worktrees)")
+		.all() as TableInfoRow[];
+	if (
+		worktreeColumns.length > 0 &&
+		!worktreeColumns.some(({ name }) => name === "kind")
+	) {
+		sqlite.exec(
+			"ALTER TABLE worktrees ADD COLUMN kind TEXT NOT NULL DEFAULT 'linked'",
+		);
+	}
+
   const sessionColumns = sqlite
     .prepare('PRAGMA table_info(coding_agent_sessions)')
     .all() as TableInfoRow[];

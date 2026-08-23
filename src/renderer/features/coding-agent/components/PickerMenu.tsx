@@ -11,9 +11,11 @@ export type PickerOption = {
   id: string;
   label: string;
   hint?: string;
+  disabled?: boolean;
 };
 
 type Props = {
+  id?: string;
   ariaLabel: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -29,6 +31,7 @@ type Props = {
 };
 
 export const PickerMenu = ({
+  id,
   ariaLabel,
   open,
   onOpenChange,
@@ -92,6 +95,8 @@ export const PickerMenu = ({
     : options;
 
   const commit = (id: string) => {
+    const option = options.find((candidate) => candidate.id === id);
+    if (option?.disabled) return;
     onChange(id);
     onOpenChange(false);
   };
@@ -101,9 +106,14 @@ export const PickerMenu = ({
       event.preventDefault();
       if (filtered.length === 0) return;
       const direction = event.key === "ArrowDown" ? 1 : -1;
-      setActiveIndex(
-        (current) => (current + direction + filtered.length) % filtered.length,
-      );
+      setActiveIndex((current) => {
+        for (let offset = 1; offset <= filtered.length; offset += 1) {
+          const index =
+            (current + direction * offset + filtered.length) % filtered.length;
+          if (!filtered[index]?.disabled) return index;
+        }
+        return current;
+      });
       return;
     }
     if (event.key === "Enter") {
@@ -117,6 +127,7 @@ export const PickerMenu = ({
     <div ref={rootRef} className="relative">
       <button
         type="button"
+        id={id}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -177,15 +188,18 @@ export const PickerMenu = ({
                       optionRefs.current[index] = element;
                     }}
                     type="button"
+                    disabled={option.disabled}
                     role="option"
                     aria-selected={isSelected}
+                    aria-disabled={option.disabled || undefined}
                     onMouseDown={(event) => event.preventDefault()}
                     onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => commit(option.id)}
+                    onClick={() => !option.disabled && commit(option.id)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
                       index === activeIndex && "bg-accent text-accent-foreground",
                       isSelected && "font-semibold",
+                      option.disabled && "cursor-not-allowed opacity-50",
                     )}
                   >
                     <Check

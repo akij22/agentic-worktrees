@@ -86,7 +86,7 @@ export const CodingAgentWorkspace = ({
   const secondaryPanelRef = useRef<HTMLDivElement>(null);
   const dualLayoutButtonRef = useRef<HTMLButtonElement>(null);
   const [mode, setMode] = useState<CodingAgentLayoutMode>("single");
-  const [workspaceOpen, setWorkspaceOpen] = useState(true);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [primaryPanelWidth, setPrimaryPanelWidth] = useState<number>();
   const [primaryPanelPercent, setPrimaryPanelPercent] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
@@ -95,6 +95,10 @@ export const CodingAgentWorkspace = ({
     mode,
     prefersReducedMotion,
   );
+
+  useEffect(() => {
+    setWorkspaceOpen(false);
+  }, [primaryRunId]);
 
   const updatePrimaryPanelWidth = (requestedWidth: number) => {
     const bounds = workspaceRef.current?.getBoundingClientRect();

@@ -25,6 +25,11 @@ import {
 } from './codex-utils';
 import { OpenCodeAdapter } from './opencode-adapter';
 import {
+  revalidatePrimaryWorkspace,
+  synchronizePrimaryWorkspaces,
+  type AgentWorktreeContext,
+} from './primary-workspace-service';
+import {
   findOpenCodeInSystem,
   parseOpenCodeVersion,
 } from './opencode-utils';
@@ -72,11 +77,6 @@ export interface AgentSessionSummary {
   modelId: string;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface AgentWorktreeContext {
-  worktree: typeof worktrees.$inferSelect;
-  repository: typeof repositories.$inferSelect;
 }
 
 export interface AgentSessionSnapshot {
@@ -611,12 +611,26 @@ export const getAgentInstallationStatus = (): AgentStatus => ({
   }),
 });
 
-export const listAgentWorktrees = (): AgentWorktreeContext[] =>
-  getDatabase()
+export const listAgentWorktrees = async (): Promise<AgentWorktreeContext[]> => {
+  const primaryContexts = await synchronizePrimaryWorkspaces();
+  const linkedContexts = getDatabase()
     .select({ worktree: worktrees, repository: repositories })
     .from(worktrees)
     .innerJoin(repositories, eq(repositories.id, worktrees.repositoryId))
+    .where(eq(worktrees.kind, 'linked'))
     .all();
+
+  return [...primaryContexts, ...linkedContexts].sort((left, right) => {
+    const repositoryOrder = left.repository.name.localeCompare(
+      right.repository.name,
+    );
+    if (repositoryOrder !== 0) return repositoryOrder;
+    if (left.worktree.kind !== right.worktree.kind) {
+      return left.worktree.kind === 'primary' ? -1 : 1;
+    }
+    return left.worktree.name.localeCompare(right.worktree.name);
+  });
+};
 
 export const listAgentModels = async (
   runId: string,
@@ -680,7 +694,15 @@ export const createAgentSession = async (input: {
   title: string;
 }): Promise<AgentSessionSummary> => {
   const harness = harnesses[input.agentKind];
-  const context = getContext(input.worktreeId);
+  const storedWorktree = getDatabase()
+    .select()
+    .from(worktrees)
+    .where(eq(worktrees.id, input.worktreeId))
+    .get();
+  const context =
+    storedWorktree?.kind === 'primary'
+      ? await revalidatePrimaryWorkspace(input.worktreeId)
+      : getContext(input.worktreeId);
   const installation = getInstallation(input.agentKind);
   if (!installation?.enabled) {
     throw new Error(`${harness.name} is not configured.`);

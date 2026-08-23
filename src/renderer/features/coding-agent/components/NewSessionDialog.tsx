@@ -15,7 +15,8 @@ import {
 } from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
-import { Select } from "../../../components/ui/select";
+import { PickerMenu } from "./PickerMenu";
+import { getWorkspaceLabel } from "../lib/workspace-labels";
 
 type Props = {
   open: boolean;
@@ -56,19 +57,57 @@ export const NewSessionDialog = ({
       }
     }
 
-    return [...groups.values()];
+    return [...groups.values()].map((group) => ({
+      ...group,
+      contexts: group.contexts.toSorted((left, right) => {
+        if (left.worktree.kind !== right.worktree.kind) {
+          return left.worktree.kind === "primary" ? -1 : 1;
+        }
+        return left.worktree.name.localeCompare(right.worktree.name);
+      }),
+    }));
   }, [contexts]);
   const [worktreeId, setWorktreeId] = useState(initialWorktreeId ?? "");
   const [agentKind, setAgentKind] = useState<CodingAgentKindDto | "">("");
+  const [agentPickerOpen, setAgentPickerOpen] = useState(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
   const [title, setTitle] = useState("New coding session");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string>();
   useEffect(() => {
     if (open) {
-      setWorktreeId(initialWorktreeId ?? contexts[0]?.worktree.id ?? "");
+      const requested = contexts.find(
+        ({ worktree }) => worktree.id === initialWorktreeId,
+      );
+      const preferred =
+        requested ??
+        contexts.find(({ worktree }) => worktree.kind === "primary") ??
+        contexts[0];
+      setWorktreeId(preferred?.worktree.id ?? "");
       setAgentKind("");
+      setAgentPickerOpen(false);
+      setWorkspacePickerOpen(false);
     }
   }, [contexts, initialWorktreeId, open]);
+  const selectedContext = contexts.find(
+    ({ worktree }) => worktree.id === worktreeId,
+  );
+  const agentOptions = installations.map((installation) => ({
+    id: installation.kind,
+    label: installation.name,
+    disabled: !installation.configured,
+    hint: installation.configured ? undefined : "Not configured",
+  }));
+  const workspaceOptions = projectGroups.flatMap((project) =>
+    project.contexts.map((context) => ({
+      id: context.worktree.id,
+      label: getWorkspaceLabel(context),
+      hint: project.name,
+    })),
+  );
+  const selectedInstallation = installations.find(
+    ({ kind }) => kind === agentKind,
+  );
   if (!open) return null;
   const create = async () => {
     if (!agentKind || !worktreeId || !title.trim()) return;
@@ -91,49 +130,50 @@ export const NewSessionDialog = ({
       <DialogHeader>
         <DialogTitle>New coding session</DialogTitle>
         <DialogDescription>
-          Select a worktree. You can choose the AI model directly from the chat.
+          Select a workspace. You can choose the AI model directly from the chat.
         </DialogDescription>
       </DialogHeader>
       <div className="mt-5 space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="coding-agent-harness">Coding agent</Label>
-          <Select
+          <PickerMenu
             id="coding-agent-harness"
+            ariaLabel="Coding agent"
+            open={agentPickerOpen}
+            onOpenChange={setAgentPickerOpen}
+            options={agentOptions}
             value={agentKind}
-            onChange={(event) =>
-              setAgentKind(event.target.value as CodingAgentKindDto | "")
-            }
-          >
-            <option value="">Select a coding agent…</option>
-            {installations.map((installation) => (
-              <option
-                key={installation.kind}
-                value={installation.kind}
-                disabled={!installation.configured}
-              >
-                {installation.name}
-                {installation.configured ? "" : " (not configured)"}
-              </option>
-            ))}
-          </Select>
+            onChange={(id) => setAgentKind(id as CodingAgentKindDto)}
+            display={selectedInstallation?.name ?? "Select a coding agent…"}
+            triggerClassName="h-10 w-full justify-between rounded-xl bg-muted/55 px-3 text-sm"
+          />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="agent-worktree">Worktree</Label>
-          <Select
+          <Label htmlFor="agent-worktree">Workspace</Label>
+          <PickerMenu
             id="agent-worktree"
+            ariaLabel="Workspace"
+            open={workspacePickerOpen}
+            onOpenChange={setWorkspacePickerOpen}
+            options={workspaceOptions}
             value={worktreeId}
-            onChange={(event) => setWorktreeId(event.target.value)}
-          >
-            {projectGroups.map((project) => (
-              <optgroup key={project.id} label={project.name}>
-                {project.contexts.map(({ worktree }) => (
-                  <option key={worktree.id} value={worktree.id}>
-                    {worktree.name} · {worktree.branchName}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
+            onChange={setWorktreeId}
+            display={
+              selectedContext
+                ? getWorkspaceLabel(selectedContext)
+                : "Select a workspace…"
+            }
+            searchable
+            searchPlaceholder="Search workspaces…"
+            emptyLabel="No matching workspaces"
+            triggerClassName="h-10 w-full justify-between rounded-xl bg-muted/55 px-3 text-sm"
+          />
+          {selectedContext?.worktree.kind === "primary" ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Changes are applied directly to the shared checkout and can
+              affect other local work.
+            </p>
+          ) : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="agent-title">Session title</Label>

@@ -82,6 +82,10 @@ const mocks = vi.hoisted(() => {
 
   return {
     database: null as AppDatabase | null,
+    primaryContexts: [] as Array<{
+      worktree: typeof worktrees.$inferSelect;
+      repository: typeof repositories.$inferSelect;
+    }>,
     findCodexInSystem: vi.fn<() => Promise<string | null>>(),
     openCode: createAdapter('opencode-session'),
     codex: createAdapter('codex-thread'),
@@ -121,6 +125,17 @@ vi.mock('./codex-utils', () => ({
     output.match(/^codex-cli\s+(\d+\.\d+\.\d+)\s*$/m)?.[1] ?? null,
 }));
 
+vi.mock('./primary-workspace-service', () => ({
+  synchronizePrimaryWorkspaces: vi.fn(async () => mocks.primaryContexts),
+  revalidatePrimaryWorkspace: vi.fn(async (worktreeId: string) => {
+    const context = mocks.primaryContexts.find(
+      ({ worktree }) => worktree.id === worktreeId,
+    );
+    if (!context) throw new Error(`Primary checkout not found: ${worktreeId}`);
+    return context;
+  }),
+}));
+
 import {
   type AgentUiEvent,
   autoDiscoverAgent,
@@ -131,6 +146,7 @@ import {
   getAgentSessionUsage,
   listAgentModels,
   listAgentSessions,
+  listAgentWorktrees,
   markAgentSessionViewed,
   reconcileAgentSession,
   sendAgentMessage,
@@ -292,6 +308,7 @@ beforeEach(() => {
     },
   ]);
   mocks.findCodexInSystem.mockResolvedValue(null);
+  mocks.primaryContexts = [];
   seedContext();
 });
 
@@ -303,6 +320,91 @@ afterEach(() => {
 });
 
 describe('coding-agent service routing', () => {
+  it('lists primary checkouts before linked worktrees', async () => {
+    const database = mocks.database;
+    if (!database) throw new Error('Test database is not initialized.');
+    const repository = database.select().from(repositories).get();
+    if (!repository) throw new Error('Repository fixture is unavailable.');
+    mocks.primaryContexts = [{
+      repository,
+      worktree: {
+        id: 'primary:repository-1',
+        repositoryId: repository.id,
+        name: 'Main checkout',
+        path: '/tmp/primary-repository-1',
+        branchName: 'main',
+        kind: 'primary',
+        baseBranchName: 'main',
+        headCommitSha: null,
+        status: 'ready',
+        activeRunId: null,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        lastSyncedAt: new Date(0),
+      },
+    }];
+
+    const contexts = await listAgentWorktrees();
+
+    expect(contexts.map(({ worktree }) => worktree.kind)).toEqual([
+      'primary',
+      'linked',
+    ]);
+  });
+
+  it('creates a session in a revalidated primary checkout', async () => {
+    const database = mocks.database;
+    if (!database) throw new Error('Test database is not initialized.');
+    const now = new Date(0);
+    const repository = database.insert(repositories).values({
+      id: 'repository-primary',
+      githubRepoId: 2,
+      ownerLogin: 'owner',
+      name: 'primary-repository',
+      fullName: 'owner/primary-repository',
+      defaultBranch: 'main',
+      isPrivate: false,
+      isArchived: false,
+      cloneUrl: 'file:///tmp/primary-repository',
+      sshUrl: null,
+      htmlUrl: '',
+      localRootPath: '/tmp/primary-repository',
+      localCloneStatus: 'cloned',
+      lastLocalScanAt: now,
+      createdAt: now,
+      updatedAt: now,
+      lastSyncedAt: now,
+    }).returning().get();
+    const primary = database.insert(worktrees).values({
+      id: 'primary:repository-primary',
+      repositoryId: repository.id,
+      name: 'Main checkout',
+      path: '/tmp/primary-repository',
+      branchName: 'main',
+      kind: 'primary',
+      baseBranchName: 'main',
+      headCommitSha: null,
+      status: 'ready',
+      activeRunId: null,
+      createdAt: now,
+      updatedAt: now,
+      lastSyncedAt: now,
+    }).returning().get();
+    mocks.primaryContexts = [{ repository, worktree: primary }];
+
+    await createAgentSession({
+      agentKind: 'codex',
+      worktreeId: primary.id,
+      title: 'Direct chat',
+    });
+
+    expect(mocks.codex.adapter.createSession).toHaveBeenCalledWith(
+      primary.path,
+      'Direct chat',
+      { modelId: 'gpt-5.4' },
+    );
+  });
+
   it('ignores an invalid automatically discovered Codex executable', async () => {
     mocks.findCodexInSystem.mockResolvedValue(process.execPath);
 

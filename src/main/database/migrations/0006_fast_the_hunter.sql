@@ -1,0 +1,1 @@
+ALTER TABLE `worktrees` ADD `kind` text DEFAULT 'linked' NOT NULL;

@@ -35,6 +35,7 @@ const createWorktree = (id: string): Worktree => ({
 	name: id,
 	path: `/workspace/.worktrees/${id}`,
 	branchName: `feat/${id}`,
+	kind: "linked",
 	baseBranchName: "main",
 	headCommitSha: null,
 	status: "ready",

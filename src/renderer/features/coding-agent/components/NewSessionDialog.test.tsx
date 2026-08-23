@@ -245,6 +245,7 @@ describe("NewSessionDialog", () => {
   const renderDialog = async (
     open: boolean,
     availableContexts = contexts,
+    initialWorktreeId?: string,
   ) => {
     await act(async () => {
       root.render(
@@ -253,6 +254,7 @@ describe("NewSessionDialog", () => {
             open={open}
             contexts={availableContexts}
             installations={installations}
+            initialWorktreeId={initialWorktreeId}
             onClose={vi.fn()}
           />
           <LocationProbe />
@@ -306,23 +308,28 @@ describe("NewSessionDialog", () => {
       container,
       (element) => element.getAttribute("id") === "coding-agent-harness",
     )[0];
-    const options = findAll(harness, (element) => element.tagName === "OPTION");
     const create = findAll(
       container,
       (element) => element.tagName === "BUTTON" && element.textContent === "Create chat",
     )[0];
 
-    expect(options.map((option) => option.textContent)).toEqual([
-      "Select a coding agent…",
-      "OpenCode",
-      "Codex (not configured)",
-    ]);
-    expect(options[2]?.disabled).toBe(true);
+    expect(harness.textContent).toBe("Select a coding agent…");
     expect(create?.disabled).toBe(true);
 
     await act(async () => {
-      harness.value = "opencode";
-      harness.dispatchEvent(new Event("change", { bubbles: true }));
+      harness.dispatchEvent(new Event("click", { bubbles: true }));
+    });
+    const harnessOptions = findAll(
+      container,
+      (element) => element.getAttribute("role") === "option",
+    );
+    expect(harnessOptions.map((option) => option.textContent)).toEqual([
+      "OpenCode",
+      "CodexNot configured",
+    ]);
+    expect(harnessOptions[1]?.getAttribute("aria-disabled")).toBe("true");
+    await act(async () => {
+      harnessOptions[0]?.dispatchEvent(new Event("click", { bubbles: true }));
     });
     expect(create.disabled).toBe(false);
 
@@ -336,12 +343,19 @@ describe("NewSessionDialog", () => {
       container,
       (element) => element.tagName === "BUTTON" && element.textContent === "Create chat",
     )[0];
-    expect(reopenedHarness.value).toBe("");
     expect(reopenedCreate.disabled).toBe(true);
 
     await act(async () => {
-      reopenedHarness.value = "opencode";
-      reopenedHarness.dispatchEvent(new Event("change", { bubbles: true }));
+      reopenedHarness.dispatchEvent(new Event("click", { bubbles: true }));
+    });
+    const reopenedOption = findAll(
+      container,
+      (element) =>
+        element.getAttribute("role") === "option" &&
+        element.textContent === "OpenCode",
+    )[0];
+    await act(async () => {
+      reopenedOption?.dispatchEvent(new Event("click", { bubbles: true }));
     });
     await act(async () => {
       reopenedCreate.dispatchEvent(new Event("click", { bubbles: true }));
@@ -404,29 +418,98 @@ describe("NewSessionDialog", () => {
 
     await renderDialog(true, groupedContexts);
 
-    const worktreeSelect = findAll(
+    const worktreeTrigger = findAll(
       container,
       (element) => element.getAttribute("id") === "agent-worktree",
     )[0];
-    const groups = findAll(
-      worktreeSelect,
-      (element) => element.tagName === "OPTGROUP",
-    );
+    await act(async () => {
+      worktreeTrigger.dispatchEvent(new Event("click", { bubbles: true }));
+    });
+    const worktreeListbox = findAll(
+      container,
+      (element) =>
+        element.getAttribute("role") === "listbox" &&
+        element.getAttribute("aria-label") === "Workspace",
+    )[0];
     const options = findAll(
-      worktreeSelect,
-      (element) => element.tagName === "OPTION",
+      worktreeListbox,
+      (element) => element.getAttribute("role") === "option",
+    );
+    expect(options.map((option) => option.textContent)).toEqual([
+      "wt-home · fix/home-pageMatchMovie",
+      "wt-search · feat/searchMatchMovie",
+      "wt-opt · fix/optskratch_clone",
+    ]);
+    expect(worktreeListbox.textContent).not.toContain("owner/MatchMovie");
+    expect(worktreeListbox.textContent).not.toContain("/Users/example/projects");
+  });
+
+  it("defaults to the primary checkout and preserves an explicit linked selection", async () => {
+    const availableContexts = [
+      {
+        repository: { id: "repository", name: "Project" },
+        worktree: {
+          id: "linked-1",
+          kind: "linked",
+          name: "feature-ui",
+          branchName: "feat/ui",
+        },
+      },
+      {
+        repository: { id: "repository", name: "Project" },
+        worktree: {
+          id: "primary:repository",
+          kind: "primary",
+          name: "Main checkout",
+          branchName: "main",
+        },
+      },
+    ] as CodingAgentWorktreeContextDto[];
+
+    await renderDialog(true, availableContexts);
+    let workspace = findAll(
+      container,
+      (element) => element.getAttribute("id") === "agent-worktree",
+    )[0];
+    await act(async () => {
+      workspace.dispatchEvent(new Event("click", { bubbles: true }));
+    });
+    let workspaceOptions = findAll(
+      container,
+      (element) => element.getAttribute("role") === "option",
+    );
+    expect(workspaceOptions.map((option) => option.textContent)).toEqual([
+      "Main checkout · mainProject",
+      "feature-ui · feat/uiProject",
+    ]);
+    expect(
+      workspaceOptions.find(
+        (option) => option.getAttribute("aria-selected") === "true",
+      )?.textContent,
+    ).toContain("Main checkout · main");
+    expect(container.textContent).toContain(
+      "Changes are applied directly to the shared checkout",
     );
 
-    expect(groups.map((group) => group.getAttribute("label"))).toEqual([
-      "MatchMovie",
-      "skratch_clone",
-    ]);
-    expect(options.map((option) => option.textContent)).toEqual([
-      "wt-home · fix/home-page",
-      "wt-search · feat/search",
-      "wt-opt · fix/opt",
-    ]);
-    expect(worktreeSelect.textContent).not.toContain("owner/MatchMovie");
-    expect(worktreeSelect.textContent).not.toContain("/Users/example/projects");
+    await renderDialog(true, availableContexts, "linked-1");
+    workspace = findAll(
+      container,
+      (element) => element.getAttribute("id") === "agent-worktree",
+    )[0];
+    await act(async () => {
+      workspace.dispatchEvent(new Event("click", { bubbles: true }));
+    });
+    workspaceOptions = findAll(
+      container,
+      (element) => element.getAttribute("role") === "option",
+    );
+    expect(
+      workspaceOptions.find(
+        (option) => option.getAttribute("aria-selected") === "true",
+      )?.textContent,
+    ).toContain("feature-ui · feat/ui");
+    expect(container.textContent).not.toContain(
+      "Changes are applied directly to the shared checkout",
+    );
   });
 });

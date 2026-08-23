@@ -63,6 +63,7 @@ const createContext = (
     name: worktreeId,
     path: `/workspace/${worktreeId}`,
     branchName,
+    kind: "linked",
     baseBranchName: "main",
     headCommitSha: null,
     status: "ready",

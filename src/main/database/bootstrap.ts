@@ -39,6 +39,7 @@ const bootstrapStatements = [
       name TEXT NOT NULL,
       path TEXT NOT NULL,
       branch_name TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'linked',
       base_branch_name TEXT,
       head_commit_sha TEXT,
       status TEXT NOT NULL,

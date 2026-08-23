@@ -136,7 +136,9 @@ export const AppShell = () => {
             isDashboardSidebarCollapsed ? 'px-2' : 'px-3'
           }`}
         >
-          {navItems.map((item) => (
+          {navItems
+            .filter((item) => item.to !== '/settings')
+            .map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -168,8 +170,40 @@ export const AppShell = () => {
                 item.label
               )}
             </NavLink>
-          ))}
+            ))}
         </nav>
+
+        <div
+          className={`pb-3 ${isDashboardSidebarCollapsed ? 'px-2' : 'px-3'}`}
+        >
+          <NavLink
+            to="/settings"
+            title={isDashboardSidebarCollapsed ? 'Settings' : undefined}
+            className={({ isActive }) =>
+              `flex h-10 items-center rounded-md text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sidebar-ring ${
+                isDashboardSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+              } ${
+                isActive
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              }`
+            }
+          >
+            <span className="h-5 w-5 shrink-0">
+              <img
+                src={settingIcon}
+                alt=""
+                aria-hidden="true"
+                className="h-full w-full object-contain brightness-0 invert"
+              />
+            </span>
+            {isDashboardSidebarCollapsed ? (
+              <span className="sr-only">Settings</span>
+            ) : (
+              'Settings'
+            )}
+          </NavLink>
+        </div>
 
       </aside>
 

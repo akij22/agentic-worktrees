@@ -34,6 +34,7 @@ const worktree: Worktree = {
   name: 'dashboard-redesign',
   path: '/workspace/.worktrees/dashboard-redesign',
   branchName: 'feat/redesign-dashboard-ui',
+  kind: 'linked',
   baseBranchName: 'main',
   headCommitSha: null,
   status: 'ready',
@@ -150,11 +151,10 @@ describe('Dashboard repository workspace components', () => {
     expect(markup).toContain(repository.fullName);
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('Search repositories');
-    expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain('main');
-    expect(markup).toContain(worktree.branchName);
-    expect(markup).toContain('Protected branch');
-    expect(markup.match(/Coding agent chat: Chat/g)).toHaveLength(2);
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain(worktree.branchName);
+    expect(markup).not.toContain('Protected branch');
+    expect(markup).not.toContain('Coding agent chat: Chat');
     expect(markup).not.toContain('Active');
     expect(markup).not.toContain('Running');
     expect(markup).not.toContain('Coding agent chat: Idle');

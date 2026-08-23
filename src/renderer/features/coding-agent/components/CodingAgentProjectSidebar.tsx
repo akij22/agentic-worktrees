@@ -6,13 +6,14 @@ import {
   LoaderCircle,
   Plus,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type {
   CodingAgentSessionDto,
   CodingAgentWorktreeContextDto,
 } from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
 import { formatDate } from "../lib/formatters";
+import { getWorkspaceShortLabel } from "../lib/workspace-labels";
 
 type ProjectSession = {
   session: CodingAgentSessionDto;
@@ -112,30 +113,9 @@ export const CodingAgentProjectSidebar = ({
     () => buildProjectGroups(contexts, sessions),
     [contexts, sessions],
   );
-  const activeProjectId = sessions.find(
-    (session) => session.id === activeRunId,
-  )?.repositoryId;
-  const defaultProjectId = activeProjectId ?? projects[0]?.id;
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
-    () =>
-      new Set(
-        activeProjectId
-          ? [activeProjectId]
-          : projects[0]
-            ? [projects[0].id]
-            : [],
-      ),
+    () => new Set(),
   );
-
-  useEffect(() => {
-    if (!defaultProjectId) return;
-    setExpandedProjectIds((current) => {
-      if (current.has(defaultProjectId)) return current;
-      const next = new Set(current);
-      next.add(defaultProjectId);
-      return next;
-    });
-  }, [defaultProjectId]);
 
   return (
     <aside
@@ -270,8 +250,9 @@ export const CodingAgentProjectSidebar = ({
                               </span>
                               <span className="mt-1 flex min-w-0 items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
                                 <span className="truncate">
-                                  {context?.worktree.branchName ??
-                                    "Unavailable worktree"}
+                                  {context
+                                    ? getWorkspaceShortLabel(context)
+                                    : "Unavailable workspace"}
                                 </span>
                                 <span className="shrink-0">
                                   {formatDate(session.updatedAt)}

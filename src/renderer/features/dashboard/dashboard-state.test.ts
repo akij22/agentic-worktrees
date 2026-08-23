@@ -34,6 +34,7 @@ const worktree = (
   name: 'primary',
   path: '/workspace/primary',
   branchName: 'feature/primary',
+  kind: 'linked',
   baseBranchName: 'main',
   headCommitSha: null,
   status: 'ready',

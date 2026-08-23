@@ -42,6 +42,9 @@ export const repositories = sqliteTable(
 	}),
 );
 
+export const worktreeKinds = ["primary", "linked"] as const;
+export type WorktreeKind = (typeof worktreeKinds)[number];
+
 export const worktrees = sqliteTable(
 	"worktrees",
 	{
@@ -52,6 +55,7 @@ export const worktrees = sqliteTable(
 		name: text("name").notNull(),
 		path: text("path").notNull(),
 		branchName: text("branch_name").notNull(),
+		kind: text("kind").$type<WorktreeKind>().notNull().default("linked"),
 		baseBranchName: text("base_branch_name"),
 		headCommitSha: text("head_commit_sha"),
 		status: text("status").notNull(),

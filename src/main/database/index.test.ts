@@ -60,4 +60,19 @@ describe("database upgrades", () => {
 				.get("run-1"),
 		).toEqual({ run_id: "run-1", last_viewed_at: null });
 	});
+
+	it("marks existing worktrees as linked when adding the kind column", () => {
+		sqlite.exec(`
+      CREATE TABLE worktrees (
+        id TEXT PRIMARY KEY NOT NULL
+      );
+      INSERT INTO worktrees (id) VALUES ('worktree-1');
+    `);
+
+		applyDatabaseUpgrades(sqlite);
+
+		expect(
+			sqlite.prepare("SELECT id, kind FROM worktrees WHERE id = ?").get("worktree-1"),
+		).toEqual({ id: "worktree-1", kind: "linked" });
+	});
 });

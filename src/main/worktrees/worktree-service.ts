@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { getDatabase } from '../database/client';
 import {
@@ -18,11 +18,20 @@ export const listWorktreesForRepository = (
   getDatabase()
     .select()
     .from(worktrees)
-    .where(eq(worktrees.repositoryId, repositoryId))
+    .where(
+      and(
+        eq(worktrees.repositoryId, repositoryId),
+        eq(worktrees.kind, 'linked'),
+      ),
+    )
     .all();
 
 export const listAllWorktrees = (): Worktree[] =>
-  getDatabase().select().from(worktrees).all();
+  getDatabase()
+    .select()
+    .from(worktrees)
+    .where(eq(worktrees.kind, 'linked'))
+    .all();
 
 export const getWorktreeById = (id: string): Worktree | undefined =>
   getDatabase().select().from(worktrees).where(eq(worktrees.id, id)).get();
@@ -66,6 +75,7 @@ export const createWorktree = async (
       name: worktreeName,
       path: created.path,
       branchName: created.branchName,
+      kind: 'linked',
       baseBranchName: created.baseBranchName,
       headCommitSha: created.headCommitSha,
       status: 'created',

@@ -45,6 +45,7 @@ const context: CodingAgentWorktreeContextDto = {
     name: "codex-ui",
     path: "/Users/example/Documents/agentic-worktrees/.worktrees/codex-ui",
     branchName: "feat/codex-ui",
+    kind: "linked",
     baseBranchName: "main",
     headCommitSha: null,
     status: "ready",
@@ -112,8 +113,8 @@ describe("Coding Agent project layout", () => {
       screen.getByRole("navigation", { name: "Coding agent projects" }),
     ).toBeTruthy();
     expect(screen.getByText("agentic-worktrees")).toBeTruthy();
-    expect(screen.getByText("Refine chat layout")).toBeTruthy();
-    expect(screen.getByText("feat/codex-ui")).toBeTruthy();
+    expect(screen.queryByText("Refine chat layout")).toBeNull();
+    expect(screen.queryByText("feat/codex-ui")).toBeNull();
     expect(screen.queryByText("owner/agentic-worktrees")).toBeNull();
     expect(screen.queryByText(context.worktree.path)).toBeNull();
     expect(screen.queryByRole("main")).toBeNull();
@@ -170,7 +171,7 @@ describe("Coding Agent project layout", () => {
     fireEvent.pointerUp(window);
   });
 
-  it("expands the first project after asynchronously loaded sessions arrive", () => {
+  it("keeps projects compact after asynchronously loaded sessions arrive", () => {
     const props = {
       activeRunId: undefined,
       error: undefined,
@@ -197,6 +198,9 @@ describe("Coding Agent project layout", () => {
       />,
     );
 
+    expect(screen.queryByText("Refine chat layout")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /agentic-worktrees/ }));
     expect(screen.getByText("Refine chat layout")).toBeTruthy();
   });
 });
