@@ -96,5 +96,8 @@ docs/superpowers/
 .superpowers/sdd
 .worktrees/
 
+# Local product exploration
+docs/cross-worktree-conflicts-product-ideas.md
+
 # Local agent skills
 .agents/
