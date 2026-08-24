@@ -94,7 +94,7 @@ export const Intelligence = () => {
 		<section className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
 			<header className="flex min-h-24 shrink-0 items-start justify-between gap-6 px-6 py-5">
 				<div className="flex min-w-0 items-start gap-3">
-					<div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-500/[0.09] text-red-400">
+					<div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl border border-red-400/10 bg-red-500/[0.09] text-red-400">
 						<GitCompareArrows aria-hidden="true" className="size-4" />
 					</div>
 					<div>
@@ -162,17 +162,17 @@ export const Intelligence = () => {
 					<div className="space-y-3" aria-label="Loading conflicts">
 						<div className="grid gap-3 md:grid-cols-4">
 							{Array.from({ length: 4 }).map((_, index) => (
-								<Skeleton key={index} className="h-20 rounded-2xl" />
+								<Skeleton key={index} className="h-20 rounded-xl" />
 							))}
 						</div>
 						<div className="grid gap-3 xl:grid-cols-[0.9fr_1.45fr_0.95fr]">
-							<Skeleton className="h-[35rem] rounded-2xl" />
-							<Skeleton className="h-[35rem] rounded-2xl" />
-							<Skeleton className="h-[35rem] rounded-2xl" />
+							<Skeleton className="h-[35rem] rounded-xl" />
+							<Skeleton className="h-[35rem] rounded-xl" />
+							<Skeleton className="h-[35rem] rounded-xl" />
 						</div>
 					</div>
 				) : repositories.length === 0 ? (
-					<div className="flex min-h-80 items-center justify-center rounded-2xl bg-card/35 px-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+					<div className="surface-panel flex min-h-80 items-center justify-center px-8 text-center">
 						<div>
 							<FolderGit2
 								aria-hidden="true"
@@ -187,7 +187,7 @@ export const Intelligence = () => {
 						</div>
 					</div>
 				) : snapshot && snapshot.worktrees.length === 0 ? (
-					<div className="flex min-h-80 items-center justify-center rounded-2xl bg-card/35 px-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+					<div className="surface-panel flex min-h-80 items-center justify-center px-8 text-center">
 						<div>
 							<GitCompareArrows
 								aria-hidden="true"
@@ -215,7 +215,7 @@ export const Intelligence = () => {
 							</ul>
 						) : null}
 						{conflicts.length === 0 ? (
-							<div className="flex min-h-[28rem] items-center justify-center rounded-2xl bg-card/35 px-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+							<div className="surface-panel flex min-h-[28rem] items-center justify-center px-8 text-center">
 								<div>
 									<ShieldCheck
 										className="mx-auto size-9 text-emerald-400"
@@ -267,7 +267,7 @@ export const Intelligence = () => {
 								/>
 							</div>
 						) : (
-							<div className="flex min-h-64 items-center justify-center rounded-2xl bg-error-surface/70 text-center">
+							<div className="flex min-h-64 items-center justify-center rounded-xl border border-error-foreground/10 bg-error-surface/70 text-center">
 								<div>
 									<AlertTriangle className="mx-auto size-7 text-destructive" />
 									<h2 className="mt-2 text-sm font-semibold">

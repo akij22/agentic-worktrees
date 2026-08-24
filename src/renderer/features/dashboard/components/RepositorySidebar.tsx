@@ -90,8 +90,8 @@ export const RepositorySidebar = ({
   };
 
   return (
-    <aside className="relative z-10 flex h-full w-72 shrink-0 flex-col bg-sidebar-secondary text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(0,0,0,0.9)]">
-      <div className="shrink-0 px-3 pb-3 pt-5">
+    <aside className="relative z-10 flex h-full w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar-secondary text-sidebar-foreground shadow-[12px_0_32px_-28px_rgba(0,0,0,0.95)]">
+      <div className="shrink-0 border-b border-sidebar-border/70 px-3 pb-3 pt-5">
         <div className="mb-3 px-1">
           <div>
             <h2 className="text-base font-semibold tracking-tight text-foreground">
@@ -109,7 +109,7 @@ export const RepositorySidebar = ({
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder="Search repositories"
             aria-label="Search repositories"
-            className="h-9 rounded-xl border-transparent bg-sidebar-control-surface pl-8 text-xs shadow-none focus-visible:border-sidebar-ring/40"
+            className="h-9 rounded-md border-white/[0.055] bg-sidebar-control-surface/80 pl-8 text-xs focus-visible:border-sidebar-ring/45"
           />
         </div>
       </div>
@@ -122,7 +122,7 @@ export const RepositorySidebar = ({
             ))}
           </div>
         ) : repositories.length === 0 ? (
-          <div className="mx-1 mt-2 rounded-2xl bg-sidebar-accent/35 px-3 py-6 text-center">
+          <div className="mx-1 mt-2 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/35 px-3 py-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
             <FolderGit2 className="mx-auto size-5 text-muted-foreground" />
             <p className="mt-2 text-xs font-medium text-foreground">
               No repositories found
@@ -144,7 +144,7 @@ export const RepositorySidebar = ({
                   className={cn(
                     'overflow-hidden rounded-xl transition-colors',
                     selected
-                      ? 'bg-sidebar-row-selected text-sidebar-accent-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                      ? 'bg-sidebar-row-selected text-sidebar-accent-foreground shadow-[inset_2px_0_0_var(--primary),inset_0_1px_0_rgba(255,255,255,0.045)]'
                       : 'text-sidebar-foreground hover:bg-sidebar-row-hover/70',
                   )}
                 >
@@ -207,7 +207,7 @@ export const RepositorySidebar = ({
                       id={branchesId}
                       role="group"
                       aria-label={`Branches for ${getRepositoryLabel(repository)}`}
-                      className="mx-1 mb-1 rounded-xl bg-black/25 px-2 py-1.5"
+                      className="mx-1 mb-1 rounded-lg border border-sidebar-border/50 bg-black/20 px-2 py-1.5"
                     >
                       {branchList.status === 'idle' || branchList.status === 'loading' ? (
                         <div className="space-y-1 py-1" aria-label="Loading branches">
@@ -256,7 +256,7 @@ export const RepositorySidebar = ({
         )}
       </div>
 
-      <div className="shrink-0 px-2 pb-3 pt-2">
+      <div className="shrink-0 border-t border-sidebar-border/70 px-2 pb-3 pt-2">
         <div className="grid grid-cols-2 gap-1">
           <Button
             type="button"

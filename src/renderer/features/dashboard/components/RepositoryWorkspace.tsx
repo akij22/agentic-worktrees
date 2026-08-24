@@ -67,7 +67,7 @@ const SummaryCard = ({
   value: string;
   detail: string;
 }) => (
-  <div className="rounded-2xl bg-card/75 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_18px_36px_-32px_rgba(112,185,238,0.5)]">
+  <div className="surface-panel px-5 py-4">
     <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
       {label}
     </p>
@@ -139,14 +139,14 @@ export const RepositoryWorkspace = ({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="flex min-h-24 shrink-0 items-start justify-between gap-6 bg-background px-7 py-6">
+      <header className="flex min-h-24 shrink-0 items-start justify-between gap-6 border-b border-border/60 bg-background/95 px-7 py-6 backdrop-blur-xl">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-2xl bg-surface-raised text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <div className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/[0.08] text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <FolderGit2 aria-hidden="true" className="size-4.5" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-semibold tracking-tight">
+              <h1 className="truncate text-xl font-semibold tracking-[-0.022em]">
                 {getRepositoryLabel(repository)}
               </h1>
               <Badge variant="outline">
@@ -234,9 +234,9 @@ export const RepositoryWorkspace = ({
               description="Active isolated environments for this repository."
             />
             {worktrees.length === 0 ? (
-              <div className="flex flex-col gap-4 rounded-2xl bg-card/45 px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:flex-row sm:items-center sm:justify-between">
+              <div className="surface-panel flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.045] bg-muted text-muted-foreground">
                     <GitBranch aria-hidden="true" className="size-4.5" />
                   </div>
                   <div>
@@ -261,7 +261,7 @@ export const RepositoryWorkspace = ({
                 </Button>
               </div>
             ) : (
-              <div className="grid overflow-hidden rounded-2xl bg-card/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_20px_42px_-36px_rgba(112,185,238,0.45)] xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="surface-panel grid overflow-hidden xl:grid-cols-[minmax(0,1fr)_320px]">
                 <WorktreeList
                   worktrees={worktrees}
                   selectedWorktree={selectedWorktree}
@@ -323,8 +323,8 @@ const BranchTable = ({
   );
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-card/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_20px_42px_-36px_rgba(112,185,238,0.45)]">
-      <div className="grid min-w-[680px] grid-cols-[minmax(220px,1.4fr)_minmax(150px,.8fr)_minmax(120px,.65fr)_150px] gap-4 bg-surface-raised/45 px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+    <div className="surface-panel overflow-hidden">
+      <div className="grid min-w-[680px] grid-cols-[minmax(220px,1.4fr)_minmax(150px,.8fr)_minmax(120px,.65fr)_150px] gap-4 border-b border-border/65 bg-surface-raised/55 px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
         <span>Branch</span>
         <span>Worktree</span>
         <span>Chat status</span>

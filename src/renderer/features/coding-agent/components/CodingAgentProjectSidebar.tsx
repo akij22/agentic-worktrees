@@ -120,9 +120,9 @@ export const CodingAgentProjectSidebar = ({
   return (
     <aside
       style={{ width }}
-      className="relative z-10 flex h-full min-h-0 shrink-0 flex-col bg-sidebar-secondary text-sidebar-foreground shadow-[16px_0_40px_-36px_rgba(0,0,0,0.9)]"
+      className="relative z-10 flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar-secondary text-sidebar-foreground shadow-[12px_0_32px_-28px_rgba(0,0,0,0.95)]"
     >
-      <div className="flex h-16 shrink-0 items-center justify-between px-4">
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border/70 px-4">
         <div>
           <h1 className="text-sm font-semibold tracking-tight text-foreground">
             Projects
@@ -138,7 +138,7 @@ export const CodingAgentProjectSidebar = ({
           title="New coding agent chat"
           onClick={onNewSession}
           disabled={contexts.length === 0}
-          className="size-8 bg-background/40"
+          className="size-8 bg-background/65"
         >
           <Plus aria-hidden="true" />
         </Button>
@@ -180,7 +180,7 @@ export const CodingAgentProjectSidebar = ({
                         return next;
                       })
                     }
-                    className="group flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                    className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60"
                   >
                     {expanded ? (
                       <ChevronDown
@@ -221,9 +221,9 @@ export const CodingAgentProjectSidebar = ({
                             type="button"
                             aria-current={active ? "page" : undefined}
                             onClick={() => onOpenSession(session)}
-                            className={`relative mb-1 flex w-full items-start gap-2.5 overflow-hidden rounded-xl px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring ${
+                            className={`relative mb-1 flex w-full items-start gap-2.5 overflow-hidden rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60 ${
                               active
-                                ? "bg-sidebar-row-selected text-foreground shadow-[inset_3px_0_0_var(--primary)]"
+                                ? "bg-sidebar-row-selected text-foreground shadow-[inset_2px_0_0_var(--primary),inset_0_1px_0_rgba(255,255,255,0.045)]"
                                 : "text-sidebar-foreground hover:bg-sidebar-row-hover/70"
                             }`}
                           >

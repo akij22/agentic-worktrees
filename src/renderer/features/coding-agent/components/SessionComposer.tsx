@@ -180,7 +180,7 @@ export const SessionComposer = ({
         <div
           role="listbox"
           aria-label="Session slash commands"
-          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 overflow-hidden rounded-2xl bg-popover p-1.5 shadow-xl ring-1 ring-white/[0.06]"
+          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 overflow-hidden rounded-lg border border-white/[0.075] bg-popover/95 p-1.5 shadow-xl backdrop-blur-xl"
         >
           {slashCommands.map((command, index) => (
             <button
@@ -213,7 +213,7 @@ export const SessionComposer = ({
         <div
           role="listbox"
           aria-label="Worktree files"
-          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 max-h-72 overflow-auto rounded-2xl bg-popover p-1.5 shadow-xl ring-1 ring-white/[0.06]"
+          className="absolute bottom-[calc(100%-0.25rem)] left-4 right-4 z-20 max-h-72 overflow-auto rounded-lg border border-white/[0.075] bg-popover/95 p-1.5 shadow-xl backdrop-blur-xl"
         >
           {fileSuggestions.loading ? (
             <p className="px-3 py-2 text-xs text-muted-foreground">
@@ -257,7 +257,7 @@ export const SessionComposer = ({
           </p>
         </div>
       ) : null}
-      <div className="rounded-2xl border border-input/80 bg-black p-2 shadow-[0_18px_42px_-32px_rgba(112,185,238,0.55)] focus-within:ring-2 focus-within:ring-ring">
+      <div className="rounded-xl border border-white/[0.085] bg-[#090a0c] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_22px_52px_-34px_rgba(0,0,0,0.95)] transition-[border-color,box-shadow] focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-ring/20">
         <textarea
           ref={textareaRef}
           value={draft}
@@ -273,7 +273,7 @@ export const SessionComposer = ({
           placeholder={`Describe the change you want ${session.agentName} to make…`}
           rows={3}
           disabled={locked}
-          className="block w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
+          className="block w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 outline-none placeholder:text-placeholder disabled:opacity-60"
         />
         <div className="flex items-center justify-between gap-3 px-1 pt-2">
           <div className="flex min-w-0 items-center gap-2">

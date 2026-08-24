@@ -27,7 +27,7 @@ export const CommandApprovalCard = ({
   return (
     <section
       aria-label="Command approval required"
-      className="overflow-hidden rounded-2xl bg-amber-500/[0.07] shadow-[inset_3px_0_0_rgb(245_158_11)]"
+      className="overflow-hidden rounded-xl border border-warning/10 bg-warning/[0.07] shadow-[inset_2px_0_0_var(--warning)]"
     >
       <div className="flex items-start gap-3 bg-amber-500/[0.08] px-4 py-3">
         <div className="mt-0.5 rounded-xl bg-amber-500/15 p-1.5 text-amber-700 dark:text-amber-300">

@@ -46,7 +46,7 @@ export const SessionStatusPopup = ({
     role="status"
     aria-live="polite"
     aria-label={`${session.agentName} session status`}
-    className="absolute bottom-full right-4 z-50 mb-3 w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-2xl bg-popover shadow-2xl ring-1 ring-white/[0.06]"
+    className="absolute bottom-full right-4 z-50 mb-3 w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-xl border border-white/[0.075] bg-popover/95 shadow-2xl backdrop-blur-xl"
   >
     <div className="flex items-start justify-between bg-muted/35 px-4 py-3">
       <div>

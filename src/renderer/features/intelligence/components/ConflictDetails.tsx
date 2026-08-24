@@ -24,7 +24,7 @@ export const ConflictDetails = ({ overlap, left, right, session }: Props) => {
 	const presentation = conflictPresentation(overlap, session);
 	return (
 		<section
-			className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
+			className="surface-panel flex min-h-0 flex-col overflow-hidden"
 			aria-labelledby="conflict-details-heading"
 		>
 			<header className="flex h-12 shrink-0 items-center justify-between px-4">
@@ -85,7 +85,7 @@ export const ConflictDetails = ({ overlap, left, right, session }: Props) => {
 					rightTask={right.task}
 				/>
 			</div>
-			<footer className="flex shrink-0 items-center gap-2 bg-blue-500/[0.06] px-4 py-3 text-[10px] text-blue-300">
+			<footer className="flex shrink-0 items-center gap-2 border-t border-primary/10 bg-primary/[0.06] px-4 py-3 text-[10px] text-primary">
 				<Info className="size-3.5" /> Static predictions are not confirmed until
 				Git simulation completes.
 			</footer>

@@ -68,7 +68,7 @@ export const CodingAgentLanding = ({
   return (
     <div
       ref={layoutRef}
-      className="flex h-full min-h-0 overflow-hidden bg-card"
+      className="flex h-full min-h-0 overflow-hidden bg-background"
     >
       <CodingAgentProjectSidebar
         contexts={contexts}
@@ -124,14 +124,14 @@ export const CodingAgentLanding = ({
 
       <section
         aria-label="Coding agent workspace"
-        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-card"
+        className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
       >
         {activeRunId ? (
           <CodingAgentWorkspace primaryRunId={activeRunId} />
         ) : (
           <div className="grid h-full min-h-[28rem] place-items-center px-8 text-center">
             <div className="max-w-md">
-              <div className="mx-auto mb-5 grid size-12 place-items-center rounded-2xl bg-muted/40 font-mono text-base text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="mx-auto mb-5 grid size-12 place-items-center rounded-xl border border-primary/15 bg-primary/[0.07] font-mono text-base text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 &gt;_
               </div>
               {configuredInstallations.length === 0 && !loading ? (

@@ -116,7 +116,7 @@ export const ConflictActions = ({
 	preparation,
 }: Props) => (
 	<aside
-		className="flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
+		className="surface-panel flex min-h-0 flex-col overflow-hidden"
 		aria-labelledby="conflict-actions-heading"
 	>
 		<header className="flex h-12 shrink-0 items-center px-4">

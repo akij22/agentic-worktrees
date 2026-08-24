@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   xtermWrite: vi.fn(),
   xtermOpen: vi.fn(),
   xtermDispose: vi.fn(),
+  terminalOptions: undefined as unknown,
   fit: vi.fn(),
   getGitStatus: vi.fn<Api['workspace']['git']['getStatus']>(),
   commit: vi.fn<Api['workspace']['git']['commit']>(),
@@ -46,6 +47,9 @@ vi.mock('@xterm/xterm', () => ({
     open = mocks.xtermOpen;
     write = mocks.xtermWrite;
     dispose = mocks.xtermDispose;
+    constructor(options: unknown) {
+      mocks.terminalOptions = options;
+    }
     onData(listener: (data: string) => void) {
       mocks.terminalInputListener = listener;
       return { dispose: vi.fn() };
@@ -208,6 +212,7 @@ describe('workspace file browser', () => {
 describe('workspace terminal panel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.terminalOptions = undefined;
     mocks.terminalEventListener = undefined;
     mocks.terminalInputListener = undefined;
     mocks.createTerminal.mockResolvedValue({ terminalId: 'terminal-1' });
@@ -219,6 +224,13 @@ describe('workspace terminal panel', () => {
       configurable: true,
       value: api,
     });
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--terminal-background', '#010203');
+    rootStyle.setProperty('--terminal-foreground', '#111213');
+    rootStyle.setProperty('--terminal-cursor', '#212223');
+    rootStyle.setProperty('--terminal-selection', '#313233');
+    rootStyle.setProperty('--terminal-scrollbar', '#414243');
+    rootStyle.setProperty('--terminal-scrollbar-hover', '#515253');
   });
 
   afterEach(() => cleanup());
@@ -260,6 +272,22 @@ describe('workspace terminal panel', () => {
       }),
     );
     expect(mocks.xtermDispose).toHaveBeenCalledOnce();
+  });
+
+  it('builds the xterm theme from the shared CSS custom properties', () => {
+    render(<TerminalPanel worktreeId="worktree-1" active />);
+
+    expect(mocks.terminalOptions).toMatchObject({
+      theme: {
+        background: '#010203',
+        foreground: '#111213',
+        cursor: '#212223',
+        selectionBackground: '#313233',
+        scrollbarSliderBackground: '#414243',
+        scrollbarSliderHoverBackground: '#515253',
+        scrollbarSliderActiveBackground: '#212223',
+      },
+    });
   });
 
   it('exposes the terminal exit code on the restart action', async () => {

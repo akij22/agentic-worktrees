@@ -199,7 +199,7 @@ export default function SettingsIntegrations({
 
             return (
               <div
-                className="flex flex-col gap-4 rounded-2xl bg-card/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] sm:flex-row sm:items-start"
+                className="surface-panel flex flex-col gap-4 p-4 sm:flex-row sm:items-start"
                 key={integration.id}
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-3">

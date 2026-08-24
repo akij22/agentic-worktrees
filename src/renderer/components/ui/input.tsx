@@ -7,7 +7,7 @@ export const Input = ({
 }: React.ComponentProps<'input'>) => (
   <input
     className={cn(
-      'flex h-9 w-full rounded-xl border border-transparent bg-muted/55 px-3 py-1 text-sm shadow-none transition-colors placeholder:text-muted-foreground focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+      'flex h-9 w-full rounded-md border border-white/[0.07] bg-background/65 px-3 py-1 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.26)] transition-[background-color,border-color,box-shadow] placeholder:text-placeholder focus-visible:border-primary/55 focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50',
       className,
     )}
     {...props}

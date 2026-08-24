@@ -4,11 +4,11 @@ import { cn } from '../../lib/utils';
 type Variant = 'default' | 'secondary' | 'outline' | 'destructive';
 
 const variants: Record<Variant, string> = {
-  default: 'bg-primary text-primary-foreground',
-  secondary: 'bg-secondary text-secondary-foreground',
-  outline: 'bg-muted/65 text-foreground',
+  default: 'border border-primary/25 bg-primary/15 text-primary',
+  secondary: 'border border-white/[0.055] bg-secondary text-secondary-foreground',
+  outline: 'border border-white/[0.075] bg-transparent text-muted-foreground',
   destructive:
-    'bg-destructive text-destructive-foreground',
+    'border border-destructive-foreground/15 bg-destructive text-destructive-foreground',
 };
 
 export interface BadgeProps extends React.ComponentProps<'span'> {
@@ -22,7 +22,7 @@ export const Badge = ({
 }: BadgeProps) => (
   <span
     className={cn(
-      'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-colors',
+      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors [&_svg]:size-3',
       variants[variant],
       className,
     )}
