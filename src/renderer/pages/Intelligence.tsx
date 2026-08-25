@@ -3,6 +3,8 @@ import {
 	Clock3,
 	FolderGit2,
 	GitCompareArrows,
+	LayoutDashboard,
+	ListChecks,
 	RefreshCw,
 	ShieldCheck,
 } from "lucide-react";
@@ -10,12 +12,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
+import { AttentionPanel } from "../features/intelligence/components/AttentionPanel";
 import { ConflictActions } from "../features/intelligence/components/ConflictActions";
 import { ConflictDetails } from "../features/intelligence/components/ConflictDetails";
 import { ConflictList } from "../features/intelligence/components/ConflictList";
 import { ConflictPreparation } from "../features/intelligence/components/ConflictPreparation";
 import { DiffComparison } from "../features/intelligence/components/DiffComparison";
 import { IntelligenceSummary } from "../features/intelligence/components/IntelligenceSummary";
+import { OverlapDetails } from "../features/intelligence/components/OverlapDetails";
+import { WorktreeOverlapMap } from "../features/intelligence/components/WorktreeOverlapMap";
 import {
 	selectConflicts,
 	worktreeFor,
@@ -25,9 +30,13 @@ import { useIntelligence } from "../features/intelligence/hooks/use-intelligence
 
 export const Intelligence = () => {
 	const navigate = useNavigate();
+	const [workspaceView, setWorkspaceView] = useState<"overview" | "review">(
+		"overview",
+	);
 	const [selectedOverlapId, setSelectedOverlapId] = useState<string | null>(
 		null,
 	);
+	const [detailsOverlapId, setDetailsOverlapId] = useState<string | null>(null);
 	const [compareOverlapId, setCompareOverlapId] = useState<string | null>(null);
 	const {
 		repositories,
@@ -88,6 +97,14 @@ export const Intelligence = () => {
 		navigate(
 			`/coding-agent/${encodeURIComponent(worktreeId)}/${encodeURIComponent(runId)}`,
 		);
+	};
+	const reviewOverlap = (overlapId: string) => {
+		setSelectedOverlapId(overlapId);
+		setWorkspaceView("review");
+	};
+	const compareOverlap = (overlapId: string) => {
+		setDetailsOverlapId(null);
+		setCompareOverlapId(overlapId);
 	};
 
 	return (
@@ -204,7 +221,7 @@ export const Intelligence = () => {
 				) : snapshot ? (
 					<div
 						className="space-y-3"
-						aria-label="Cross-worktree conflict results"
+						aria-label="Worktree intelligence results"
 					>
 						<IntelligenceSummary snapshot={snapshot} />
 						{snapshot.warnings.length > 0 ? (
@@ -214,7 +231,46 @@ export const Intelligence = () => {
 								))}
 							</ul>
 						) : null}
-						{conflicts.length === 0 ? (
+						<div className="flex items-center justify-between gap-3">
+							<div className="inline-flex rounded-xl border border-border bg-card/35 p-1" aria-label="Intelligence workspace view">
+								<Button
+									type="button"
+									size="sm"
+									variant={workspaceView === "overview" ? "secondary" : "ghost"}
+									className="h-7 px-2.5 text-[10px]"
+									aria-label="Show repository overview"
+									aria-pressed={workspaceView === "overview"}
+									onClick={() => setWorkspaceView("overview")}
+								>
+									<LayoutDashboard aria-hidden="true" /> Overview
+								</Button>
+								<Button
+									type="button"
+									size="sm"
+									variant={workspaceView === "review" ? "secondary" : "ghost"}
+									className="h-7 px-2.5 text-[10px]"
+									aria-label="Show conflict review"
+									aria-pressed={workspaceView === "review"}
+									onClick={() => setWorkspaceView("review")}
+								>
+									<ListChecks aria-hidden="true" /> Conflict review
+								</Button>
+							</div>
+							<span className="font-mono text-[9px] uppercase tracking-wide text-muted-foreground">
+								{snapshot.overlaps.length} relationships · {snapshot.worktrees.length} worktrees
+							</span>
+						</div>
+						{workspaceView === "overview" ? (
+							<div className="grid min-h-[35rem] gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(19rem,0.34fr)]">
+								<WorktreeOverlapMap snapshot={snapshot} onOpenChat={openChat} />
+								<AttentionPanel
+									overlaps={snapshot.overlaps}
+									onReview={reviewOverlap}
+									onCompare={compareOverlap}
+									onInspect={setDetailsOverlapId}
+								/>
+							</div>
+						) : conflicts.length === 0 ? (
 							<div className="surface-panel flex min-h-[28rem] items-center justify-center px-8 text-center">
 								<div>
 									<ShieldCheck
@@ -251,7 +307,7 @@ export const Intelligence = () => {
 									right={right}
 									independentWorktrees={independentWorktrees}
 									onOpenChat={openChat}
-									onCompare={setCompareOverlapId}
+									onCompare={compareOverlap}
 									preparation={
 										<ConflictPreparation
 											branches={preparation.branches}
@@ -282,6 +338,14 @@ export const Intelligence = () => {
 					</div>
 				) : null}
 			</div>
+
+			<OverlapDetails
+				overlapId={detailsOverlapId}
+				open={detailsOverlapId !== null}
+				onClose={() => setDetailsOverlapId(null)}
+				onCompare={compareOverlap}
+				onOpenChat={openChat}
+			/>
 
 			<DiffComparison
 				overlapId={compareOverlapId}
