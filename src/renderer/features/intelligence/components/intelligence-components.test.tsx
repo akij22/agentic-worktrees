@@ -247,7 +247,14 @@ describe("conflict UI support", () => {
 
 	it("loads overlap evidence only when details are opened", async () => {
 		const getOverlap = vi.fn().mockResolvedValue({
-			overlap: high,
+			overlap: {
+				...high,
+				targets: high.targets.map((target) => ({
+					...target,
+					leftRanges: [{ oldStart: 1, oldLines: 1, newStart: 2, newLines: 2 }],
+					rightRanges: [{ oldStart: 4, oldLines: 1, newStart: 5, newLines: 1 }],
+				})),
+			},
 			left: worktree(1),
 			right: worktree(2),
 		});
@@ -279,6 +286,8 @@ describe("conflict UI support", () => {
 		expect(screen.getByText("Same symbol")).toBeTruthy();
 		expect(screen.getByText("Worktree one")).toBeTruthy();
 		expect(screen.getByText("Worktree two")).toBeTruthy();
+		expect(screen.getByText("Old 1,1 → new 2,2")).toBeTruthy();
+		expect(screen.getByText("Old 4,1 → new 5,1")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Compare diff" }));
 		expect(onCompare).toHaveBeenCalledWith(high.id);
 	});

@@ -21,6 +21,17 @@ interface Props {
 const humanize = (value: string): string =>
 	value[0]?.toUpperCase() + value.slice(1).replaceAll("-", " ");
 
+type ChangedRangeDto = IntelligenceOverlapDetailsDto["overlap"]["targets"][number]["leftRanges"][number];
+
+const formatRanges = (ranges: ChangedRangeDto[]): string =>
+	ranges.length === 0
+		? "No changed ranges"
+		: ranges
+			.map(({ oldStart, oldLines, newStart, newLines }) =>
+				`Old ${oldStart},${oldLines} → new ${newStart},${newLines}`,
+			)
+			.join(" · ");
+
 export const OverlapDetails = ({
 	overlapId,
 	open,
@@ -138,6 +149,16 @@ export const OverlapDetails = ({
 										<div className="mt-2 grid gap-1 font-mono text-[8px] text-muted-foreground sm:grid-cols-2">
 											<span>{target.leftFilePath ?? "Not changed on left"}</span>
 											<span>{target.rightFilePath ?? "Not changed on right"}</span>
+										</div>
+										<div className="mt-2 grid gap-2 border-t border-border/70 pt-2 text-[8px] sm:grid-cols-2">
+											<div>
+												<span className="font-semibold uppercase tracking-wide text-muted-foreground">Left changed ranges</span>
+												<code className="mt-0.5 block text-foreground/75">{formatRanges(target.leftRanges)}</code>
+											</div>
+											<div>
+												<span className="font-semibold uppercase tracking-wide text-muted-foreground">Right changed ranges</span>
+												<code className="mt-0.5 block text-foreground/75">{formatRanges(target.rightRanges)}</code>
+											</div>
 										</div>
 									</li>
 								))}

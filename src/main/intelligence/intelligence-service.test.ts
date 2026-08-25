@@ -3,6 +3,8 @@ import { createIntelligenceService } from './intelligence-service';
 import type {
   CollectedWorktreeChanges,
   PersistedIntelligenceSnapshot,
+  PersistedIntelligenceWorktree,
+  PersistedOverlapDetails,
 } from './types';
 
 const worktrees = ['changed', 'active-empty', 'idle-empty'].map((id) => ({
@@ -48,6 +50,24 @@ const collected = (
     afterContent: 'export function createSession() {}',
     symbols: [],
   }] : [],
+});
+
+const persistedWorktree = (worktreeId: string): PersistedIntelligenceWorktree => ({
+  id: `${worktreeId}-snapshot-worktree`,
+  worktreeId,
+  runId: `run-${worktreeId}`,
+  task: `${worktreeId} task`,
+  branch: `feat/${worktreeId}`,
+  baseBranch: 'main',
+  agentKind: 'codex',
+  agentName: 'Codex',
+  status: 'idle',
+  additions: 1,
+  deletions: 1,
+  independent: false,
+  warning: null,
+  updatedAt: 1,
+  files: collected(worktreeId, true).files,
 });
 
 const createHarness = () => {
@@ -134,5 +154,42 @@ describe('intelligence service', () => {
       completedAt: snapshot.completedAt,
     });
     unsubscribe();
+  });
+
+  it('exposes persisted changed ranges only in focused overlap details', () => {
+    const { service, repository } = createHarness();
+    const details: PersistedOverlapDetails = {
+      repositoryId: 'repository-1',
+      snapshotId: 'snapshot-1',
+      overlap: {
+        id: 'overlap-1',
+        leftWorktreeId: 'left',
+        rightWorktreeId: 'right',
+        risk: 'high',
+        category: 'symbol',
+        reasonCode: 'same-symbol',
+        summary: 'Both worktrees change createSession',
+        actionable: true,
+        targets: [{
+          type: 'symbol',
+          path: 'src/session.ts',
+          symbol: 'createSession',
+          leftFilePath: 'src/session.ts',
+          rightFilePath: 'src/session.ts',
+          reasonCode: 'same-symbol',
+          risk: 'high',
+        }],
+      },
+      left: persistedWorktree('left'),
+      right: persistedWorktree('right'),
+    };
+    repository.getOverlap.mockReturnValue(details);
+
+    const result = service.getOverlap('overlap-1');
+
+    expect(result.overlap.targets[0]).toMatchObject({
+      leftRanges: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1 }],
+      rightRanges: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1 }],
+    });
   });
 });

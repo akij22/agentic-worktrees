@@ -564,6 +564,19 @@ export const intelligenceOverlapTargetSchema = z.object({
 	risk: intelligenceRiskSchema,
 });
 
+export const intelligenceChangedRangeSchema = z.object({
+	oldStart: z.number().int().nonnegative(),
+	oldLines: z.number().int().nonnegative(),
+	newStart: z.number().int().nonnegative(),
+	newLines: z.number().int().nonnegative(),
+});
+
+export const intelligenceOverlapDetailsTargetSchema =
+	intelligenceOverlapTargetSchema.extend({
+		leftRanges: z.array(intelligenceChangedRangeSchema),
+		rightRanges: z.array(intelligenceChangedRangeSchema),
+	});
+
 export const intelligenceOverlapSchema = z.object({
 	id: z.string().min(1),
 	leftWorktreeId: z.string().min(1),
@@ -589,7 +602,9 @@ export const intelligenceSnapshotSchema = z.object({
 });
 
 export const intelligenceOverlapDetailsSchema = z.object({
-	overlap: intelligenceOverlapSchema,
+	overlap: intelligenceOverlapSchema.extend({
+		targets: z.array(intelligenceOverlapDetailsTargetSchema),
+	}),
 	left: intelligenceWorktreeSchema,
 	right: intelligenceWorktreeSchema,
 });
