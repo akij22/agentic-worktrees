@@ -595,3 +595,21 @@ describe("Codex adapter", () => {
     ).rejects.toThrow("Unknown Codex permission request");
   });
 });
+
+
+describe("Codex capability MCP integration", () => {
+  const connection = { serverName: "agentic_worktrees", url: "http://127.0.0.1:43123/mcp", authorizationHeader: "Bearer run-token", profileId: "aw_run_1" };
+  it("passes chat-scoped MCP config at thread start", async () => {
+    const { adapter, client } = createAdapter();
+    client.reply("thread/start", { thread: { id: "thread-1" } });
+    await adapter.createSession("/repo", "Run", { modelId: "gpt-5.4", capabilities: connection });
+    expect(client.requestFor("thread/start").params).toMatchObject({ config: { mcp_servers: { agentic_worktrees: { url: connection.url, http_headers: { Authorization: "Bearer run-token" } } } } });
+  });
+  it("reloads and verifies late capability tools", async () => {
+    const { adapter, client } = createAdapter();
+    client.reply("config/mcpServer/reload", {});
+    client.reply("mcpServerStatus/list", { servers: [{ name: "agentic_worktrees", tools: ["web_search"] }] });
+    await adapter.refreshCapabilities("/repo", "thread-1", connection, ["web_search"]);
+    expect(client.methods()).toContain("config/mcpServer/reload");
+  });
+});

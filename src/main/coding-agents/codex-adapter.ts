@@ -22,6 +22,7 @@ import {
 import type {
   CodingAgentAccountUsage,
   CodingAgentAdapter,
+  CodingAgentCapabilityConnection,
   CodingAgentDiff,
   CodingAgentEvent,
   CodingAgentMessage,
@@ -75,6 +76,15 @@ const threadStatus = (
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const capabilityConfig = (connection: CodingAgentCapabilityConnection | undefined) => connection
+  ? { mcp_servers: { [connection.serverName]: { url: connection.url, http_headers: { Authorization: connection.authorizationHeader } } } }
+  : undefined;
+
+const includesExpectedTools = (value: unknown, expected: readonly string[]): boolean => {
+  const serialized = JSON.stringify(value);
+  return expected.every((tool) => serialized.includes(tool));
+};
 
 export class CodexAdapter implements CodingAgentAdapter {
   private version: string | null = null;
@@ -137,6 +147,7 @@ export class CodexAdapter implements CodingAgentAdapter {
       sandbox: "workspace-write",
       approvalPolicy: "untrusted",
       ephemeral: false,
+      ...(options.capabilities ? { config: capabilityConfig(options.capabilities) } : {}),
     });
     const threadId = readCodexThreadId(result);
     if (!threadId) throw new Error("Codex returned a thread without an ID.");
@@ -152,11 +163,13 @@ export class CodexAdapter implements CodingAgentAdapter {
   async getSession(
     directory: string,
     sessionId: string,
+    options?: { capabilities?: CodingAgentCapabilityConnection },
   ): Promise<{ id: string; status: "idle" | "busy" | "error" }> {
     this.directoryByThread.set(sessionId, directory);
     const resumed = await this.client.request<unknown>("thread/resume", {
       threadId: sessionId,
       cwd: directory,
+      ...(options?.capabilities ? { config: capabilityConfig(options.capabilities) } : {}),
     });
     const resumedThreadId = readCodexThreadId(resumed);
     if (resumedThreadId !== sessionId) {
@@ -210,6 +223,26 @@ export class CodexAdapter implements CodingAgentAdapter {
     const turnId = readCodexTurnId(result);
     if (!turnId) throw new Error("Codex returned a turn without an ID.");
     this.activeTurnByThread.set(sessionId, turnId);
+  }
+
+  async refreshCapabilities(
+    directory: string,
+    sessionId: string,
+    connection: CodingAgentCapabilityConnection,
+    expectedToolNames: string[],
+  ): Promise<void> {
+    this.directoryByThread.set(sessionId, directory);
+    await this.client.request<unknown>("config/mcpServer/reload", {
+      threadId: sessionId,
+      config: capabilityConfig(connection),
+    });
+    const deadline = Date.now() + 10_000;
+    do {
+      const status = await this.client.request<unknown>("mcpServerStatus/list", { threadId: sessionId });
+      if (includesExpectedTools(status, expectedToolNames)) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } while (Date.now() < deadline);
+    throw new Error("Capability activation could not be verified in Codex.");
   }
 
   async abort(directory: string, sessionId: string): Promise<void> {

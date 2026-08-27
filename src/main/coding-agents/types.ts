@@ -65,8 +65,16 @@ export interface CodingAgentEvent {
   properties: unknown;
 }
 
+export interface CodingAgentCapabilityConnection {
+  serverName: string;
+  url: string;
+  authorizationHeader: string;
+  profileId: string;
+}
+
 export interface CodingAgentSessionOptions {
   modelId: string;
+  capabilities?: CodingAgentCapabilityConnection;
 }
 
 export interface CodingAgentSessionUsage {
@@ -109,6 +117,7 @@ export interface CodingAgentAdapter {
   getSession(
     directory: string,
     sessionId: string,
+    options?: { capabilities?: CodingAgentCapabilityConnection },
   ): Promise<{
     id: string;
     status?: "idle" | "busy" | "error";
@@ -130,13 +139,24 @@ export interface CodingAgentAdapter {
       providerId: string;
       modelId: string;
       reasoningVariant?: string;
+      capabilityProfileId?: string;
     },
   ): Promise<void>;
   compact(
     directory: string,
     sessionId: string,
-    input: { providerId: string; modelId: string },
+    input: { providerId: string; modelId: string; capabilityProfileId?: string },
   ): Promise<void>;
+  refreshCapabilities?(
+    directory: string,
+    sessionId: string,
+    connection: CodingAgentCapabilityConnection,
+    expectedToolNames: string[],
+  ): Promise<void>;
+  reconfigureCapabilities?(input: {
+    connections: CodingAgentCapabilityConnection[];
+    sessions: Array<{ directory: string; sessionId: string }>;
+  }): Promise<void>;
   getUsage(
     directory: string,
     sessionId: string,
