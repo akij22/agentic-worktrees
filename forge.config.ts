@@ -32,6 +32,11 @@ const config: ForgeConfig = {
           target: 'main',
         },
         {
+          entry: 'src/main/capabilities/host-entry.ts',
+          config: 'vite.capability-host.config.ts',
+          target: 'main',
+        },
+        {
           entry: 'src/preload.ts',
           config: 'vite.preload.config.ts',
           target: 'preload',
