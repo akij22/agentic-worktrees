@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Blocks,
   FolderGit2,
   GitPullRequestArrow,
   MessageSquareCode,
@@ -40,6 +41,13 @@ const navItems: NavItem[] = [
     label: 'Coding Agent',
     end: false,
     icon: MessageSquareCode,
+    placement: 'main',
+  },
+  {
+    to: '/capabilities',
+    label: 'Capabilities',
+    end: false,
+    icon: Blocks,
     placement: 'main',
   },
   {
