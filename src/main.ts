@@ -2,14 +2,22 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { initDatabase } from './main/database';
-import { registerIpcHandlers } from './main/ipc';
+import { configureCapabilityIpc, registerIpcHandlers } from './main/ipc';
 import { githubAuthService } from './main/github/auth-service';
 import {
+  applyCodingAgentCapabilities,
   autoDiscoverAgent,
+  configureCodingAgentCapabilityBridge,
   getAgentInstallationStatus,
+  getCodingAgentCapabilitySession,
   stopCodingAgents,
 } from './main/coding-agents/coding-agent-service';
 import { workspaceTerminalService } from './main/workspace/workspace-terminal-service';
+import { CapabilityRepository } from './main/capabilities/capability-repository';
+import { createElectronCapabilityCredentialStore } from './main/capabilities/capability-credential-store';
+import { createElectronCapabilityHostManager } from './main/capabilities/capability-host-manager';
+import { CapabilityService } from './main/capabilities/capability-service';
+import { getBundledCapability } from './main/capabilities/catalog';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -26,6 +34,8 @@ const createWindow = () => {
     title: '',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 
@@ -62,9 +72,53 @@ const discoverCodingAgents = (): void => {
     });
 };
 
+let capabilityService: CapabilityService | null = null;
+
+const initializeCapabilities = (): CapabilityService => {
+  const repository = new CapabilityRepository();
+  const credentials = createElectronCapabilityCredentialStore(path.join(app.getPath('userData'), 'capability-credentials.bin'));
+  let service: CapabilityService;
+  const hosts = createElectronCapabilityHostManager((capabilityId, settingKey) => service.resolveSecret(capabilityId, settingKey));
+  const connections = new Map<string, import('./main/coding-agents/types').CodingAgentCapabilityConnection>();
+  const prepare = async (runId: string, agentKind: import('./main/coding-agents/types').CodingAgentKind) => {
+    const activeIds = repository.listSessionCapabilities(runId).filter((item) => item.status === 'active').map((item) => item.capabilityId);
+    const settings = Object.fromEntries(activeIds.map((id) => [id, Object.fromEntries(repository.getSettings(id).filter((item) => item.value !== undefined).map((item) => [item.key, item.value]))]));
+    const host = await hosts.ensureHost(runId, activeIds, settings);
+    const profileId = `aw_${runId.toLowerCase().replace(/[^a-z0-9_]+/g, '_')}`;
+    const connection = { serverName: agentKind === 'codex' ? host.serverName : profileId, url: host.url, authorizationHeader: `Bearer ${host.bearerToken}`, profileId };
+    connections.set(runId, connection);
+    return connection;
+  };
+  const activator = {
+    prepareSession: prepare,
+    apply: async (runId: string, expectedToolNames: string[]) => {
+      const context = getCodingAgentCapabilitySession(runId);
+      const connection = connections.get(runId) ?? await prepare(runId, context.agentKind);
+      return applyCodingAgentCapabilities(runId, connection, expectedToolNames);
+    },
+    remove: async (runId: string) => {
+      const context = getCodingAgentCapabilitySession(runId);
+      const connection = connections.get(runId) ?? await prepare(runId, context.agentKind);
+      return applyCodingAgentCapabilities(runId, connection, []);
+    },
+    isAgentIdle: async (runId: string) => getCodingAgentCapabilitySession(runId).idle,
+  };
+  service = new CapabilityService({ repository, credentials, hosts, activator, getAgentKind: async (runId) => getCodingAgentCapabilitySession(runId).agentKind });
+  configureCodingAgentCapabilityBridge({
+    prepareSession: prepare,
+    stopSession: (runId) => { connections.delete(runId); hosts.stopHost(runId); },
+    listSessionCapabilities: (runId) => repository.listSessionCapabilities(runId).map((record) => ({ id: record.capabilityId, name: getBundledCapability(record.capabilityId).manifest.name, version: record.version, state: record.status, ...(record.errorCode ? { errorCode: record.errorCode } : {}), ...(record.activatedAt ? { activatedAt: record.activatedAt.toISOString() } : {}), ...(record.deactivatedAt ? { deactivatedAt: record.deactivatedAt.toISOString() } : {}) })),
+    isReloading: (runId) => repository.listSessionCapabilities(runId).some((record) => record.status === 'reloading'),
+  });
+  configureCapabilityIpc(service);
+  return service;
+};
+
 void app.whenReady().then(async () => {
   initDatabase();
+  capabilityService = initializeCapabilities();
   registerIpcHandlers();
+  await capabilityService.reconcileCapabilities().catch((error) => console.error('Capability reconciliation failed', error instanceof Error ? error.name : 'unknown'));
   await initializeGitHubAuth();
   discoverCodingAgents();
   createWindow();
@@ -86,13 +140,16 @@ app.on('window-all-closed', () => {
   }
 });
 
-let codingAgentsStopped = false;
+let ownedProcessesStopped = false;
 app.on('before-quit', (event) => {
-  workspaceTerminalService.disposeAll();
-  if (codingAgentsStopped) return;
+  if (ownedProcessesStopped) return;
   event.preventDefault();
-  codingAgentsStopped = true;
-  void stopCodingAgents().finally(() => app.quit());
+  ownedProcessesStopped = true;
+  void Promise.allSettled([
+    Promise.resolve(workspaceTerminalService.disposeAll()),
+    capabilityService?.stopCapabilities() ?? Promise.resolve(),
+    stopCodingAgents(),
+  ]).finally(() => app.quit());
 });
 
 // In this file you can include the rest of your app's specific main process

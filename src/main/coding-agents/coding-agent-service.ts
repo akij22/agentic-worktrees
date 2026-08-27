@@ -818,6 +818,36 @@ export const createAgentSession = async (input: {
   return toSummary(getSessionRecord(runId));
 };
 
+export const getCodingAgentCapabilitySession = (runId: string) => {
+  const row = getSessionRecord(runId);
+  const context = getContext(row.run.worktreeId);
+  return {
+    agentKind: getHarnessForInstallation(row.installation).installationId,
+    directory: context.worktree.path,
+    sessionId: row.agent.externalSessionId,
+    idle: row.run.status === "idle",
+  };
+};
+
+export const applyCodingAgentCapabilities = async (
+  runId: string,
+  connection: CodingAgentCapabilityConnection,
+  expectedToolNames: string[],
+): Promise<"refreshed" | "reloaded"> => {
+  const context = getCodingAgentCapabilitySession(runId);
+  const harness = harnesses[context.agentKind];
+  await ensureStarted(harness);
+  if (context.agentKind === "codex") {
+    if (!harness.adapter.refreshCapabilities) throw new Error("Codex capability refresh is unavailable.");
+    await harness.adapter.refreshCapabilities(context.directory, context.sessionId, connection, expectedToolNames);
+    return "refreshed";
+  }
+  if (!harness.adapter.reconfigureCapabilities) throw new Error("OpenCode capability reload is unavailable.");
+  await harness.adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: context.directory, sessionId: context.sessionId }] });
+  capabilityPreparedRuns.add(runId);
+  return "reloaded";
+};
+
 export const setAgentSessionModel = async (input: {
   runId: string;
   providerId: string;
