@@ -9,6 +9,7 @@ import {
 import { realpathSync, statSync } from "node:fs";
 import { IPC_CHANNELS } from "../../shared/ipc/channels";
 import {
+	capabilityChangedEventSchema,
 	codingAgentAccountUsageRequestSchema,
 	codingAgentModelsRequestSchema,
 	codingAgentPermissionResponseSchema,
@@ -104,6 +105,15 @@ import {
 	setAgentSessionModel,
 	subscribeToAgentEvents,
 } from "../coding-agents/coding-agent-service";
+import type { CapabilityService } from "../capabilities/capability-service";
+import { createCapabilityHandlers } from "./capability-handlers";
+
+let capabilityService: CapabilityService | null = null;
+export const configureCapabilityIpc = (service: CapabilityService | null): void => { capabilityService = service; };
+const requireCapabilityService = (): CapabilityService => {
+	if (!capabilityService) throw new Error("Capability service is unavailable.");
+	return capabilityService;
+};
 
 const requireAuthenticated =
 	<Arguments extends unknown[], Result>(
@@ -400,6 +410,13 @@ const handleWorkspaceGitOpenPullRequest = async (
 	return result;
 };
 
+const capabilityHandlers = () => createCapabilityHandlers(requireCapabilityService());
+const handleCapabilityList = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().list(rawRequest);
+const handleCapabilityGet = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().get(rawRequest);
+const handleCapabilityConfigure = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().configure(rawRequest);
+const handleCapabilityActivate = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().activate(rawRequest);
+const handleCapabilityDeactivate = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().deactivate(rawRequest);
+
 const handleCodingAgentSelectExecutable = async (
 	_event: IpcMainInvokeEvent,
 	rawRequest: unknown,
@@ -621,6 +638,11 @@ const handleIntelligenceIntegrationOpen = async (
 };
 
 export const registerIpcHandlers = (): void => {
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_LIST, requireAuthenticated(handleCapabilityList));
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_GET, requireAuthenticated(handleCapabilityGet));
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_CONFIGURE, requireAuthenticated(handleCapabilityConfigure));
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_ACTIVATE, requireAuthenticated(handleCapabilityActivate));
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_DEACTIVATE, requireAuthenticated(handleCapabilityDeactivate));
 	ipcMain.handle(IPC_CHANNELS.GITHUB_AUTH_STATUS, () =>
 		authStatusResponse(() => githubAuthService.getStatus()),
 	);
@@ -857,6 +879,10 @@ export const registerIpcHandlers = (): void => {
 				publicStatus,
 			);
 		}
+	});
+	capabilityService?.subscribeToCapabilityEvents((event) => {
+		const publicEvent = capabilityChangedEventSchema.parse(event);
+		for (const window of BrowserWindow.getAllWindows()) window.webContents.send(IPC_CHANNELS.CAPABILITY_CHANGED, publicEvent);
 	});
 	subscribeToAgentEvents((event) => {
 		if (event.runId) intelligenceService.scheduleRefreshForRun(event.runId);

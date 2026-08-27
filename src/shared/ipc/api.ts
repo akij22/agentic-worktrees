@@ -1,6 +1,13 @@
 import type { Repository, Worktree } from "../db/schema";
 import type {
 	BranchDto,
+	CapabilityActivateRequest,
+	CapabilityChangedEventDto,
+	CapabilityConfigureRequest,
+	CapabilityDeactivateRequest,
+	CapabilityDetailDto,
+	CapabilitySessionStateDto,
+	CapabilitySummaryDto,
 	CodingAgentAccountUsageDto,
 	CodingAgentKindDto,
 	CodingAgentModelDto,
@@ -175,6 +182,14 @@ export interface Api {
 		onResolutionSessionChanged: (
 			listener: (event: ConflictResolutionSessionEventDto) => void,
 		) => () => void;
+	};
+	capabilities: {
+		list: (request?: { runId?: string }) => Promise<CapabilitySummaryDto[]>;
+		get: (request: { capabilityId: string; runId?: string }) => Promise<CapabilityDetailDto>;
+		configure: (request: CapabilityConfigureRequest) => Promise<CapabilityDetailDto>;
+		activate: (request: CapabilityActivateRequest) => Promise<CapabilitySessionStateDto>;
+		deactivate: (request: CapabilityDeactivateRequest) => Promise<CapabilitySessionStateDto>;
+		onChanged: (listener: (event: CapabilityChangedEventDto) => void) => () => void;
 	};
 	codingAgent: {
 		selectExecutable: (request: {
