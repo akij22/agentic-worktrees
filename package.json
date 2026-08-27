@@ -5,6 +5,10 @@
   "description": "My Electron application description",
   "main": ".vite/build/main.js",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "capabilities/*"
+  ],
   "scripts": {
     "prestart": "npm run rebuild",
     "start": "electron-forge start",
@@ -16,7 +20,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "rebuild": "electron-rebuild -f -w better-sqlite3 -w node-pty"
+    "rebuild": "electron-rebuild -f -w better-sqlite3 -w node-pty",
+    "build:capability-host": "vite build --config vite.capability-host.config.ts",
+    "smoke:capabilities": "node scripts/smoke-capability-web-search.mjs"
   },
   "keywords": [],
   "author": {
@@ -35,6 +41,7 @@
     "@electron-forge/plugin-vite": "^7.11.2",
     "@electron/fuses": "^1.8.0",
     "@electron/rebuild": "^4.2.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.2",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -60,9 +67,11 @@
     "@base-ui/react": "^1.6.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/instrument-sans": "^5.3.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@opencode-ai/sdk": "^1.17.18",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "ajv": "^8.20.0",
     "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
