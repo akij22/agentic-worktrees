@@ -11,9 +11,11 @@ import { DropdownMenu } from "../../../components/ui/dropdown-menu";
 import { Skeleton } from "../../../components/ui/skeleton";
 import type {
   AvailableEditorDto,
+  CodingAgentAccountUsageDto,
   CodingAgentSessionUsageDto,
   EditorId,
 } from "../../../../shared/ipc/schemas";
+import { AccountUsagePopup } from "../components/AccountUsagePopup";
 import { WorkspacePanel } from "../components/WorkspacePanel";
 import { SessionChangesSummary } from "../components/SessionChangesSummary";
 import { SessionComposer } from "../components/SessionComposer";
@@ -32,6 +34,13 @@ type EditorError = {
 type StatusPopupState = {
   loading: boolean;
   usage?: CodingAgentSessionUsageDto;
+  error?: string;
+};
+
+type AccountUsagePopupState = {
+  loading: boolean;
+  accountUsage?: CodingAgentAccountUsageDto;
+  sessionUsage?: CodingAgentSessionUsageDto;
   error?: string;
 };
 
@@ -81,6 +90,10 @@ export const CodingAgentSession = ({
   const [editors, setEditors] = useState<AvailableEditorDto[]>([]);
   const [editorError, setEditorError] = useState<EditorError>();
   const [statusPopup, setStatusPopup] = useState<StatusPopupState>();
+  const [accountUsagePopup, setAccountUsagePopup] =
+    useState<AccountUsagePopupState>();
+  const [composerUsage, setComposerUsage] =
+    useState<CodingAgentSessionUsageDto>();
   const clearFocusedDiffFile = useCallback(
     () => sessionState.selectSummaryFile(undefined),
     [sessionState.selectSummaryFile],
@@ -151,7 +164,33 @@ export const CodingAgentSession = ({
       cancelled = true;
     };
   }, [sessionState.snapshot?.context.worktree.id]);
-  useEffect(() => setStatusPopup(undefined), [runId]);
+  useEffect(() => {
+    setStatusPopup(undefined);
+    setAccountUsagePopup(undefined);
+    setComposerUsage(undefined);
+  }, [runId]);
+  useEffect(() => {
+    if (!sessionState.snapshot) return;
+    let cancelled = false;
+    const refreshUsage = async () => {
+      try {
+        const usage = await window.api.codingAgent.getSessionUsage({ runId });
+        if (!cancelled) setComposerUsage(usage);
+      } catch {
+        // Usage is supplementary UI; the status command still exposes errors.
+      }
+    };
+    void refreshUsage();
+    const timer = window.setInterval(() => void refreshUsage(), 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [
+    runId,
+    sessionState.snapshot?.session.modelId,
+    sessionState.snapshot?.session.providerId,
+  ]);
   useEffect(() => {
     if (!statusPopup || statusPopup.loading) return;
     const timeout = window.setTimeout(() => setStatusPopup(undefined), 10_000);
@@ -205,13 +244,36 @@ export const CodingAgentSession = ({
       });
     }
   };
+  const showAccountUsage = async () => {
+    setStatusPopup(undefined);
+    setAccountUsagePopup({ loading: true });
+    try {
+      const [accountUsage, sessionUsage] = await Promise.all([
+        window.api.codingAgent.getAccountUsage({ runId }),
+        window.api.codingAgent
+          .getSessionUsage({ runId })
+          .catch(() => undefined),
+      ]);
+      setAccountUsagePopup({ loading: false, accountUsage, sessionUsage });
+    } catch {
+      setAccountUsagePopup({
+        loading: false,
+        error: "Could not retrieve account usage. Please try again.",
+      });
+    }
+  };
   const executeSlashCommand = (command: SlashCommandId) => {
     if (command === "status") {
       void showStatus();
       return;
     }
+    if (command === "usage") {
+      void showAccountUsage();
+      return;
+    }
     if (command === "compact") {
-      if (!agentRunning && !sessionState.compacting) void sessionState.compact();
+      if (!agentRunning && !sessionState.compacting)
+        void sessionState.compact();
       return;
     }
     if (command === "stop") {
@@ -279,7 +341,10 @@ export const CodingAgentSession = ({
               />
             </div>
             {editorError ? (
-              <p className="mt-1 truncate text-xs text-destructive" role="alert">
+              <p
+                className="mt-1 truncate text-xs text-destructive"
+                role="alert"
+              >
                 {editorError.message}
               </p>
             ) : null}
@@ -315,7 +380,9 @@ export const CodingAgentSession = ({
             agentName={session.agentName}
             messages={messages}
             busy={agentRunning}
-            activity={busy && !agentFinished ? sessionState.activity : undefined}
+            activity={
+              busy && !agentFinished ? sessionState.activity : undefined
+            }
             transientThought={
               sessionState.compacting ? "Compacting context..." : undefined
             }
@@ -335,6 +402,16 @@ export const CodingAgentSession = ({
             ) : null}
           </SessionMessages>
           <div className="relative shrink-0">
+            {accountUsagePopup ? (
+              <AccountUsagePopup
+                session={session}
+                accountUsage={accountUsagePopup.accountUsage}
+                sessionUsage={accountUsagePopup.sessionUsage}
+                loading={accountUsagePopup.loading}
+                error={accountUsagePopup.error}
+                onClose={() => setAccountUsagePopup(undefined)}
+              />
+            ) : null}
             {statusPopup ? (
               <SessionStatusPopup
                 session={session}
@@ -346,6 +423,8 @@ export const CodingAgentSession = ({
             ) : null}
             <SessionComposer
               session={session}
+              branchName={context.worktree.branchName}
+              usage={composerUsage}
               draft={draft}
               models={sessionState.models}
               modelKey={sessionState.modelKey}
@@ -359,9 +438,7 @@ export const CodingAgentSession = ({
               onModelChange={(key) => void sessionState.changeModel(key)}
               onReasoningChange={sessionState.setReasoningVariant}
               onSend={send}
-              onStop={() =>
-                void window.api.codingAgent.abortSession({ runId })
-              }
+              onStop={() => void window.api.codingAgent.abortSession({ runId })}
               onSlashCommand={executeSlashCommand}
             />
           </div>

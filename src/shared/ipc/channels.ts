@@ -45,6 +45,7 @@ export const IPC_CHANNELS = {
 	CODING_AGENT_SESSION_GET: "coding-agent:session-get",
 	CODING_AGENT_SESSION_VIEWED: "coding-agent:session-viewed",
 	CODING_AGENT_SESSION_USAGE: "coding-agent:session-usage",
+	CODING_AGENT_ACCOUNT_USAGE: "coding-agent:account-usage",
 	CODING_AGENT_SESSION_SEND: "coding-agent:session-send",
 	CODING_AGENT_SESSION_COMPACT: "coding-agent:session-compact",
 	CODING_AGENT_SESSION_ABORT: "coding-agent:session-abort",

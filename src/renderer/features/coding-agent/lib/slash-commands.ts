@@ -1,8 +1,4 @@
-export type SlashCommandId =
-  | "status"
-  | "compact"
-  | "model"
-  | "stop";
+export type SlashCommandId = "status" | "usage" | "compact" | "model" | "stop";
 
 export type SlashCommand = {
   id: SlashCommandId;
@@ -15,6 +11,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "status",
     label: "/status",
     description: "Show session and runtime status",
+  },
+  {
+    id: "usage",
+    label: "/usage",
+    description: "Show remaining account usage",
   },
   {
     id: "compact",
@@ -33,12 +34,8 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
 ];
 
-export const filterSlashCommands = (
-  draft: string,
-): SlashCommand[] => {
+export const filterSlashCommands = (draft: string): SlashCommand[] => {
   if (!draft.startsWith("/") || draft.includes(" ")) return [];
   const query = draft.slice(1).toLocaleLowerCase();
-  return SLASH_COMMANDS.filter((command) =>
-    command.id.startsWith(query),
-  );
+  return SLASH_COMMANDS.filter((command) => command.id.startsWith(query));
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	codingAgentAccountUsageSchema,
 	codingAgentKindSchema,
 	codingAgentModelsRequestSchema,
 	codingAgentSessionCreateRequestSchema,
@@ -113,6 +114,34 @@ describe("editor IPC schemas", () => {
 });
 
 describe("coding agent IPC schemas", () => {
+	it("accepts normalized account quota windows without external provider fields", () => {
+		expect(
+			codingAgentAccountUsageSchema.parse({
+				providerId: "openai",
+				availability: "available",
+				planType: "plus",
+				windows: [
+					{
+						durationMinutes: 300,
+						remainingPercentage: 77,
+						resetsAt: 1_800_000_000_000,
+					},
+				],
+			}),
+		).toEqual({
+			providerId: "openai",
+			availability: "available",
+			planType: "plus",
+			windows: [
+				{
+					durationMinutes: 300,
+					remainingPercentage: 77,
+					resetsAt: 1_800_000_000_000,
+				},
+			],
+		});
+	});
+
 	it("accepts Codex session usage without provider cost data", () => {
 		expect(
 			codingAgentSessionUsageSchema.parse({
@@ -259,16 +288,20 @@ describe("intelligence IPC schemas", () => {
 			rightRanges: target.rightRanges,
 		});
 		expect(parsed.overlap.targets[0]).not.toHaveProperty("absolutePath");
-		expect(() => intelligenceOverlapDetailsSchema.parse({
-			...details,
-			overlap: {
-				...details.overlap,
-				targets: [{
-					...target,
-					leftRanges: [{ oldStart: -1, oldLines: 1, newStart: 2, newLines: 2 }],
-				}],
-			},
-		})).toThrow();
+		expect(() =>
+			intelligenceOverlapDetailsSchema.parse({
+				...details,
+				overlap: {
+					...details.overlap,
+					targets: [
+						{
+							...target,
+							leftRanges: [{ oldStart: -1, oldLines: 1, newStart: 2, newLines: 2 }],
+						},
+					],
+				},
+			}),
+		).toThrow();
 	});
 
 	it("accepts safe conflict targets and rejects option-like branch names", () => {
