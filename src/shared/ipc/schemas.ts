@@ -840,3 +840,94 @@ export type WorktreeCreateResponse = z.infer<
 	typeof worktreeCreateResponseSchema
 >;
 export type WorktreeListRequest = z.infer<typeof worktreeListRequestSchema>;
+
+
+export const capabilityStateSchema = z.enum([
+	"available",
+	"needs_setup",
+	"ready",
+	"pending_activation",
+	"reloading",
+	"active",
+	"pending_deactivation",
+	"activation_failed",
+	"inactive",
+	"unavailable",
+]);
+export type CapabilityStateDto = z.infer<typeof capabilityStateSchema>;
+
+const capabilityCompatibilitySchema = z.object({
+	codex: z.enum(["supported", "unsupported"]),
+	opencode: z.enum(["supported", "unsupported"]),
+});
+
+export const capabilitySummarySchema = z.object({
+	id: z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/),
+	name: z.string(),
+	version: z.string(),
+	description: z.string(),
+	category: z.string(),
+	compatibility: capabilityCompatibilitySchema,
+	state: capabilityStateSchema,
+	secretConfigured: z.boolean(),
+});
+export type CapabilitySummaryDto = z.infer<typeof capabilitySummarySchema>;
+
+const capabilitySettingDetailSchema = z.object({
+	key: z.string(),
+	type: z.enum(["string", "integer", "boolean", "secret"]),
+	required: z.boolean().optional(),
+	default: z.union([z.string(), z.number(), z.boolean()]).optional(),
+	enum: z.array(z.string()).optional(),
+	min: z.number().optional(),
+	max: z.number().optional(),
+});
+
+export const capabilityDetailSchema = capabilitySummarySchema.extend({
+	sdkVersion: z.string(),
+	author: z.object({ name: z.string(), url: z.string().url().optional() }),
+	license: z.string(),
+	provenance: z.object({
+		kind: z.string(), source: z.string(), package: z.string(),
+		sourceVersion: z.string(), repository: z.string().url(),
+	}).optional(),
+	permissions: z.object({ network: z.array(z.string()), secrets: z.array(z.string()) }),
+	settings: z.array(capabilitySettingDetailSchema),
+	reviewStatus: z.literal("bundled-reviewed"),
+	providedTools: z.array(z.string()),
+	permissionDigest: z.string(),
+	warningCode: z.enum(["upstream_unavailable"]).optional(),
+});
+export type CapabilityDetailDto = z.infer<typeof capabilityDetailSchema>;
+
+export const capabilitySessionStateSchema = z.object({
+	runId: z.string().min(1),
+	capabilityId: z.string().min(1),
+	name: z.string(),
+	version: z.string(),
+	state: capabilityStateSchema,
+	errorCode: z.string().optional(),
+	activatedAt: z.string().optional(),
+	deactivatedAt: z.string().optional(),
+});
+export type CapabilitySessionStateDto = z.infer<typeof capabilitySessionStateSchema>;
+
+const capabilityIdSchema = z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/);
+export const capabilityListRequestSchema = z.object({ runId: z.string().trim().min(1).optional() }).optional().default({});
+export const capabilityGetRequestSchema = z.object({ capabilityId: capabilityIdSchema, runId: z.string().trim().min(1).optional() });
+export const capabilityConfigureRequestSchema = z.object({
+	capabilityId: capabilityIdSchema,
+	acceptedPermissionDigest: z.string().min(1),
+	settings: z.object({
+		providerMode: z.literal("auto"),
+		resultLimit: z.number().int().min(1).max(20),
+	}),
+	exaApiKey: z.string().trim().min(1).max(4_096).optional(),
+});
+export const capabilityActivateRequestSchema = z.object({ runId: z.string().trim().min(1), capabilityId: capabilityIdSchema });
+export const capabilityDeactivateRequestSchema = capabilityActivateRequestSchema;
+export const capabilityChangedEventSchema = capabilitySessionStateSchema.extend({ updatedAt: z.string() });
+export type CapabilityChangedEventDto = z.infer<typeof capabilityChangedEventSchema>;
+export type CapabilityConfigureRequest = z.infer<typeof capabilityConfigureRequestSchema>;
+export type CapabilityActivateRequest = z.infer<typeof capabilityActivateRequestSchema>;
+export type CapabilityDeactivateRequest = z.infer<typeof capabilityDeactivateRequestSchema>;

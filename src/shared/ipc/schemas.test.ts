@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	capabilityActivateRequestSchema,
+	capabilityConfigureRequestSchema,
+	capabilityDetailSchema,
 	codingAgentAccountUsageSchema,
 	codingAgentKindSchema,
 	codingAgentModelsRequestSchema,
@@ -471,5 +474,18 @@ describe("workspace IPC schemas", () => {
 			body: "Implements integrated workspace tools.",
 			baseBranch: "main",
 		});
+	});
+});
+
+
+describe("capability IPC schemas", () => {
+	it("validates activation and keyless configuration requests", () => {
+		expect(capabilityActivateRequestSchema.parse({ runId: "run-1", capabilityId: "agentic-worktrees.web-search" })).toEqual({ runId: "run-1", capabilityId: "agentic-worktrees.web-search" });
+		expect(capabilityConfigureRequestSchema.parse({ capabilityId: "agentic-worktrees.web-search", acceptedPermissionDigest: "digest", settings: { providerMode: "auto", resultLimit: 5 } })).not.toHaveProperty("exaApiKey");
+	});
+
+	it("strips private fields from capability details", () => {
+		const parsed = capabilityDetailSchema.parse({ id: "agentic-worktrees.web-search", name: "Web Search", version: "0.1.0", description: "Search", category: "web-browser", compatibility: { codex: "supported", opencode: "supported" }, state: "ready", secretConfigured: false, sdkVersion: "^0.1.0", author: { name: "Agentic Worktrees" }, license: "MIT", permissions: { network: [], secrets: [] }, settings: [], reviewStatus: "bundled-reviewed", providedTools: ["web_search"], permissionDigest: "digest", bearerToken: "private" });
+		expect(parsed).not.toHaveProperty("bearerToken");
 	});
 });
