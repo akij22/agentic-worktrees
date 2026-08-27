@@ -457,6 +457,63 @@ const bootstrapStatements = [
     CREATE INDEX IF NOT EXISTS conflict_resolution_operations_session_id_idx
     ON conflict_resolution_operations (session_id)
   `,
+	`
+    CREATE TABLE IF NOT EXISTS capability_installations (
+      capability_id TEXT PRIMARY KEY NOT NULL,
+      version TEXT NOT NULL,
+      permission_digest TEXT NOT NULL,
+      configured INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `,
+	`
+    CREATE TABLE IF NOT EXISTS capability_settings (
+      id TEXT PRIMARY KEY NOT NULL,
+      capability_id TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value_json TEXT,
+      secret_ref TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (capability_id) REFERENCES capability_installations(capability_id) ON DELETE CASCADE
+    )
+  `,
+	`
+    CREATE UNIQUE INDEX IF NOT EXISTS capability_settings_capability_key_unique
+    ON capability_settings (capability_id, key)
+  `,
+	`
+    CREATE INDEX IF NOT EXISTS capability_settings_capability_id_idx
+    ON capability_settings (capability_id)
+  `,
+	`
+    CREATE TABLE IF NOT EXISTS session_capabilities (
+      id TEXT PRIMARY KEY NOT NULL,
+      run_id TEXT NOT NULL,
+      capability_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      status TEXT NOT NULL,
+      error_code TEXT,
+      activated_at INTEGER,
+      deactivated_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+    )
+  `,
+	`
+    CREATE UNIQUE INDEX IF NOT EXISTS session_capabilities_run_capability_unique
+    ON session_capabilities (run_id, capability_id)
+  `,
+	`
+    CREATE INDEX IF NOT EXISTS session_capabilities_run_id_idx
+    ON session_capabilities (run_id)
+  `,
+	`
+    CREATE INDEX IF NOT EXISTS session_capabilities_status_idx
+    ON session_capabilities (status)
+  `,
 ] as const;
 
 export const bootstrapSchemaSql = bootstrapStatements.join(";\n");

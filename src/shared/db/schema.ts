@@ -226,6 +226,53 @@ export const codingAgentSessionDiffs = sqliteTable(
 	}),
 );
 
+export const capabilityInstallations = sqliteTable("capability_installations", {
+	capabilityId: text("capability_id").primaryKey(),
+	version: text("version").notNull(),
+	permissionDigest: text("permission_digest").notNull(),
+	configured: integer("configured", { mode: "boolean" }).notNull().default(false),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const capabilitySettings = sqliteTable(
+	"capability_settings",
+	{
+		id: text("id").primaryKey(),
+		capabilityId: text("capability_id").notNull().references(() => capabilityInstallations.capabilityId, { onDelete: "cascade" }),
+		key: text("key").notNull(),
+		valueJson: text("value_json"),
+		secretRef: text("secret_ref"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => ({
+		capabilityKeyUnique: uniqueIndex("capability_settings_capability_key_unique").on(table.capabilityId, table.key),
+		capabilityIdIdx: index("capability_settings_capability_id_idx").on(table.capabilityId),
+	}),
+);
+
+export const sessionCapabilities = sqliteTable(
+	"session_capabilities",
+	{
+		id: text("id").primaryKey(),
+		runId: text("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+		capabilityId: text("capability_id").notNull(),
+		version: text("version").notNull(),
+		status: text("status").notNull(),
+		errorCode: text("error_code"),
+		activatedAt: integer("activated_at", { mode: "timestamp_ms" }),
+		deactivatedAt: integer("deactivated_at", { mode: "timestamp_ms" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => ({
+		runCapabilityUnique: uniqueIndex("session_capabilities_run_capability_unique").on(table.runId, table.capabilityId),
+		runIdIdx: index("session_capabilities_run_id_idx").on(table.runId),
+		statusIdx: index("session_capabilities_status_idx").on(table.status),
+	}),
+);
+
 export const intelligenceSnapshots = sqliteTable(
 	"intelligence_snapshots",
 	{
@@ -545,6 +592,9 @@ export type CodingAgentInstallation =
 export type CodingAgentSession = typeof codingAgentSessions.$inferSelect;
 export type CodingAgentSessionDiff =
 	typeof codingAgentSessionDiffs.$inferSelect;
+export type CapabilityInstallation = typeof capabilityInstallations.$inferSelect;
+export type CapabilitySettingRecord = typeof capabilitySettings.$inferSelect;
+export type SessionCapability = typeof sessionCapabilities.$inferSelect;
 export type IntelligenceSnapshot = typeof intelligenceSnapshots.$inferSelect;
 export type IntelligenceWorktree = typeof intelligenceWorktrees.$inferSelect;
 export type IntelligenceChangedFile =

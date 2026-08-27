@@ -38,6 +38,16 @@ describe("database upgrades", () => {
 		]);
 	});
 
+	it("bootstraps capability configuration and session tables", () => {
+		sqlite.exec(bootstrapSchemaSql);
+		const tables = sqlite.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'capability%' OR name LIKE 'session_capabilit%') ORDER BY name`).all() as Array<{ name: string }>;
+		expect(tables.map(({ name }) => name)).toEqual([
+			"capability_installations",
+			"capability_settings",
+			"session_capabilities",
+		]);
+	});
+
 	it("adds last_viewed_at to an existing coding-agent session table", () => {
 		sqlite.exec(`
       CREATE TABLE coding_agent_sessions (
