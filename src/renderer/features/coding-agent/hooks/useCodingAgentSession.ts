@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  CapabilitySummaryDto,
   CodingAgentDiffDto,
   CodingAgentModelDto,
   CodingAgentSessionSnapshotDto,
@@ -16,6 +17,7 @@ import { CoalescingTaskQueue } from "../lib/coalescing-task-queue";
 export const useCodingAgentSession = (runId: string) => {
   const [snapshot, setSnapshot] = useState<CodingAgentSessionSnapshotDto>();
   const [models, setModels] = useState<CodingAgentModelDto[]>([]);
+  const [capabilityLibrary, setCapabilityLibrary] = useState<CapabilitySummaryDto[]>([]);
   const [modelKey, setModelKey] = useState("");
   const [reasoningVariant, setReasoningVariant] = useState("");
   const [loadingModels, setLoadingModels] = useState(false);
@@ -46,6 +48,7 @@ export const useCodingAgentSession = (runId: string) => {
     agentRef.current = { kind: "", name: "coding agent" };
     setSnapshot(undefined);
     setModels([]);
+    setCapabilityLibrary([]);
     setModelKey("");
     setReasoningVariant("");
     setLoadingModels(false);
@@ -106,7 +109,14 @@ export const useCodingAgentSession = (runId: string) => {
   );
   useEffect(() => {
     void load();
-    return window.api.codingAgent.onEvent((event) => {
+    const capabilityApi = window.api.capabilities;
+    void capabilityApi?.list({ runId }).then(setCapabilityLibrary).catch(() => setError("Could not load chat capabilities."));
+    const unsubscribeCapabilities = capabilityApi?.onChanged((event) => {
+      if (event.runId !== runId) return;
+      void load();
+      void capabilityApi.list({ runId }).then(setCapabilityLibrary).catch(() => undefined);
+    }) ?? (() => undefined);
+    const unsubscribeAgent = window.api.codingAgent.onEvent((event) => {
       if (event.runId === null && event.type === "server.exit") {
         const eventAgentKind =
           typeof event.payload === "object" &&
@@ -157,6 +167,7 @@ export const useCodingAgentSession = (runId: string) => {
       )
         void load();
     });
+    return () => { unsubscribeAgent(); unsubscribeCapabilities(); };
   }, [load, runId]);
   useEffect(() => {
     if (!snapshot) return;
@@ -293,6 +304,15 @@ export const useCodingAgentSession = (runId: string) => {
     },
     [permission, runId],
   );
+  const activateCapability = useCallback(async (capabilityId: string) => {
+    await window.api.capabilities.activate({ runId, capabilityId });
+    await load();
+  }, [load, runId]);
+  const deactivateCapability = useCallback(async (capabilityId: string) => {
+    await window.api.capabilities.deactivate({ runId, capabilityId });
+    await load();
+  }, [load, runId]);
+  const retryCapability = activateCapability;
   const dismissChangesSummary = useCallback(() => {
     setChangesSummary(undefined);
     setSelectedSummaryFile(undefined);
@@ -303,6 +323,9 @@ export const useCodingAgentSession = (runId: string) => {
   return {
     snapshot,
     models,
+    capabilities: snapshot?.capabilities ?? [],
+    capabilityLibrary,
+    capabilityReloading: snapshot?.capabilityReloading ?? false,
     modelKey,
     reasoningVariant,
     loadingModels,
@@ -321,6 +344,9 @@ export const useCodingAgentSession = (runId: string) => {
     changeModel,
     compact,
     respondPermission,
+    activateCapability,
+    deactivateCapability,
+    retryCapability,
     dismissChangesSummary,
     selectSummaryFile,
   };

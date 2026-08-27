@@ -1,4 +1,4 @@
-import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
+import type { CodingAgentMessageDto, CodingAgentSessionSnapshotDto } from "../../../../shared/ipc/schemas";
 import { useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../../../components/ui/button";
@@ -20,6 +20,7 @@ type Props = {
   onRespondPermission: (response: "once" | "always" | "reject") => void;
   onOpenFile?: (href: string) => boolean;
   children?: ReactNode;
+  capabilities?: CodingAgentSessionSnapshotDto["capabilities"];
 };
 
 export const SessionMessages = ({
@@ -33,6 +34,7 @@ export const SessionMessages = ({
   onRespondPermission,
   onOpenFile,
   children,
+  capabilities = [],
 }: Props) => {
   const messagesRef = useRef<HTMLDivElement>(null);
   const hasMountedRef = useRef(false);
@@ -71,6 +73,12 @@ export const SessionMessages = ({
         Ask {agentName} to make a change in this worktree.
       </div>
     ) : null}
+    {capabilities.filter((capability) => capability.activatedAt || capability.deactivatedAt || capability.state === "activation_failed").map((capability) => (
+      <div key={`capability-${capability.id}`} className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/25 px-3 py-2 font-mono text-[11px] text-muted-foreground">
+        <span className={`size-1.5 rounded-full ${capability.state === "active" ? "bg-emerald-400" : capability.state === "activation_failed" ? "bg-destructive" : "bg-muted-foreground"}`} />
+        {capability.name} {capability.state === "active" ? "activated" : capability.state === "activation_failed" ? "activation failed" : "deactivated"}
+      </div>
+    ))}
     {entries.map((entry, index) => {
       if (entry.kind === "thought") {
         return (

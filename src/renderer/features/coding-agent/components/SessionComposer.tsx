@@ -1,6 +1,7 @@
 import { GitBranch, Layers3 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type {
+  CapabilitySummaryDto,
   CodingAgentModelDto,
   CodingAgentSessionDto,
 } from "../../../../shared/ipc/schemas";
@@ -12,6 +13,7 @@ import {
 } from "../lib/slash-commands";
 import { findActiveFileMention, insertFileMention } from "../lib/file-mentions";
 import { useFileMentionSuggestions } from "../hooks/useFileMentionSuggestions";
+import { CapabilityPicker } from "../../capabilities/components/CapabilityPicker";
 
 type Props = {
   session: CodingAgentSessionDto;
@@ -36,6 +38,10 @@ type Props = {
   onSend: () => void;
   onStop: () => void;
   onSlashCommand: (command: SlashCommandId) => void;
+  capabilityLibrary?: CapabilitySummaryDto[];
+  capabilityReloading?: boolean;
+  onActivateCapability?: (id: string) => Promise<unknown>;
+  onDeactivateCapability?: (id: string) => Promise<unknown>;
 };
 
 export const SessionComposer = ({
@@ -57,6 +63,10 @@ export const SessionComposer = ({
   onSend,
   onStop,
   onSlashCommand,
+  capabilityLibrary = [],
+  capabilityReloading = false,
+  onActivateCapability,
+  onDeactivateCapability,
 }: Props) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCaretRef = useRef<number | undefined>(undefined);
@@ -314,6 +324,9 @@ export const SessionComposer = ({
               disabled={loadingModels || changingModel || models.length === 0}
               triggerClassName="max-w-52"
             />
+            {capabilityLibrary.length > 0 && onActivateCapability && onDeactivateCapability ? (
+              <CapabilityPicker runId={session.id} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
+            ) : null}
             {reasoningVariants.length > 0 ? (
               <PickerMenu
                 ariaLabel="Reasoning level"
