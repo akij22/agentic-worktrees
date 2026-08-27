@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-27  
 **Status:** Approved design, pending implementation plan  
-**Scope:** Project A — local Capability SDK, curated catalog, Brave Web Search port, cross-agent MCP runtime, Capability Library, and chat activation
+**Scope:** Project A — local Capability SDK, curated catalog, keyless Exa Web Search port, cross-agent MCP runtime, Capability Library, and chat activation
 
 ## 1. Context
 
@@ -14,7 +14,7 @@ The initial specifications describe a broader ecosystem that includes skills, ex
 
 > The same capability, compiled against a provider-neutral Agentic Worktrees SDK, can be activated on an existing Codex or OpenCode chat and invoked through MCP.
 
-The pilot capability is **Web Search**, manually ported from the reusable parts and behavior of `pi-web-access` 0.25.0 to Brave Search.
+The pilot capability is **Web Search**, manually ported from the reusable parts and behavior of `pi-web-access` 0.25.0. Its default `auto` path uses Exa's hosted MCP endpoint without requiring a user-supplied API key.
 
 ## 2. Decisions
 
@@ -23,18 +23,20 @@ The approved decisions are:
 - Build a vertical slice before a broad SDK or a batch of ports.
 - Use a manual port, not a runtime shim for Pi APIs.
 - Treat Pi as a source of ideas, reusable logic, provenance, and licenses—not as a supported runtime.
-- Use Brave Search as the pilot backend.
+- Use `auto` backed by Exa hosted MCP as the default pilot backend, without mandatory credentials.
+- Allow an optional Exa API key for higher limits while keeping the hosted path functional without it.
+- Do not add silent Brave or DuckDuckGo fallback in v0.1.
 - Package the SDK locally in this repository, with an API designed for later npm publication.
 - Support only tool-based MCP capabilities in SDK v0.1.
 - Allow activation after an agent has already completed turns.
 - Make a newly activated capability available from the next turn, never during an in-flight turn.
 - Use provider-specific activation adapters behind a common Capability Manager.
 - Permit a coordinated, transparent OpenCode restart and session resume when MCP configuration changes.
-- Store the Brave API key in an app-managed encrypted vault.
+- Store an optional Exa API key in an app-managed encrypted vault when the user chooses to configure one.
 - Use a bundled, curated catalog in v0.1.
 - Provide both a Capability Library and a selector in the chat composer.
 - Run bundled capability code in a separate app-owned process.
-- Verify behavior with deterministic automated tests and opt-in smoke tests against real Codex, OpenCode, and Brave.
+- Verify behavior with deterministic automated tests and opt-in keyless smoke tests against real Codex, OpenCode, and Exa hosted MCP.
 
 ## 3. Goals
 
@@ -42,7 +44,7 @@ The approved decisions are:
 
 - Let a user discover Web Search in a Capability Library.
 - Show compatibility, provenance, version, license, tools, and requested permissions.
-- Configure a Brave API key without exposing it to the renderer or coding agent.
+- Use Web Search without manual credentials and optionally configure an Exa API key without exposing it to the renderer or coding agent.
 - Add or remove Web Search from an existing chat.
 - Show active capabilities and activation events in the chat.
 - Preserve chat history across OpenCode reloads.
@@ -80,7 +82,7 @@ SDK v0.1 does not include:
 - AI-assisted portability analysis;
 - a strong sandbox for hostile executable code.
 
-The Brave credential may be reused globally, but capability activation is scoped only to a chat/session in v0.1.
+An optional Exa credential may be reused globally, but capability activation is scoped only to a chat/session in v0.1.
 
 ## 5. Architecture
 
@@ -178,7 +180,7 @@ export default defineCapability({
     name: "Web Search",
     version: "0.1.0",
     sdkVersion: "^0.1.0",
-    description: "Search the web using Brave Search.",
+    description: "Search the web using Exa in automatic keyless mode.",
     category: "web-browser",
     author: { name: "Agentic Worktrees" },
     license: "MIT",
@@ -194,11 +196,16 @@ export default defineCapability({
       repository: "https://github.com/nicobailon/pi-web-access",
     },
     permissions: {
-      network: ["api.search.brave.com"],
-      secrets: ["brave-api-key"],
+      network: ["mcp.exa.ai", "api.exa.ai"],
+      secrets: ["exa-api-key"],
     },
     settings: {
-      braveApiKey: { type: "secret", required: true },
+      providerMode: {
+        type: "string",
+        enum: ["auto"],
+        default: "auto",
+      },
+      exaApiKey: { type: "secret", required: false },
       resultLimit: {
         type: "integer",
         default: 5,
@@ -213,8 +220,8 @@ export default defineCapability({
       description: "Search the web and return attributed results.",
       input: SearchInputSchema,
       async execute(input, context) {
-        const apiKey = await context.secrets.get("braveApiKey");
-        return searchBrave(input, apiKey, context.signal);
+        const apiKey = await context.secrets.getOptional("exaApiKey");
+        return searchExaAuto(input, apiKey, context.signal);
       },
     }),
   ],
@@ -258,24 +265,32 @@ Tool results use MCP-compatible content and optional bounded JSON details. The h
 The first port includes only the smallest representative subset of `pi-web-access`:
 
 - one `web_search` tool;
-- Brave Search as the only provider;
-- query, result count, and optional recency inputs supported by Brave;
+- `auto` as the only provider mode;
+- Exa hosted MCP as the default path when no API key is configured;
+- optional direct Exa API use when an Exa key exists in the vault;
+- the hosted MCP basic search tool for ordinary queries;
+- an advanced-to-basic degradation path for supported filters or content options;
+- JSON-RPC responses delivered as JSON or SSE data frames;
+- query, result count, and the subset of filters supported by the selected Exa path;
 - attributed result title, URL, and description;
 - cancellation and timeout handling;
-- normalized rate-limit and upstream errors;
+- normalized anonymous rate-limit and upstream errors;
 - output truncation.
 
 It excludes:
 
-- provider routing and fallback;
+- routing across different search providers;
+- silent Brave or DuckDuckGo fallback;
 - page fetching;
 - browser curator UI;
 - asynchronous background content fetching;
 - Pi session entries and custom messages;
 - Pi widgets, commands, provider registry, and model-assisted summaries;
-- authentication profiles other than the app vault.
+- OAuth and authentication profiles other than the optional app vault key.
 
-This subset validates the SDK's metadata, permissions, settings, secrets, network access, tool schemas, MCP exposure, cancellation, and cross-agent behavior without prematurely porting the full suite.
+Anonymous Exa hosted MCP is best-effort: its free-plan quota is not treated as a stable SLA. A `429` returns `rate_limited` and may suggest adding an optional Exa key, but it never silently sends the query to another provider.
+
+This subset validates the SDK's metadata, permissions, optional settings and secrets, network access, tool schemas, MCP client/server composition, cancellation, and cross-agent behavior without prematurely porting the full suite.
 
 ## 8. State and Persistence
 
@@ -333,13 +348,13 @@ Database schema changes require generated Drizzle migration artifacts.
 
 1. Renderer requests a capability detail DTO.
 2. Main process validates the capability against the bundled catalog.
-3. UI displays publisher, provenance, license, compatibility, permissions, and requested secret.
-4. User accepts permissions and enters the Brave API key.
-5. Main process stores the key in the encrypted vault and non-secret settings in the database.
-6. Manager optionally tests the Brave credential through a bounded request.
-7. Capability becomes `Ready`.
+3. UI displays publisher, provenance, license, compatibility, network disclosure, and the optional Exa credential.
+4. User accepts network access to Exa; entering an API key is optional.
+5. If supplied, the main process stores the key in the encrypted vault and stores only its opaque reference with non-secret settings.
+6. Manager performs a bounded hosted MCP availability check without requiring credentials.
+7. Capability becomes `Ready` even when no API key is configured.
 
-The key is never returned after submission; the renderer receives only configuration state.
+An optional key is never returned after submission; the renderer receives only configuration state.
 
 ### 9.2 Activate before the first turn
 
@@ -391,6 +406,7 @@ Failures use stable codes:
 - `missing_secret`;
 - `permission_denied`;
 - `rate_limited`;
+- `upstream_protocol_error`;
 - `upstream_unavailable`;
 - `cancelled`;
 - `activation_failed`;
@@ -418,6 +434,8 @@ At app startup, the manager reconciles `pending_activation`, `reloading`, and `p
 - Access tokens are random, ephemeral, scoped, and revocable.
 - The main process owns all child processes and cleans them up on cancellation and exit.
 - Capability secrets are resolved only for declared settings and tools.
+- In `auto` without a key, queries and requested options are sent to Exa's hosted MCP service; the feature is not described as local or private search.
+- When advanced search degrades to basic search, the tool reports the effective behavior rather than claiming unsupported filtering.
 - Logs omit secret values, query text, and result content by default.
 - Tool inputs and outputs are validated and bounded.
 
@@ -479,9 +497,9 @@ The UI must handle loading, empty, incompatible, setup-required, active, reloadi
 
 ### 13.1 Automated tests
 
-1. **SDK:** manifest rules, compatibility, permission digest, settings, secret references, schema compatibility, and output bounds.
-2. **Brave port:** fake HTTP success, invalid inputs, rate limiting, upstream failures, timeout, cancellation, and truncation.
-3. **Vault:** encryption availability, save/load/remove, corruption, temporary file cleanup, and redaction.
+1. **SDK:** manifest rules, compatibility, permission digest, optional settings and secret references, schema compatibility, and output bounds.
+2. **Exa port:** fake hosted MCP and direct API success, JSON and SSE responses, malformed JSON-RPC payloads, empty results, anonymous `429`, advanced-to-basic degradation, upstream failures, timeout, cancellation, and truncation.
+3. **Vault:** optional key behavior, encryption availability, save/load/remove, corruption, temporary file cleanup, and redaction.
 4. **Capability Host:** authenticated handshake, tool listing, invocation, cancellation, invalid token, and shutdown.
 5. **Capability Manager:** state transitions, idempotency, permission changes, rollback, host ownership, and crash recovery.
 6. **Codex adapter:** late attachment, MCP refresh, next-turn visibility, status verification, and rollback using a fake app-server.
@@ -491,15 +509,16 @@ The UI must handle loading, empty, incompatible, setup-required, active, reloadi
 
 ### 13.2 Opt-in real smoke tests
 
-The smoke harness requires installed, authenticated Codex and OpenCode CLIs plus a Brave API key supplied outside source control.
+The required smoke harness uses installed, authenticated Codex and OpenCode CLIs but does not require a search API key. Optional keyed smoke tests receive an Exa API key outside source control.
 
 Scenarios:
 
 - Start and use a Codex chat, activate Web Search, then invoke it successfully on the next turn.
 - Start and use an OpenCode chat, activate Web Search, observe a transparent reload, preserve history, and invoke the tool on the next turn.
 - Deactivate Web Search and verify it is no longer available.
-- Verify the same vault credential supports both agents.
-- Inspect logs and renderer DTOs to confirm the key is absent.
+- Run the required scenarios with no Exa API key configured.
+- Optionally repeat with one vault credential shared by both agents.
+- Inspect logs and renderer DTOs to confirm queries, result content, and any optional key are absent.
 
 Real smoke tests are opt-in and are not required in default CI. Deterministic protocol and network fakes remain mandatory in CI.
 
@@ -512,8 +531,9 @@ The vertical slice is complete only when:
 - It can be activated after both agents have already completed a turn.
 - Codex sees the tool on the next turn without losing history.
 - OpenCode restarts transparently, resumes the same session history, and sees the tool on the next turn.
-- Permission and provenance information is visible before configuration.
-- The Brave key is encrypted at rest and absent from renderer state and logs.
+- Permission, provenance, Exa upstream, free-plan limitations, and privacy disclosures are visible before activation.
+- Search works in `auto` without a manually supplied API key.
+- Any optional Exa key is encrypted at rest and absent from renderer state and logs.
 - Capability crashes do not crash Electron.
 - Failed activation rolls back to a usable agent session.
 - Library, chat selector, active state, and error states are covered by interaction tests.
@@ -529,7 +549,7 @@ This document defines Project A. Its implementation phases are:
 1. local SDK and manifest validation;
 2. bundled catalog and provenance;
 3. capability host and MCP protocol;
-4. generalized vault and Brave port;
+4. keyless Exa port and optional generalized vault credential;
 5. database persistence and Capability Manager;
 6. Codex activation;
 7. OpenCode coordinated reload;
@@ -614,7 +634,7 @@ Mitigation: label bundled review and process isolation accurately; do not admit 
 
 ### Porting the complete Pi extension would overfit the SDK
 
-Mitigation: port only the Brave tool subset and record omitted Pi-specific APIs in provenance notes.
+Mitigation: port only the Exa `auto` subset and record omitted Pi-specific APIs and providers in provenance notes.
 
 ### Scope expansion into a full marketplace
 
