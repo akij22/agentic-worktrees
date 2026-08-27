@@ -536,7 +536,7 @@ describe("coding-agent service routing", () => {
     expect(mocks.openCode.adapter.compact).toHaveBeenCalledWith(
       process.cwd(),
       "opencode-session",
-      { providerId: "anthropic", modelId: "claude-sonnet" },
+      { providerId: "anthropic", modelId: "claude-sonnet", capabilityProfileId: "aw_opencode_run" },
     );
     expect(mocks.database?.select().from(runs).get()?.status).toBe("idle");
   });

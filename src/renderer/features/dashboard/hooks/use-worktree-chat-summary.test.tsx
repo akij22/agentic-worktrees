@@ -77,6 +77,8 @@ const createSnapshot = (worktree: Worktree): CodingAgentSessionSnapshotDto => ({
 	],
 	diff: [],
 	turnDiff: [],
+	capabilities: [],
+	capabilityReloading: false,
 });
 
 afterEach(() => {

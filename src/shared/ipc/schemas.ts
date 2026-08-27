@@ -422,6 +422,12 @@ export const codingAgentSessionSnapshotSchema = z.object({
 	messages: z.array(codingAgentMessageSchema),
 	diff: z.array(codingAgentDiffSchema),
 	turnDiff: z.array(codingAgentDiffSchema),
+	capabilities: z.array(z.object({
+		id: z.string(), name: z.string(), version: z.string(),
+		state: z.enum(["available", "needs_setup", "ready", "pending_activation", "reloading", "active", "pending_deactivation", "activation_failed", "inactive", "unavailable"]),
+		errorCode: z.string().optional(), activatedAt: z.string().optional(), deactivatedAt: z.string().optional(),
+	})).default([]),
+	capabilityReloading: z.boolean().default(false),
 });
 
 export type CodingAgentSessionSnapshotDto = z.infer<
