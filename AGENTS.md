@@ -172,6 +172,5 @@ Do not use `npm run make` or `npm run publish` as routine verification. Do not s
 * Do not use `any` unless interacting with a genuinely untyped external boundary.
 * Do not use package managers other than `npm` for project commands.
 * Do not write commit messages in languages other than English.
-* Do not spawn subagents until I ask you to do so.
-* Do not use the `superpowers` skill until I ask you to do so.
+* Do not use the `superpowers` skills until I ask you to do so.
 * Do not use Ralph Loop until I ask you to do so.
