@@ -9,6 +9,7 @@ import {
 import { realpathSync, statSync } from "node:fs";
 import { IPC_CHANNELS } from "../../shared/ipc/channels";
 import {
+	codingAgentAccountUsageRequestSchema,
 	codingAgentModelsRequestSchema,
 	codingAgentPermissionResponseSchema,
 	codingAgentSessionAbortRequestSchema,
@@ -91,6 +92,7 @@ import {
 	configureAgent,
 	createAgentSession,
 	getAgentInstallationStatus,
+	getAgentAccountUsage,
 	getAgentSessionSnapshot,
 	getAgentSessionUsage,
 	listAgentModels,
@@ -231,9 +233,7 @@ const handleRepositoryImportRemote = async (
 	);
 
 	if (selectedRepositories.length !== request.repositoryIds.length) {
-		throw new Error(
-			"One or more selected GitHub repositories are unavailable.",
-		);
+		throw new Error("One or more selected GitHub repositories are unavailable.");
 	}
 
 	return upsertRepositoriesFromRemote(selectedRepositories);
@@ -294,10 +294,7 @@ const handleWorkspaceFileRead = async (
 	rawRequest: unknown,
 ) => {
 	const request = workspaceFileReadRequestSchema.parse(rawRequest);
-	return workspaceFileService.readFile(
-		request.worktreeId,
-		request.relativePath,
-	);
+	return workspaceFileService.readFile(request.worktreeId, request.relativePath);
 };
 
 const handleWorkspaceFileSearch = async (
@@ -482,6 +479,14 @@ const handleCodingAgentSessionUsage = async (
 ) => {
 	const request = codingAgentSessionUsageRequestSchema.parse(rawRequest);
 	return getAgentSessionUsage(request.runId);
+};
+
+const handleCodingAgentAccountUsage = async (
+	_event: IpcMainInvokeEvent,
+	rawRequest: unknown,
+) => {
+	const request = codingAgentAccountUsageRequestSchema.parse(rawRequest);
+	return getAgentAccountUsage(request.runId);
 };
 
 const handleCodingAgentSessionSend = async (
@@ -784,6 +789,10 @@ export const registerIpcHandlers = (): void => {
 		requireAuthenticated(handleCodingAgentSessionUsage),
 	);
 	ipcMain.handle(
+		IPC_CHANNELS.CODING_AGENT_ACCOUNT_USAGE,
+		requireAuthenticated(handleCodingAgentAccountUsage),
+	);
+	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_SEND,
 		requireAuthenticated(handleCodingAgentSessionSend),
 	);
@@ -876,10 +885,7 @@ export const registerIpcHandlers = (): void => {
 	workspaceTerminalService.subscribe((event) => {
 		const publicEvent = workspaceTerminalEventSchema.parse(event);
 		for (const window of BrowserWindow.getAllWindows()) {
-			window.webContents.send(
-				IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT,
-				publicEvent,
-			);
+			window.webContents.send(IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT, publicEvent);
 		}
 	});
 };

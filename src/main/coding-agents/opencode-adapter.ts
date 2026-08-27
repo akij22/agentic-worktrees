@@ -1,14 +1,15 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { spawn, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   createOpencodeClient,
   type GlobalEvent,
   type Message,
   type Part,
   type SessionStatus,
-} from '@opencode-ai/sdk';
-import { createOpencodeClient as createOpencodeClientV2 } from '@opencode-ai/sdk/v2';
+} from "@opencode-ai/sdk";
+import { createOpencodeClient as createOpencodeClientV2 } from "@opencode-ai/sdk/v2";
 import type {
+  CodingAgentAccountUsage,
   CodingAgentAdapter,
   CodingAgentDiff,
   CodingAgentEvent,
@@ -16,8 +17,8 @@ import type {
   CodingAgentModel,
   CodingAgentSessionUsage,
   CodingAgentToolCall,
-} from './types';
-import { readOpenCodeSessionId, reserveLocalPort } from './opencode-utils';
+} from "./types";
+import { readOpenCodeSessionId, reserveLocalPort } from "./opencode-utils";
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
@@ -27,25 +28,25 @@ const OPENCODE_COMMAND_APPROVAL_CONFIG = JSON.stringify({
   agent: {
     build: {
       permission: {
-        bash: 'ask',
+        bash: "ask",
       },
     },
   },
 });
 const REASONING_VARIANT_IDS = new Set([
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
 ]);
 
 type OpenCodePermissionReplyProtocol =
-  | 'deprecated-respond'
-  | 'request-reply'
-  | 'session-v2-reply';
+  | "deprecated-respond"
+  | "request-reply"
+  | "session-v2-reply";
 
 type NormalizedOpenCodePayload = {
   type: string;
@@ -57,49 +58,49 @@ type NormalizedOpenCodePayload = {
 };
 
 const readRecord = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === 'object' && !Array.isArray(value)
+  value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 
 const readStringArray = (value: unknown): string[] =>
   Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
+    ? value.filter((item): item is string => typeof item === "string")
     : [];
 
 const normalizePermissionRequest = (
   properties: unknown,
   input: {
-    permissionKey: 'permission' | 'action';
-    resourcesKey: 'patterns' | 'resources';
+    permissionKey: "permission" | "action";
+    resourcesKey: "patterns" | "resources";
     protocol: OpenCodePermissionReplyProtocol;
   },
 ): NormalizedOpenCodePayload | null => {
   const request = readRecord(properties);
   if (!request) return null;
-  const id = typeof request.id === 'string' ? request.id : null;
+  const id = typeof request.id === "string" ? request.id : null;
   const sessionID =
-    typeof request.sessionID === 'string' ? request.sessionID : null;
+    typeof request.sessionID === "string" ? request.sessionID : null;
   if (!id || !sessionID) return null;
 
   const metadata = { ...(readRecord(request.metadata) ?? {}) };
   const resources = readStringArray(request[input.resourcesKey]);
   if (
-    (typeof metadata.command !== 'string' || !metadata.command.trim()) &&
+    (typeof metadata.command !== "string" || !metadata.command.trim()) &&
     resources[0]
   ) {
     metadata.command = resources[0];
   }
   const type =
-    typeof request[input.permissionKey] === 'string'
+    typeof request[input.permissionKey] === "string"
       ? request[input.permissionKey]
-      : 'operation';
+      : "operation";
   const title =
-    typeof metadata.title === 'string' && metadata.title.trim()
+    typeof metadata.title === "string" && metadata.title.trim()
       ? metadata.title
-      : 'OpenCode requests permission';
+      : "OpenCode requests permission";
 
   return {
-    type: 'permission.updated',
+    type: "permission.updated",
     properties: {
       id,
       sessionID,
@@ -115,30 +116,30 @@ const normalizeOpenCodePayload = (
   type: string,
   properties: unknown,
 ): NormalizedOpenCodePayload => {
-  if (type === 'message.part.delta') {
-    return { type: 'message.part.updated', properties };
+  if (type === "message.part.delta") {
+    return { type: "message.part.updated", properties };
   }
-  if (type === 'permission.asked') {
+  if (type === "permission.asked") {
     return (
       normalizePermissionRequest(properties, {
-        permissionKey: 'permission',
-        resourcesKey: 'patterns',
-        protocol: 'request-reply',
+        permissionKey: "permission",
+        resourcesKey: "patterns",
+        protocol: "request-reply",
       }) ?? { type, properties }
     );
   }
-  if (type === 'permission.v2.asked') {
+  if (type === "permission.v2.asked") {
     return (
       normalizePermissionRequest(properties, {
-        permissionKey: 'action',
-        resourcesKey: 'resources',
-        protocol: 'session-v2-reply',
+        permissionKey: "action",
+        resourcesKey: "resources",
+        protocol: "session-v2-reply",
       }) ?? { type, properties }
     );
   }
-  if (type === 'permission.updated') {
+  if (type === "permission.updated") {
     const permission = readRecord(properties);
-    const id = typeof permission?.id === 'string' ? permission.id : null;
+    const id = typeof permission?.id === "string" ? permission.id : null;
     return {
       type,
       properties,
@@ -146,7 +147,7 @@ const normalizeOpenCodePayload = (
         ? {
             permission: {
               id,
-              protocol: 'deprecated-respond' as const,
+              protocol: "deprecated-respond" as const,
             },
           }
         : {}),
@@ -156,16 +157,16 @@ const normalizeOpenCodePayload = (
 };
 
 const readReasoningVariants = (model: unknown): string[] => {
-  if (!model || typeof model !== 'object' || !('variants' in model)) return [];
+  if (!model || typeof model !== "object" || !("variants" in model)) return [];
   const variants = model.variants;
-  if (!variants || typeof variants !== 'object') return [];
+  if (!variants || typeof variants !== "object") return [];
   return Object.entries(variants)
     .filter(
       ([id, configuration]) =>
         REASONING_VARIANT_IDS.has(id) &&
         (!configuration ||
-          typeof configuration !== 'object' ||
-          !('disabled' in configuration) ||
+          typeof configuration !== "object" ||
+          !("disabled" in configuration) ||
           configuration.disabled !== true),
     )
     .map(([id]) => id);
@@ -175,15 +176,15 @@ const delay = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const removeInternalDoneMessage = (content: string): string =>
-  content.replaceAll(INTERNAL_DONE_MESSAGE, '').trim();
+  content.replaceAll(INTERNAL_DONE_MESSAGE, "").trim();
 
 export const toOpenCodeRunStatus = (
   status: SessionStatus | undefined,
-): 'idle' | 'busy' => {
+): "idle" | "busy" => {
   // OpenCode's status endpoint lists active sessions only. An omitted session
   // has completed and must clear any busy state previously persisted by us.
-  if (!status) return 'idle';
-  return status.type === 'idle' ? 'idle' : 'busy';
+  if (!status) return "idle";
+  return status.type === "idle" ? "idle" : "busy";
 };
 
 type OpenCodeDiffPayload = {
@@ -200,52 +201,53 @@ const readPatchContent = (patch: string): { before: string; after: string } => {
   const before: string[] = [];
   const after: string[] = [];
 
-  for (const line of patch.replaceAll('\r\n', '\n').split('\n')) {
+  for (const line of patch.replaceAll("\r\n", "\n").split("\n")) {
     if (
-      line.startsWith('+++') ||
-      line.startsWith('---') ||
-      line.startsWith('@@') ||
-      line.startsWith('\\ No newline at end of file')
+      line.startsWith("+++") ||
+      line.startsWith("---") ||
+      line.startsWith("@@") ||
+      line.startsWith("\\ No newline at end of file")
     ) {
       continue;
     }
-    if (line.startsWith('+')) {
+    if (line.startsWith("+")) {
       after.push(line.slice(1));
-    } else if (line.startsWith('-')) {
+    } else if (line.startsWith("-")) {
       before.push(line.slice(1));
-    } else if (line.startsWith(' ')) {
+    } else if (line.startsWith(" ")) {
       const content = line.slice(1);
       before.push(content);
       after.push(content);
     }
   }
 
-  return { before: before.join('\n'), after: after.join('\n') };
+  return { before: before.join("\n"), after: after.join("\n") };
 };
 
 const normalizeDiff = (value: unknown): CodingAgentDiff => {
-  if (!value || typeof value !== 'object') {
-    throw new Error('OpenCode returned an invalid session diff.');
+  if (!value || typeof value !== "object") {
+    throw new Error("OpenCode returned an invalid session diff.");
   }
   const diff = value as OpenCodeDiffPayload;
   const file =
-    typeof diff.file === 'string'
+    typeof diff.file === "string"
       ? diff.file
-      : typeof diff.path === 'string'
+      : typeof diff.path === "string"
         ? diff.path
         : null;
-  if (!file) throw new Error('OpenCode returned a session diff without a file path.');
+  if (!file)
+    throw new Error("OpenCode returned a session diff without a file path.");
 
   const patchContent =
-    typeof diff.patch === 'string'
+    typeof diff.patch === "string"
       ? readPatchContent(diff.patch)
-      : { before: '', after: '' };
+      : { before: "", after: "" };
   return {
     file,
-    before: typeof diff.before === 'string' ? diff.before : patchContent.before,
-    after: typeof diff.after === 'string' ? diff.after : patchContent.after,
-    additions: typeof diff.additions === 'number' ? diff.additions : 0,
-    deletions: typeof diff.deletions === 'number' ? diff.deletions : 0,
+    before: typeof diff.before === "string" ? diff.before : patchContent.before,
+    after: typeof diff.after === "string" ? diff.after : patchContent.after,
+    additions: typeof diff.additions === "number" ? diff.additions : 0,
+    deletions: typeof diff.deletions === "number" ? diff.deletions : 0,
   };
 };
 
@@ -256,40 +258,43 @@ const readToolTitle = (
   if (fallbackTitle && fallbackTitle.trim()) return fallbackTitle;
   const candidate = Object.values(input).find(
     (value): value is string =>
-      typeof value === 'string' && value.trim().length > 0,
+      typeof value === "string" && value.trim().length > 0,
   );
   if (candidate) return candidate;
   const keys = Object.keys(input);
-  return keys.length > 0 ? keys.join(', ') : 'Running';
+  return keys.length > 0 ? keys.join(", ") : "Running";
 };
 
 const toToolCalls = (parts: Part[]): CodingAgentToolCall[] =>
   parts.flatMap((part): CodingAgentToolCall[] => {
-    if (part.type !== 'tool') return [];
+    if (part.type !== "tool") return [];
     const { state } = part;
-    const input = 'input' in state && state.input ? state.input : {};
+    const input = "input" in state && state.input ? state.input : {};
     const base = {
       id: part.callID || part.id,
       tool: part.tool,
-      title: readToolTitle(input, 'title' in state ? state.title : undefined),
+      title: readToolTitle(input, "title" in state ? state.title : undefined),
     };
-    if (state.status === 'completed') {
+    if (state.status === "completed") {
       return [
         {
           ...base,
-          status: 'completed' as const,
-          detail: state.output ?? '',
+          status: "completed" as const,
+          detail: state.output ?? "",
         },
       ];
     }
-    if (state.status === 'error') {
-      return [{ ...base, status: 'error' as const, detail: state.error }];
+    if (state.status === "error") {
+      return [{ ...base, status: "error" as const, detail: state.error }];
     }
     return [
       {
         ...base,
-        status: state.status === 'pending' ? ('pending' as const) : ('running' as const),
-        detail: '',
+        status:
+          state.status === "pending"
+            ? ("pending" as const)
+            : ("running" as const),
+        detail: "",
       },
     ];
   });
@@ -300,24 +305,24 @@ const toMessage = (info: Message, parts: Part[]): CodingAgentMessage => ({
   content: removeInternalDoneMessage(
     parts
       .filter(
-        (part): part is Extract<Part, { type: 'text' }> => part.type === 'text',
+        (part): part is Extract<Part, { type: "text" }> => part.type === "text",
       )
       .map((part) => part.text)
-      .join(''),
+      .join(""),
   ),
   reasoning: removeInternalDoneMessage(
     parts
       .filter(
-        (part): part is Extract<Part, { type: 'reasoning' }> =>
-          part.type === 'reasoning',
+        (part): part is Extract<Part, { type: "reasoning" }> =>
+          part.type === "reasoning",
       )
-      .at(-1)?.text ?? '',
+      .at(-1)?.text ?? "",
   ),
   tools: toToolCalls(parts),
   createdAt: info.time.created,
   completedAt:
-    info.role === 'assistant'
-      ? info.time.completed ?? (info.finish ? info.time.created : null)
+    info.role === "assistant"
+      ? (info.time.completed ?? (info.finish ? info.time.created : null))
       : null,
 });
 
@@ -350,11 +355,11 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     }
 
     const port = await reserveLocalPort();
-    const password = randomBytes(32).toString('base64url');
+    const password = randomBytes(32).toString("base64url");
     const baseUrl = `http://127.0.0.1:${port}`;
     const child = spawn(
       executablePath,
-      ['serve', '--hostname', '127.0.0.1', '--port', String(port)],
+      ["serve", "--hostname", "127.0.0.1", "--port", String(port)],
       {
         cwd,
         env: {
@@ -365,7 +370,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           // commands must wait for the renderer's explicit decision.
           OPENCODE_CONFIG_CONTENT: OPENCODE_COMMAND_APPROVAL_CONFIG,
         },
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       },
     );
@@ -375,18 +380,18 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     this.baseUrl = baseUrl;
     this.error = null;
 
-    child.stderr?.on('data', (chunk: Buffer) => {
-      const line = chunk.toString('utf8').trim();
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const line = chunk.toString("utf8").trim();
       if (line) console.info(`[opencode] ${line}`);
     });
-    child.stdout?.on('data', (chunk: Buffer) => {
-      const line = chunk.toString('utf8').trim();
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const line = chunk.toString("utf8").trim();
       if (line) console.info(`[opencode] ${line}`);
     });
-    child.once('error', (error) => {
+    child.once("error", (error) => {
       this.error = error.message;
     });
-    child.once('exit', (code, signal) => {
+    child.once("exit", (code, signal) => {
       if (this.process === child) {
         this.process = null;
         this.client = null;
@@ -396,16 +401,15 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
         this.error =
           code === 0 ? null : `OpenCode exited (${signal ?? `code ${code}`}).`;
         this.emit({
-          directory: '',
+          directory: "",
           sessionId: null,
-          type: 'server.exit',
+          type: "server.exit",
           properties: { code, signal, error: this.error },
         });
       }
     });
 
-    const authorization =
-      `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}`;
+    const authorization = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
     const authFetch: typeof fetch = (
       input: string | URL | Request,
       init?: RequestInit,
@@ -413,7 +417,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       const request =
         input instanceof Request ? input : new Request(input, init);
       const headers = new Headers(request.headers);
-      headers.set('Authorization', authorization);
+      headers.set("Authorization", authorization);
       return fetch(new Request(request, { headers }));
     };
 
@@ -438,7 +442,9 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     while (Date.now() - startedAt < START_TIMEOUT_MS) {
       if (child.exitCode !== null) break;
       try {
-        const response = await authFetch(new Request(`${baseUrl}/global/health`));
+        const response = await authFetch(
+          new Request(`${baseUrl}/global/health`),
+        );
         if (response.ok) {
           const health = (await response.json()) as {
             healthy?: boolean;
@@ -457,7 +463,9 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
 
     if (!detectedVersion) {
       await this.stop();
-      throw new Error('OpenCode did not become healthy before the startup timeout.');
+      throw new Error(
+        "OpenCode did not become healthy before the startup timeout.",
+      );
     }
 
     this.version = detectedVersion;
@@ -477,17 +485,17 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     this.permissionReplyProtocols.clear();
     if (!child || child.exitCode !== null) return;
 
-    child.kill('SIGTERM');
+    child.kill("SIGTERM");
     await Promise.race([
-      new Promise<void>((resolve) => child.once('exit', () => resolve())),
+      new Promise<void>((resolve) => child.once("exit", () => resolve())),
       delay(2_000).then(() => {
-        if (child.exitCode === null) child.kill('SIGKILL');
+        if (child.exitCode === null) child.kill("SIGKILL");
       }),
     ]);
   }
 
   private requireClient(): ReturnType<typeof createOpencodeClient> {
-    if (!this.client) throw new Error('OpenCode server is not running.');
+    if (!this.client) throw new Error("OpenCode server is not running.");
     return this.client;
   }
 
@@ -583,13 +591,15 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       path: { id: sessionId },
       query: { directory },
       body: {
-        agent: 'build',
+        agent: "build",
         model: {
           providerID: input.providerId,
           modelID: input.modelId,
-          ...(input.reasoningVariant ? { variant: input.reasoningVariant } : {}),
+          ...(input.reasoningVariant
+            ? { variant: input.reasoningVariant }
+            : {}),
         } as { providerID: string; modelID: string },
-        parts: [{ type: 'text', text: input.content }],
+        parts: [{ type: "text", text: input.content }],
       },
       throwOnError: true,
     });
@@ -627,7 +637,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     ]);
     const assistantMessages = messagesResult.data
       .map(({ info }) => info)
-      .filter((message) => message.role === 'assistant');
+      .filter((message) => message.role === "assistant");
     const latest = assistantMessages.at(-1);
     const contextTokens = latest
       ? latest.tokens.input +
@@ -641,7 +651,9 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     );
     const contextWindow = provider?.models[input.modelId]?.limit.context ?? 0;
     if (contextWindow <= 0) {
-      throw new Error('OpenCode did not report the selected model context window.');
+      throw new Error(
+        "OpenCode did not report the selected model context window.",
+      );
     }
     return {
       contextTokens,
@@ -653,6 +665,20 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       ),
       providerId: input.providerId,
       modelId: input.modelId,
+    };
+  }
+
+  async getAccountUsage(
+    _directory: string,
+    _sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<CodingAgentAccountUsage> {
+    return {
+      providerId: input.providerId,
+      availability: "unavailable",
+      message:
+        "OpenCode does not expose a provider-independent account usage API.",
+      windows: [],
     };
   }
 
@@ -668,12 +694,12 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     directory: string,
     sessionId: string,
     permissionId: string,
-    response: 'once' | 'always' | 'reject',
+    response: "once" | "always" | "reject",
   ): Promise<void> {
     const protocol =
-      this.permissionReplyProtocols.get(permissionId) ?? 'deprecated-respond';
-    if (protocol === 'request-reply') {
-      if (!this.v2Client) throw new Error('OpenCode server is not running.');
+      this.permissionReplyProtocols.get(permissionId) ?? "deprecated-respond";
+    if (protocol === "request-reply") {
+      if (!this.v2Client) throw new Error("OpenCode server is not running.");
       await this.v2Client.permission.reply(
         {
           requestID: permissionId,
@@ -682,8 +708,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
         },
         { throwOnError: true },
       );
-    } else if (protocol === 'session-v2-reply') {
-      if (!this.v2Client) throw new Error('OpenCode server is not running.');
+    } else if (protocol === "session-v2-reply") {
+      if (!this.v2Client) throw new Error("OpenCode server is not running.");
       await this.v2Client.v2.session.permission.reply(
         {
           sessionID: sessionId,
@@ -719,7 +745,9 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     void (async () => {
       while (!controller.signal.aborted) {
         try {
-          const events = await client.global.event({ signal: controller.signal });
+          const events = await client.global.event({
+            signal: controller.signal,
+          });
           for await (const event of events.stream) {
             if (controller.signal.aborted) break;
             this.error = null;
@@ -729,9 +757,9 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           if (!controller.signal.aborted) {
             this.error = error instanceof Error ? error.message : String(error);
             this.emit({
-              directory: '',
+              directory: "",
               sessionId: null,
-              type: 'server.event_error',
+              type: "server.event_error",
               properties: { error: this.error },
             });
           }

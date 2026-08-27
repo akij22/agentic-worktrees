@@ -38,9 +38,7 @@ const api: Api = {
 			cancelLogin: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_CANCEL),
 			refreshInstallations: async () =>
 				githubAuthStatusSchema.parse(
-					await ipcRenderer.invoke(
-						IPC_CHANNELS.GITHUB_AUTH_REFRESH_INSTALLATIONS,
-					),
+					await ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_REFRESH_INSTALLATIONS),
 				),
 			logout: async () =>
 				githubAuthStatusSchema.parse(
@@ -65,9 +63,7 @@ const api: Api = {
 			openInstallation: () =>
 				ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_OPEN_INSTALLATION),
 			openAuthorizationSettings: () =>
-				ipcRenderer.invoke(
-					IPC_CHANNELS.GITHUB_AUTH_OPEN_AUTHORIZATION_SETTINGS,
-				),
+				ipcRenderer.invoke(IPC_CHANNELS.GITHUB_AUTH_OPEN_AUTHORIZATION_SETTINGS),
 		},
 		listRepos: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_REPOS, request ?? {}),
@@ -97,10 +93,7 @@ const api: Api = {
 		files: {
 			listDirectory: async (request) =>
 				workspaceDirectoryResponseSchema.parse(
-					await ipcRenderer.invoke(
-						IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST,
-						request,
-					),
+					await ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_DIRECTORY_LIST, request),
 				),
 			readFile: async (request) =>
 				workspaceFilePreviewSchema.parse(
@@ -114,10 +107,7 @@ const api: Api = {
 		terminal: {
 			create: async (request) =>
 				workspaceTerminalCreateResponseSchema.parse(
-					await ipcRenderer.invoke(
-						IPC_CHANNELS.WORKSPACE_TERMINAL_CREATE,
-						request,
-					),
+					await ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_TERMINAL_CREATE, request),
 				),
 			write: (request) =>
 				ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_TERMINAL_WRITE, request),
@@ -132,10 +122,7 @@ const api: Api = {
 					listener(workspaceTerminalEventSchema.parse(payload));
 				ipcRenderer.on(IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT, handler);
 				return () =>
-					ipcRenderer.removeListener(
-						IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT,
-						handler,
-					);
+					ipcRenderer.removeListener(IPC_CHANNELS.WORKSPACE_TERMINAL_EVENT, handler);
 			},
 		},
 		git: {
@@ -173,17 +160,11 @@ const api: Api = {
 			),
 		getOverlap: async (request) =>
 			intelligenceOverlapDetailsSchema.parse(
-				await ipcRenderer.invoke(
-					IPC_CHANNELS.INTELLIGENCE_OVERLAP_GET,
-					request,
-				),
+				await ipcRenderer.invoke(IPC_CHANNELS.INTELLIGENCE_OVERLAP_GET, request),
 			),
 		compareDiffs: async (request) =>
 			intelligenceDiffComparisonSchema.parse(
-				await ipcRenderer.invoke(
-					IPC_CHANNELS.INTELLIGENCE_DIFF_COMPARE,
-					request,
-				),
+				await ipcRenderer.invoke(IPC_CHANNELS.INTELLIGENCE_DIFF_COMPARE, request),
 			),
 		listTargetBranches: async (request) =>
 			githubListBranchesResponseSchema.parse(
@@ -201,10 +182,7 @@ const api: Api = {
 			),
 		getResolutionSession: async (request) =>
 			conflictResolutionSessionSchema.parse(
-				await ipcRenderer.invoke(
-					IPC_CHANNELS.INTELLIGENCE_RESOLUTION_GET,
-					request,
-				),
+				await ipcRenderer.invoke(IPC_CHANNELS.INTELLIGENCE_RESOLUTION_GET, request),
 			),
 		listResolutionSessions: async (request) => {
 			const values: unknown = await ipcRenderer.invoke(
@@ -246,23 +224,21 @@ const api: Api = {
 		getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_STATUS),
 		listModels: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_MODELS, request),
-		listWorktrees: () =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_WORKTREES),
+		listWorktrees: () => ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_WORKTREES),
 		listSessions: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_LIST, request ?? {}),
 		createSession: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_CREATE, request),
 		setSessionModel: (request) =>
-			ipcRenderer.invoke(
-				IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE,
-				request,
-			),
+			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE, request),
 		getSession: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
 		markSessionViewed: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED, request),
 		getSessionUsage: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_USAGE, request),
+		getAccountUsage: (request) =>
+			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_ACCOUNT_USAGE, request),
 		sendMessage: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_SEND, request),
 		compactSession: (request) =>

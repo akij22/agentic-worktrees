@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	codingAgentAccountUsageSchema,
 	codingAgentKindSchema,
 	codingAgentModelsRequestSchema,
 	codingAgentSessionCreateRequestSchema,
@@ -11,6 +12,7 @@ import {
 	editorOpenRequestSchema,
 	githubAuthStatusSchema,
 	githubDeviceChallengeSchema,
+	intelligenceOverlapDetailsSchema,
 	intelligenceRepositoryRequestSchema,
 	intelligenceSnapshotSchema,
 	workspaceCommitRequestSchema,
@@ -112,6 +114,34 @@ describe("editor IPC schemas", () => {
 });
 
 describe("coding agent IPC schemas", () => {
+	it("accepts normalized account quota windows without external provider fields", () => {
+		expect(
+			codingAgentAccountUsageSchema.parse({
+				providerId: "openai",
+				availability: "available",
+				planType: "plus",
+				windows: [
+					{
+						durationMinutes: 300,
+						remainingPercentage: 77,
+						resetsAt: 1_800_000_000_000,
+					},
+				],
+			}),
+		).toEqual({
+			providerId: "openai",
+			availability: "available",
+			planType: "plus",
+			windows: [
+				{
+					durationMinutes: 300,
+					remainingPercentage: 77,
+					resetsAt: 1_800_000_000_000,
+				},
+			],
+		});
+	});
+
 	it("accepts Codex session usage without provider cost data", () => {
 		expect(
 			codingAgentSessionUsageSchema.parse({
@@ -220,6 +250,57 @@ describe("intelligence IPC schemas", () => {
 		).toEqual({ repositoryId: "repo-1" });
 		expect(() =>
 			intelligenceRepositoryRequestSchema.parse({ repositoryId: " " }),
+		).toThrow();
+	});
+
+	it("validates focused overlap ranges without leaking internal file data", () => {
+		const target = {
+			type: "symbol" as const,
+			path: "src/session.ts",
+			symbol: "createSession",
+			leftFilePath: "src/session.ts",
+			rightFilePath: "src/session.ts",
+			reasonCode: "same-symbol",
+			risk: "high" as const,
+			leftRanges: [{ oldStart: 1, oldLines: 1, newStart: 2, newLines: 2 }],
+			rightRanges: [{ oldStart: 4, oldLines: 1, newStart: 5, newLines: 1 }],
+			absolutePath: "/tmp/private/session.ts",
+		};
+		const details = {
+			overlap: {
+				id: "overlap-1",
+				leftWorktreeId: "worktree-1",
+				rightWorktreeId: "worktree-1",
+				risk: "high" as const,
+				category: "symbol" as const,
+				reasonCode: "same-symbol",
+				summary: "Both worktrees change createSession",
+				actionable: true,
+				targets: [target],
+			},
+			left: snapshot.worktrees[0],
+			right: snapshot.worktrees[0],
+		};
+
+		const parsed = intelligenceOverlapDetailsSchema.parse(details);
+		expect(parsed.overlap.targets[0]).toMatchObject({
+			leftRanges: target.leftRanges,
+			rightRanges: target.rightRanges,
+		});
+		expect(parsed.overlap.targets[0]).not.toHaveProperty("absolutePath");
+		expect(() =>
+			intelligenceOverlapDetailsSchema.parse({
+				...details,
+				overlap: {
+					...details.overlap,
+					targets: [
+						{
+							...target,
+							leftRanges: [{ oldStart: -1, oldLines: 1, newStart: 2, newLines: 2 }],
+						},
+					],
+				},
+			}),
 		).toThrow();
 	});
 

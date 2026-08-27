@@ -23,6 +23,6 @@ export const RiskBadge = ({
 			className,
 		)}
 	>
-		{risk}
+		{risk[0].toUpperCase() + risk.slice(1)}
 	</span>
 );

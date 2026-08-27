@@ -1,5 +1,5 @@
 import { ExternalLink, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { IntelligenceDiffComparisonDto } from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
 import {
@@ -18,17 +18,21 @@ type Props = {
 };
 
 const Patch = ({
-	patch,
-	binary,
+	file,
 }: {
-	patch: string | null;
-	binary: boolean;
+	file: IntelligenceDiffComparisonDto["left"]["files"][number] | undefined;
 }) => {
-	if (binary)
+	if (!file)
+		return (
+			<p className="p-3 text-xs text-muted-foreground">
+				File unchanged in this worktree
+			</p>
+		);
+	if (file.binary)
 		return (
 			<p className="p-3 text-xs text-muted-foreground">Binary file changed</p>
 		);
-	if (!patch)
+	if (!file.patch)
 		return (
 			<p className="p-3 text-xs text-muted-foreground">
 				No textual patch stored
@@ -36,7 +40,7 @@ const Patch = ({
 		);
 	return (
 		<pre className="overflow-x-auto p-3 font-mono text-[10px] leading-5">
-			{patch.split("\n").map((line, index) => (
+			{file.patch.split("\n").map((line, index) => (
 				<span
 					key={index}
 					className={cn(
@@ -60,6 +64,9 @@ export const DiffComparison = ({
 }: Props) => {
 	const [comparison, setComparison] = useState<IntelligenceDiffComparisonDto>();
 	const [error, setError] = useState<string>();
+	const [selectedPath, setSelectedPath] = useState<string>();
+	const leftPane = useRef<HTMLDivElement>(null);
+	const rightPane = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		if (!open || !overlapId) return;
 		let cancelled = false;
@@ -68,7 +75,10 @@ export const DiffComparison = ({
 		void window.api.intelligence
 			.compareDiffs({ overlapId })
 			.then((value) => {
-				if (!cancelled) setComparison(value);
+				if (!cancelled) {
+					setComparison(value);
+					setSelectedPath(value.left.files[0]?.path ?? value.right.files[0]?.path);
+				}
 			})
 			.catch((cause: unknown) => {
 				if (!cancelled)
@@ -78,6 +88,25 @@ export const DiffComparison = ({
 			cancelled = true;
 		};
 	}, [open, overlapId]);
+
+	const paths = useMemo(() => {
+		if (!comparison) return [];
+		return Array.from(
+			new Set([
+				...comparison.left.files.map(({ path }) => path),
+				...comparison.right.files.map(({ path }) => path),
+			]),
+		);
+	}, [comparison]);
+
+	const synchronize = (
+		source: HTMLDivElement,
+		target: HTMLDivElement | null,
+	) => {
+		if (!target) return;
+		target.scrollTop = source.scrollTop;
+		target.scrollLeft = source.scrollLeft;
+	};
 
 	return (
 		<Dialog
@@ -115,13 +144,33 @@ export const DiffComparison = ({
 				) : !comparison ? (
 					<p className="text-sm text-muted-foreground">Loading patches…</p>
 				) : (
-					<div className="grid min-w-[720px] grid-cols-2 gap-3">
-						{[comparison.left, comparison.right].map((side) => (
-							<section
-								key={side.worktreeId}
-								className="min-w-0 overflow-hidden rounded-xl border border-white/[0.045] bg-background/55"
-							>
-								<header className="flex items-center justify-between px-3 py-2">
+					<div className="min-w-[720px]">
+						<div className="mb-3 flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Changed files">
+							{paths.map((path) => (
+								<Button
+									key={path}
+									type="button"
+									size="sm"
+									variant={selectedPath === path ? "secondary" : "ghost"}
+									className="h-7 shrink-0 px-2 font-mono text-[9px]"
+									aria-label={`Select ${path}`}
+									aria-selected={selectedPath === path}
+									role="tab"
+									onClick={() => setSelectedPath(path)}
+								>
+									{path}
+								</Button>
+							))}
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							{[comparison.left, comparison.right].map((side) => {
+								const file = side.files.find(({ path }) => path === selectedPath);
+								return (
+									<section
+										key={side.worktreeId}
+										className="min-w-0 overflow-hidden rounded-xl border border-white/[0.045] bg-background/55"
+									>
+										<header className="flex items-center justify-between px-3 py-2">
 									<code className="text-[10px]">{side.worktreeId}</code>
 									<Button
 										type="button"
@@ -136,24 +185,35 @@ export const DiffComparison = ({
 									>
 										<ExternalLink /> Chat
 									</Button>
-								</header>
-								{side.files.map((file) => (
-									<article
-										key={file.path}
-										className="border-b border-border last:border-b-0"
-									>
+										</header>
+										<div
+									ref={side === comparison.left ? leftPane : rightPane}
+									aria-label={side === comparison.left ? "Left diff pane" : "Right diff pane"}
+									className="max-h-[58vh] overflow-auto border-t border-border"
+									onScroll={(event) =>
+										synchronize(
+											event.currentTarget,
+											side === comparison.left ? rightPane.current : leftPane.current,
+										)
+									}
+										>
+											<article>
 										<div className="flex justify-between bg-muted/40 px-3 py-2 font-mono text-[10px]">
-											<span>{file.path}</span>
-											<span>
-												<b className="text-emerald-400">+{file.additions}</b>{" "}
-												<b className="text-red-400">−{file.deletions}</b>
-											</span>
+											<span>{selectedPath ?? "No file selected"}</span>
+											{file ? (
+												<span>
+													<b className="text-emerald-400">+{file.additions}</b>{" "}
+													<b className="text-red-400">−{file.deletions}</b>
+												</span>
+											) : null}
 										</div>
-										<Patch patch={file.patch} binary={file.binary} />
-									</article>
-								))}
-							</section>
-						))}
+										<Patch file={file} />
+											</article>
+										</div>
+									</section>
+								);
+							})}
+						</div>
 					</div>
 				)}
 			</div>

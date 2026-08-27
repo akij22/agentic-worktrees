@@ -136,7 +136,18 @@ const publicSnapshot = (
 const publicOverlap = (
   details: PersistedOverlapDetails,
 ): IntelligenceOverlapDetailsDto => intelligenceOverlapDetailsSchema.parse({
-  overlap: details.overlap,
+  overlap: {
+    ...details.overlap,
+    targets: details.overlap.targets.map((target) => ({
+      ...target,
+      leftRanges: target.leftFilePath
+        ? details.left.files.find(({ path }) => path === target.leftFilePath)?.ranges ?? []
+        : [],
+      rightRanges: target.rightFilePath
+        ? details.right.files.find(({ path }) => path === target.rightFilePath)?.ranges ?? []
+        : [],
+    })),
+  },
   left: publicWorktree(details.left),
   right: publicWorktree(details.right),
 });

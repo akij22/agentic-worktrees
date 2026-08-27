@@ -38,6 +38,12 @@ const renderComposer = (agentKind: CodingAgentSessionDto["agentKind"]) =>
   renderToStaticMarkup(
     <SessionComposer
       session={createSession(agentKind)}
+      branchName="feat/composer-status"
+      usage={{
+        contextTokens: 50_000,
+        contextWindow: 200_000,
+        contextPercentage: 25,
+      }}
       draft="/"
       models={[]}
       modelKey="provider::model"
@@ -94,11 +100,20 @@ describe("SessionComposer slash commands", () => {
 
       expect(markup).toContain('aria-label="Session slash commands"');
       expect(markup).toContain("/status");
+      expect(markup).toContain("/usage");
       expect(markup).toContain("/compact");
       expect(markup).toContain("/model");
       expect(markup).toContain("/stop");
     },
   );
+
+  it("renders the branch bar and segmented context indicator", () => {
+    const markup = renderComposer("codex");
+
+    expect(markup).toContain("feat/composer-status");
+    expect(markup).toContain('aria-label="Context used: 25%"');
+    expect(markup).toContain("25% context");
+  });
 });
 
 describe("SessionComposer file mentions", () => {
@@ -129,10 +144,7 @@ describe("SessionComposer file mentions", () => {
   };
 
   it("selects a worktree file at the caret with the keyboard", async () => {
-    search.mockResolvedValueOnce([
-      "src/Session.tsx",
-      "src/SessionCard.tsx",
-    ]);
+    search.mockResolvedValueOnce(["src/Session.tsx", "src/SessionCard.tsx"]);
     render(<InteractiveComposer initialDraft="Fix @Ses" />);
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     const palette = await openFilePalette();
@@ -166,7 +178,9 @@ describe("SessionComposer file mentions", () => {
     fireEvent.keyDown(textarea, { key: "Escape" });
 
     expect(textarea.value).toBe("Fix @Ses");
-    expect(screen.queryByRole("listbox", { name: "Worktree files" })).toBeNull();
+    expect(
+      screen.queryByRole("listbox", { name: "Worktree files" }),
+    ).toBeNull();
   });
 
   it("shows empty and error states while leaving the textarea usable", async () => {

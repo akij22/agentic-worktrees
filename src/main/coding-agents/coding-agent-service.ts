@@ -1,11 +1,11 @@
-import { execFile } from 'node:child_process';
-import { existsSync, promises as fs } from 'node:fs';
-import path from 'node:path';
-import { promisify } from 'node:util';
-import { app } from 'electron';
-import { desc, eq } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { getDatabase } from '../database/client';
+import { execFile } from "node:child_process";
+import { existsSync, promises as fs } from "node:fs";
+import path from "node:path";
+import { promisify } from "node:util";
+import { app } from "electron";
+import { desc, eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { getDatabase } from "../database/client";
 import {
   codingAgentInstallations,
   codingAgentSessionDiffs,
@@ -15,25 +15,20 @@ import {
   runOutputEvents,
   runs,
   worktrees,
-} from '../../shared/db/schema';
-import { CodexAdapter } from './codex-adapter';
-import { CoalescingTaskScheduler } from './coalescing-task-scheduler';
-import { calculateDiffStats } from './diff-stats';
-import {
-  findCodexInSystem,
-  parseCodexVersion,
-} from './codex-utils';
-import { OpenCodeAdapter } from './opencode-adapter';
+} from "../../shared/db/schema";
+import { CodexAdapter } from "./codex-adapter";
+import { CoalescingTaskScheduler } from "./coalescing-task-scheduler";
+import { calculateDiffStats } from "./diff-stats";
+import { findCodexInSystem, parseCodexVersion } from "./codex-utils";
+import { OpenCodeAdapter } from "./opencode-adapter";
 import {
   revalidatePrimaryWorkspace,
   synchronizePrimaryWorkspaces,
   type AgentWorktreeContext,
-} from './primary-workspace-service';
-import {
-  findOpenCodeInSystem,
-  parseOpenCodeVersion,
-} from './opencode-utils';
+} from "./primary-workspace-service";
+import { findOpenCodeInSystem, parseOpenCodeVersion } from "./opencode-utils";
 import type {
+  CodingAgentAccountUsage,
   CodingAgentAdapter,
   CodingAgentDiff,
   CodingAgentEvent,
@@ -44,7 +39,7 @@ import type {
   CodingAgentRunStatus,
   CodingAgentSessionUsage,
   CodingAgentToolCall,
-} from './types';
+} from "./types";
 
 const execFileAsync = promisify(execFile);
 const STATUS_ACTIVATION_GRACE_MS = 2_000;
@@ -103,15 +98,15 @@ interface CodingAgentHarness {
 
 const harnesses: Record<CodingAgentKind, CodingAgentHarness> = {
   opencode: {
-    installationId: 'opencode',
-    name: 'OpenCode',
+    installationId: "opencode",
+    name: "OpenCode",
     adapter: new OpenCodeAdapter(),
     discover: findOpenCodeInSystem,
     parseVersion: parseOpenCodeVersion,
   },
   codex: {
-    installationId: 'codex',
-    name: 'Codex',
+    installationId: "codex",
+    name: "Codex",
     adapter: new CodexAdapter(),
     discover: findCodexInSystem,
     parseVersion: parseCodexVersion,
@@ -124,10 +119,7 @@ const listeners = new Set<(event: AgentUiEvent) => void>();
 const reasoningByRun = new Map<string, Map<string, string>>();
 const toolsByRun = new Map<string, Map<string, CodingAgentToolCall[]>>();
 
-const persistSessionDiffs = (
-  runId: string,
-  diffs: CodingAgentDiff[],
-): void => {
+const persistSessionDiffs = (runId: string, diffs: CodingAgentDiff[]): void => {
   if (diffs.length === 0) return;
   const db = getDatabase();
   const updatedAt = new Date();
@@ -173,17 +165,20 @@ const getPersistedSessionDiffs = (runId: string): CodingAgentDiff[] =>
     .where(eq(codingAgentSessionDiffs.runId, runId))
     .all();
 
-const readHeadFile = async (directory: string, file: string): Promise<string> => {
+const readHeadFile = async (
+  directory: string,
+  file: string,
+): Promise<string> => {
   try {
     return (
-      await execFileAsync('git', ['show', `HEAD:${file}`], {
+      await execFileAsync("git", ["show", `HEAD:${file}`], {
         cwd: directory,
         maxBuffer: 10 * 1024 * 1024,
       })
     ).stdout;
   } catch {
     // Files added during the session do not exist in HEAD.
-    return '';
+    return "";
   }
 };
 
@@ -197,12 +192,14 @@ const readWorktreeFile = async (
     resolvedFile !== resolvedDirectory &&
     !resolvedFile.startsWith(`${resolvedDirectory}${path.sep}`)
   ) {
-    throw new Error(`Coding agent returned a diff outside the worktree: ${file}`);
+    throw new Error(
+      `Coding agent returned a diff outside the worktree: ${file}`,
+    );
   }
   try {
-    return await fs.readFile(resolvedFile, 'utf8');
+    return await fs.readFile(resolvedFile, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
     throw error;
   }
 };
@@ -246,7 +243,7 @@ const getInstallation = (kind: CodingAgentKind) =>
     .get();
 
 const getHarness = (kind: string): CodingAgentHarness => {
-  if (kind !== 'opencode' && kind !== 'codex') {
+  if (kind !== "opencode" && kind !== "codex") {
     throw new Error(`Unsupported coding-agent installation kind: ${kind}`);
   }
   return harnesses[kind];
@@ -281,7 +278,8 @@ const getContext = (worktreeId: string): AgentWorktreeContext => {
     .from(repositories)
     .where(eq(repositories.id, worktree.repositoryId))
     .get();
-  if (!repository) throw new Error(`Repository not found: ${worktree.repositoryId}`);
+  if (!repository)
+    throw new Error(`Repository not found: ${worktree.repositoryId}`);
   return { worktree, repository };
 };
 
@@ -358,17 +356,17 @@ const setRunStatus = (
       status,
       errorMessage,
       finishedAt:
-        status === 'busy'
+        status === "busy"
           ? null
-          : status === 'idle' && current?.status !== 'idle'
+          : status === "idle" && current?.status !== "idle"
             ? now
             : current?.finishedAt,
       outputStatus:
-        status === 'busy' ||
-        status === 'waiting_permission' ||
-        status === 'aborting'
-          ? 'streaming'
-          : 'idle',
+        status === "busy" ||
+        status === "waiting_permission" ||
+        status === "aborting"
+          ? "streaming"
+          : "idle",
       updatedAt: now,
     })
     .where(eq(runs.id, runId))
@@ -389,7 +387,7 @@ const appendOutputEvent = (
       .set({
         lastSequence: sequence,
         lastOutputAt: new Date(),
-        outputStatus: 'streaming',
+        outputStatus: "streaming",
         updatedAt: new Date(),
       })
       .where(eq(runs.id, runId))
@@ -463,7 +461,7 @@ const replaceProjectedMessages = (
           id: `${runId}:${message.id}`,
           runId,
           role: message.role,
-          messageType: 'text',
+          messageType: "text",
           content: message.content,
           sequence: index + 1,
           createdAt: new Date(message.createdAt),
@@ -497,7 +495,7 @@ const ensureStarted = async (harness: CodingAgentHarness): Promise<void> => {
     if (currentRuntime.running && currentRuntime.version) return;
     const version = await harness.adapter.start(
       installation.executablePath,
-      app.getPath('userData'),
+      app.getPath("userData"),
     );
     getDatabase()
       .update(codingAgentInstallations)
@@ -528,7 +526,7 @@ export const validateAgentExecutable = async (
   if (!stat.isFile()) {
     throw new Error(`Selected ${harness.name} path is not a file.`);
   }
-  const { stdout, stderr } = await execFileAsync(resolvedPath, ['--version'], {
+  const { stdout, stderr } = await execFileAsync(resolvedPath, ["--version"], {
     timeout: 5_000,
     windowsHide: true,
   });
@@ -617,7 +615,7 @@ export const listAgentWorktrees = async (): Promise<AgentWorktreeContext[]> => {
     .select({ worktree: worktrees, repository: repositories })
     .from(worktrees)
     .innerJoin(repositories, eq(repositories.id, worktrees.repositoryId))
-    .where(eq(worktrees.kind, 'linked'))
+    .where(eq(worktrees.kind, "linked"))
     .all();
 
   return [...primaryContexts, ...linkedContexts].sort((left, right) => {
@@ -626,7 +624,7 @@ export const listAgentWorktrees = async (): Promise<AgentWorktreeContext[]> => {
     );
     if (repositoryOrder !== 0) return repositoryOrder;
     if (left.worktree.kind !== right.worktree.kind) {
-      return left.worktree.kind === 'primary' ? -1 : 1;
+      return left.worktree.kind === "primary" ? -1 : 1;
     }
     return left.worktree.name.localeCompare(right.worktree.name);
   });
@@ -659,7 +657,26 @@ export const getAgentSessionUsage = async (
   );
 };
 
-export const listAgentSessions = (worktreeId?: string): AgentSessionSummary[] => {
+export const getAgentAccountUsage = async (
+  runId: string,
+): Promise<CodingAgentAccountUsage> => {
+  const row = getSessionRecord(runId);
+  const context = getContext(row.run.worktreeId);
+  const harness = getHarnessForInstallation(row.installation);
+  await ensureStarted(harness);
+  return harness.adapter.getAccountUsage(
+    context.worktree.path,
+    row.agent.externalSessionId,
+    {
+      providerId: row.agent.providerId,
+      modelId: row.agent.modelId,
+    },
+  );
+};
+
+export const listAgentSessions = (
+  worktreeId?: string,
+): AgentSessionSummary[] => {
   const query = getDatabase()
     .select({
       run: runs,
@@ -700,7 +717,7 @@ export const createAgentSession = async (input: {
     .where(eq(worktrees.id, input.worktreeId))
     .get();
   const context =
-    storedWorktree?.kind === 'primary'
+    storedWorktree?.kind === "primary"
       ? await revalidatePrimaryWorkspace(input.worktreeId)
       : getContext(input.worktreeId);
   const installation = getInstallation(input.agentKind);
@@ -709,7 +726,9 @@ export const createAgentSession = async (input: {
   }
   getHarnessForInstallation(installation);
   await ensureStarted(harness);
-  const availableModels = await harness.adapter.listModels(context.worktree.path);
+  const availableModels = await harness.adapter.listModels(
+    context.worktree.path,
+  );
   const defaultModel =
     availableModels.find((model) => model.isDefault) ?? availableModels[0];
   if (!defaultModel) {
@@ -730,10 +749,10 @@ export const createAgentSession = async (input: {
         repositoryId: context.repository.id,
         worktreeId: context.worktree.id,
         title: input.title,
-        prompt: '',
-        status: 'idle',
+        prompt: "",
+        status: "idle",
         command: null,
-        outputStatus: 'idle',
+        outputStatus: "idle",
         createdAt: now,
         updatedAt: now,
       })
@@ -766,11 +785,14 @@ export const setAgentSessionModel = async (input: {
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
   await ensureStarted(harness);
-  const availableModels = await harness.adapter.listModels(context.worktree.path);
+  const availableModels = await harness.adapter.listModels(
+    context.worktree.path,
+  );
   if (
     !availableModels.some(
       (model) =>
-        model.providerId === input.providerId && model.modelId === input.modelId,
+        model.providerId === input.providerId &&
+        model.modelId === input.modelId,
     )
   ) {
     throw new Error(`Selected ${harness.name} model is not available.`);
@@ -800,8 +822,8 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
     );
     if (externalSession.status) {
       const isStartingOrStreaming =
-        row.run.status === 'busy' &&
-        externalSession.status === 'idle' &&
+        row.run.status === "busy" &&
+        externalSession.status === "idle" &&
         Date.now() - row.run.updatedAt.getTime() < STATUS_ACTIVATION_GRACE_MS;
       if (!isStartingOrStreaming) {
         setRunStatus(runId, externalSession.status, null);
@@ -824,10 +846,10 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
   } catch (error) {
     setRunStatus(
       runId,
-      'unavailable',
+      "unavailable",
       error instanceof Error && error.message
         ? error.message
-        : 'Unknown error while reconciling the coding-agent session.',
+        : "Unknown error while reconciling the coding-agent session.",
     );
     throw error;
   }
@@ -848,9 +870,12 @@ export const getAgentSessionSnapshot = async (
     .all()
     .map((message) => ({
       id: message.id,
-      role: message.role === 'user' ? ('user' as const) : ('assistant' as const),
+      role:
+        message.role === "user" ? ("user" as const) : ("assistant" as const),
       content: message.content,
-      reasoning: reasoningByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ?? '',
+      reasoning:
+        reasoningByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ??
+        "",
       tools:
         toolsByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ?? [],
       createdAt: message.createdAt.getTime(),
@@ -858,7 +883,7 @@ export const getAgentSessionSnapshot = async (
     }));
   const lastUserMessage = [...storedMessages]
     .reverse()
-    .find((message) => message.role === 'user');
+    .find((message) => message.role === "user");
   const persistedDiff = getPersistedSessionDiffs(runId);
   const sessionDiff =
     persistedDiff.length === 0
@@ -914,7 +939,9 @@ export const sendAgentMessage = async (
         model.modelId === row.agent.modelId,
     );
     if (!selectedModel?.reasoningVariants.includes(reasoningVariant)) {
-      throw new Error('Selected reasoning level is not available for this model.');
+      throw new Error(
+        "Selected reasoning level is not available for this model.",
+      );
     }
   }
   if (!row.run.prompt) {
@@ -924,7 +951,7 @@ export const sendAgentMessage = async (
       .where(eq(runs.id, runId))
       .run();
   }
-  setRunStatus(runId, 'busy', null);
+  setRunStatus(runId, "busy", null);
   try {
     await harness.adapter.sendPrompt(
       context.worktree.path,
@@ -942,7 +969,7 @@ export const sendAgentMessage = async (
   } catch (error) {
     setRunStatus(
       runId,
-      'error',
+      "error",
       error instanceof Error ? error.message : String(error),
     );
     throw error;
@@ -954,7 +981,7 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
   await ensureStarted(harness);
-  setRunStatus(runId, 'busy', null);
+  setRunStatus(runId, "busy", null);
   try {
     await harness.adapter.compact(
       context.worktree.path,
@@ -966,14 +993,14 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
     );
     // OpenCode resolves only after compaction completes. Codex acknowledges
     // immediately and reports completion through the regular turn events.
-    if (row.installation.kind === 'opencode') {
-      setRunStatus(runId, 'idle', null);
+    if (row.installation.kind === "opencode") {
+      setRunStatus(runId, "idle", null);
       scheduleReconcile(runId);
     }
   } catch (error) {
     setRunStatus(
       runId,
-      'error',
+      "error",
       error instanceof Error ? error.message : String(error),
     );
     throw error;
@@ -984,14 +1011,17 @@ export const abortAgentSession = async (runId: string): Promise<void> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
-  setRunStatus(runId, 'aborting', null);
+  setRunStatus(runId, "aborting", null);
   try {
-    await harness.adapter.abort(context.worktree.path, row.agent.externalSessionId);
-    setRunStatus(runId, 'idle', null);
+    await harness.adapter.abort(
+      context.worktree.path,
+      row.agent.externalSessionId,
+    );
+    setRunStatus(runId, "idle", null);
   } catch (error) {
     setRunStatus(
       runId,
-      'error',
+      "error",
       error instanceof Error ? error.message : String(error),
     );
     throw error;
@@ -1001,7 +1031,7 @@ export const abortAgentSession = async (runId: string): Promise<void> => {
 export const respondToAgentPermission = async (
   runId: string,
   permissionId: string,
-  response: 'once' | 'always' | 'reject',
+  response: "once" | "always" | "reject",
 ): Promise<void> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
@@ -1012,7 +1042,7 @@ export const respondToAgentPermission = async (
     permissionId,
     response,
   );
-  setRunStatus(runId, 'busy', null);
+  setRunStatus(runId, "busy", null);
 };
 
 export const subscribeToAgentEvents = (
@@ -1027,12 +1057,14 @@ const reconcileScheduler = new CoalescingTaskScheduler<string>(
   async (runId) => {
     try {
       await reconcileAgentSession(runId);
-      emit({ runId, type: 'messages.updated', payload: null });
+      emit({ runId, type: "messages.updated", payload: null });
     } catch (error) {
       emit({
         runId,
-        type: 'session.error',
-        payload: { error: error instanceof Error ? error.message : String(error) },
+        type: "session.error",
+        payload: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       });
     }
   },
@@ -1051,10 +1083,10 @@ const handleAdapterEvent = (
     : null;
   if (!runId) {
     const payload =
-      event.type === 'server.exit'
+      event.type === "server.exit"
         ? {
             ...(event.properties !== null &&
-            typeof event.properties === 'object' &&
+            typeof event.properties === "object" &&
             !Array.isArray(event.properties)
               ? event.properties
               : { detail: event.properties }),
@@ -1066,29 +1098,34 @@ const handleAdapterEvent = (
   }
 
   appendOutputEvent(runId, kind, event);
-  if (event.type === 'message.updated' || event.type === 'message.part.updated') {
+  if (
+    event.type === "message.updated" ||
+    event.type === "message.part.updated"
+  ) {
     // Some providers do not publish a separate busy status before their first
     // message delta. Message activity itself is definitive evidence that the
     // turn is active.
-    setRunStatus(runId, 'busy', null);
+    setRunStatus(runId, "busy", null);
     scheduleReconcile(runId);
-  } else if (event.type === 'session.idle') {
-    setRunStatus(runId, 'idle', null);
+  } else if (event.type === "session.idle") {
+    setRunStatus(runId, "idle", null);
     scheduleReconcile(runId);
-  } else if (event.type === 'session.error') {
-    setRunStatus(runId, 'error', JSON.stringify(event.properties));
-  } else if (event.type === 'permission.updated') {
-    setRunStatus(runId, 'waiting_permission', null);
-  } else if (event.type === 'session.status') {
+  } else if (event.type === "session.error") {
+    setRunStatus(runId, "error", JSON.stringify(event.properties));
+  } else if (event.type === "permission.updated") {
+    setRunStatus(runId, "waiting_permission", null);
+  } else if (event.type === "session.status") {
     const status =
-      event.properties && typeof event.properties === 'object' &&
-      'status' in event.properties && event.properties.status &&
-      typeof event.properties.status === 'object' &&
-      'type' in event.properties.status
+      event.properties &&
+      typeof event.properties === "object" &&
+      "status" in event.properties &&
+      event.properties.status &&
+      typeof event.properties.status === "object" &&
+      "type" in event.properties.status
         ? event.properties.status.type
         : null;
-    if (status === 'busy') setRunStatus(runId, 'busy', null);
-    if (status === 'idle') setRunStatus(runId, 'idle', null);
+    if (status === "busy") setRunStatus(runId, "busy", null);
+    if (status === "idle") setRunStatus(runId, "idle", null);
   }
   emit({ runId, type: event.type, payload: event.properties });
 };

@@ -1,6 +1,7 @@
 import type { Repository, Worktree } from "../db/schema";
 import type {
 	BranchDto,
+	CodingAgentAccountUsageDto,
 	CodingAgentKindDto,
 	CodingAgentModelDto,
 	CodingAgentSessionDto,
@@ -55,9 +56,7 @@ export interface Api {
 	};
 	repositories: {
 		importLocal: () => Promise<Repository | null>;
-		importRemote: (request: {
-			repositoryIds: number[];
-		}) => Promise<Repository[]>;
+		importRemote: (request: { repositoryIds: number[] }) => Promise<Repository[]>;
 	};
 	worktrees: {
 		create: (request: {
@@ -71,10 +70,7 @@ export interface Api {
 	};
 	editors: {
 		listAvailable: () => Promise<AvailableEditorDto[]>;
-		open: (request: {
-			editorId: EditorId;
-			worktreeId: string;
-		}) => Promise<void>;
+		open: (request: { editorId: EditorId; worktreeId: string }) => Promise<void>;
 	};
 	workspace: {
 		files: {
@@ -207,6 +203,9 @@ export interface Api {
 		getSessionUsage: (request: {
 			runId: string;
 		}) => Promise<CodingAgentSessionUsageDto>;
+		getAccountUsage: (request: {
+			runId: string;
+		}) => Promise<CodingAgentAccountUsageDto>;
 		sendMessage: (request: {
 			runId: string;
 			content: string;

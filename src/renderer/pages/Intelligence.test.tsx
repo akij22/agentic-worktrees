@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { Repository } from "../../shared/db/schema";
 import type { IntelligenceSnapshotDto } from "../../shared/ipc/schemas";
 
@@ -145,8 +145,14 @@ const renderPage = (value: IntelligenceSnapshotDto) => {
 		refresh: vi.fn(),
 	});
 	return render(
-		<MemoryRouter>
-			<Intelligence />
+		<MemoryRouter initialEntries={["/intelligence"]}>
+			<Routes>
+				<Route path="/intelligence" element={<Intelligence />} />
+				<Route
+					path="/coding-agent/:worktreeId/:runId"
+					element={<p>Chat destination</p>}
+				/>
+			</Routes>
 		</MemoryRouter>,
 	);
 };
@@ -157,19 +163,49 @@ afterEach(() => {
 });
 
 describe("Intelligence conflict page", () => {
-	it("defaults to the first high-risk conflict and excludes the graph", () => {
+	it("defaults to the repository overview and opens conflict review from Attention", () => {
 		renderPage(snapshot("high"));
 		expect(
 			screen.getByRole("heading", { name: "Cross-worktree conflicts" }),
 		).toBeTruthy();
-		expect(screen.getAllByText("high persisted overlap")).toHaveLength(2);
 		expect(
-			screen.queryByRole("heading", { name: "Worktree overlap map" }),
+			screen.getByRole("heading", { name: "Worktree overlap map" }),
+		).toBeTruthy();
+		expect(screen.getByRole("heading", { name: "Attention" })).toBeTruthy();
+		expect(
+			screen.queryByRole("heading", { name: "Conflict list" }),
 		).toBeNull();
+
+		fireEvent.click(screen.getByRole("button", { name: "Review overlap" }));
+
+		expect(screen.getByRole("heading", { name: "Conflict list" })).toBeTruthy();
+		expect(
+			screen.getByRole("heading", { name: "Conflict details" }),
+		).toBeTruthy();
+		expect(screen.getAllByText("high persisted overlap")).toHaveLength(2);
 	});
 
-	it("shows a conflict-free state when only low-risk overlaps exist", () => {
+	it("navigates directly to a worktree chat from the overview", () => {
+		renderPage(snapshot("high"));
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "Open Left task chat" }),
+		);
+
+		expect(screen.getByText("Chat destination")).toBeTruthy();
+	});
+
+	it("keeps passive relationships on the map but out of conflict review", () => {
 		renderPage(snapshot("low"));
+		expect(screen.getByText("No actionable overlaps")).toBeTruthy();
+		expect(
+			screen.getByText(
+				"Low risk connection between Left task and Right task: low persisted overlap",
+			),
+		).toBeTruthy();
+		fireEvent.click(
+			screen.getByRole("button", { name: "Show conflict review" }),
+		);
 		expect(screen.getByText("No high or medium conflicts")).toBeTruthy();
 	});
 });

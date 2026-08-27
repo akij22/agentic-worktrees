@@ -52,6 +52,9 @@
 
 - **Cross-worktree intelligence and Git confirmation**
   - Open **Intelligence** from the sidebar to compare concurrent coding-agent worktrees within one repository.
+  - Use the default **Overview** to scan up to four worktrees at a time around the local overlap engine. Solid red connections identify high-risk overlap, dashed amber connections identify medium-risk overlap, and dotted blue connections identify low-risk proximity; worktrees with no relationships are marked **Safely independent**.
+  - Use **Attention** for the server-ranked actionable queue. Passive low-risk relationships remain visible on the map but do not create review work.
+  - Select **Review overlap** to open the conflict-focused workspace, **Inspect files** to load persisted path and symbol evidence, or **Compare diff** to inspect synchronized two-sided patches. Any worktree with a persisted run links directly back to its original chat.
   - Analyze committed, staged, unstaged, and untracked changes locally against each worktree's merge base.
   - Distinguish deterministic **overlaps** and **predicted conflicts** from conflicts that Git has actually confirmed.
   - Select a target branch and use **Confirm with Git** to snapshot both complete worktree deltas through temporary indexes and private synthetic commits. Original coding-agent worktrees, indexes, files, and branches remain unchanged.

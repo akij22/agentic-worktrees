@@ -1,9 +1,5 @@
-import {
-  type KeyboardEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { GitBranch, Layers3 } from "lucide-react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type {
   CodingAgentModelDto,
   CodingAgentSessionDto,
@@ -14,14 +10,17 @@ import {
   filterSlashCommands,
   type SlashCommandId,
 } from "../lib/slash-commands";
-import {
-  findActiveFileMention,
-  insertFileMention,
-} from "../lib/file-mentions";
+import { findActiveFileMention, insertFileMention } from "../lib/file-mentions";
 import { useFileMentionSuggestions } from "../hooks/useFileMentionSuggestions";
 
 type Props = {
   session: CodingAgentSessionDto;
+  branchName?: string;
+  usage?: {
+    contextPercentage: number;
+    contextTokens: number;
+    contextWindow: number;
+  };
   draft: string;
   models: CodingAgentModelDto[];
   modelKey: string;
@@ -41,6 +40,8 @@ type Props = {
 
 export const SessionComposer = ({
   session,
+  branchName,
+  usage,
   draft,
   models,
   modelKey,
@@ -82,7 +83,9 @@ export const SessionComposer = ({
   });
   const filePaletteOpen = Boolean(activeMention);
   const selectableCount =
-    slashCommands.length > 0 ? slashCommands.length : fileSuggestions.paths.length;
+    slashCommands.length > 0
+      ? slashCommands.length
+      : fileSuggestions.paths.length;
 
   useEffect(
     () => setSelectedSuggestionIndex(0),
@@ -118,8 +121,9 @@ export const SessionComposer = ({
         if (selectableCount === 0) return;
         event.preventDefault();
         const direction = event.key === "ArrowDown" ? 1 : -1;
-        setSelectedSuggestionIndex((current) =>
-          (current + direction + selectableCount) % selectableCount,
+        setSelectedSuggestionIndex(
+          (current) =>
+            (current + direction + selectableCount) % selectableCount,
         );
         return;
       }
@@ -128,7 +132,8 @@ export const SessionComposer = ({
         const selectedCommand = slashCommands[selectedSuggestionIndex];
         if (selectedCommand) executeSlashCommand(selectedCommand.id);
         const selectedPath = fileSuggestions.paths[selectedSuggestionIndex];
-        if (slashCommands.length === 0 && selectedPath) selectFile(selectedPath);
+        if (slashCommands.length === 0 && selectedPath)
+          selectFile(selectedPath);
         return;
       }
       if (event.key === "Escape") {
@@ -275,7 +280,7 @@ export const SessionComposer = ({
           disabled={locked}
           className="block w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 outline-none placeholder:text-placeholder disabled:opacity-60"
         />
-        <div className="flex items-center justify-between gap-3 px-1 pt-2">
+        <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/[0.07] px-1 pt-2.5">
           <div className="flex min-w-0 items-center gap-2">
             <PickerMenu
               ariaLabel="AI model"
@@ -355,6 +360,51 @@ export const SessionComposer = ({
               Send ↗
             </Button>
           )}
+        </div>
+        <div className="mt-2 flex min-w-0 items-center justify-between gap-4 px-1 text-[11px]">
+          <div
+            className="flex min-w-0 items-center gap-2 text-muted-foreground"
+            title={branchName}
+          >
+            <GitBranch
+              className="size-3.5 shrink-0 text-primary/80"
+              aria-hidden="true"
+            />
+            <span className="shrink-0 uppercase tracking-[0.12em] text-[9px] font-semibold text-muted-foreground/70">
+              Branch
+            </span>
+            <span className="truncate font-mono text-foreground/80">
+              {branchName ?? "Current branch"}
+            </span>
+          </div>
+          <div
+            className="flex shrink-0 items-center gap-2"
+            aria-label={
+              usage
+                ? `Context used: ${usage.contextPercentage.toFixed(0)}%`
+                : "Context usage unavailable"
+            }
+            title={
+              usage
+                ? `${usage.contextTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
+                : "Context usage unavailable"
+            }
+          >
+            <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
+            <div className="flex gap-0.5" aria-hidden="true">
+              {Array.from({ length: 8 }, (_, index) => (
+                <span
+                  key={index}
+                  className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
+                />
+              ))}
+            </div>
+            <span className="font-mono text-[10px] font-medium text-foreground/80">
+              {usage
+                ? `${usage.contextPercentage.toFixed(0)}% context`
+                : "Context —"}
+            </span>
+          </div>
         </div>
       </div>
     </div>

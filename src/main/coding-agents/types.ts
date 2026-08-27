@@ -1,13 +1,13 @@
 export type CodingAgentRunStatus =
-  | 'creating'
-  | 'idle'
-  | 'busy'
-  | 'waiting_permission'
-  | 'aborting'
-  | 'error'
-  | 'unavailable';
+  | "creating"
+  | "idle"
+  | "busy"
+  | "waiting_permission"
+  | "aborting"
+  | "error"
+  | "unavailable";
 
-export type CodingAgentKind = 'opencode' | 'codex';
+export type CodingAgentKind = "opencode" | "codex";
 
 export interface CodingAgentModel {
   providerId: string;
@@ -19,10 +19,10 @@ export interface CodingAgentModel {
 }
 
 export type CodingAgentToolCallStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'error';
+  | "pending"
+  | "running"
+  | "completed"
+  | "error";
 
 export interface CodingAgentToolCall {
   id: string;
@@ -34,7 +34,7 @@ export interface CodingAgentToolCall {
 
 export interface CodingAgentMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   reasoning: string;
   tools: CodingAgentToolCall[];
@@ -78,6 +78,20 @@ export interface CodingAgentSessionUsage {
   modelId: string;
 }
 
+export interface CodingAgentAccountUsageWindow {
+  durationMinutes: number | null;
+  remainingPercentage: number;
+  resetsAt: number | null;
+}
+
+export interface CodingAgentAccountUsage {
+  providerId: string;
+  availability: "available" | "unavailable";
+  message?: string;
+  planType?: string;
+  windows: CodingAgentAccountUsageWindow[];
+}
+
 export interface CodingAgentAdapter {
   getStatus(): {
     running: boolean;
@@ -92,9 +106,12 @@ export interface CodingAgentAdapter {
     title: string,
     options: CodingAgentSessionOptions,
   ): Promise<{ id: string }>;
-  getSession(directory: string, sessionId: string): Promise<{
+  getSession(
+    directory: string,
+    sessionId: string,
+  ): Promise<{
     id: string;
-    status?: 'idle' | 'busy' | 'error';
+    status?: "idle" | "busy" | "error";
   }>;
   listMessages(
     directory: string,
@@ -125,12 +142,17 @@ export interface CodingAgentAdapter {
     sessionId: string,
     input: { providerId: string; modelId: string },
   ): Promise<CodingAgentSessionUsage>;
+  getAccountUsage(
+    directory: string,
+    sessionId: string,
+    input: { providerId: string; modelId: string },
+  ): Promise<CodingAgentAccountUsage>;
   abort(directory: string, sessionId: string): Promise<void>;
   respondPermission(
     directory: string,
     sessionId: string,
     permissionId: string,
-    response: 'once' | 'always' | 'reject',
+    response: "once" | "always" | "reject",
   ): Promise<void>;
   subscribe(listener: (event: CodingAgentEvent) => void): () => void;
 }

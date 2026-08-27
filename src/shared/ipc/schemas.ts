@@ -441,6 +441,24 @@ export type CodingAgentSessionUsageDto = z.infer<
 	typeof codingAgentSessionUsageSchema
 >;
 
+export const codingAgentAccountUsageSchema = z.object({
+	providerId: z.string(),
+	availability: z.enum(["available", "unavailable"]),
+	message: z.string().optional(),
+	planType: z.string().optional(),
+	windows: z.array(
+		z.object({
+			durationMinutes: z.number().int().positive().nullable(),
+			remainingPercentage: z.number().min(0).max(100),
+			resetsAt: z.number().int().nonnegative().nullable(),
+		}),
+	),
+});
+
+export type CodingAgentAccountUsageDto = z.infer<
+	typeof codingAgentAccountUsageSchema
+>;
+
 export const codingAgentModelsRequestSchema = z.object({
 	runId: z.string().trim().min(1),
 });
@@ -475,6 +493,10 @@ export const codingAgentSessionViewedRequestSchema = z.object({
 });
 
 export const codingAgentSessionUsageRequestSchema = z.object({
+	runId: z.string().min(1),
+});
+
+export const codingAgentAccountUsageRequestSchema = z.object({
 	runId: z.string().min(1),
 });
 
@@ -564,6 +586,19 @@ export const intelligenceOverlapTargetSchema = z.object({
 	risk: intelligenceRiskSchema,
 });
 
+export const intelligenceChangedRangeSchema = z.object({
+	oldStart: z.number().int().nonnegative(),
+	oldLines: z.number().int().nonnegative(),
+	newStart: z.number().int().nonnegative(),
+	newLines: z.number().int().nonnegative(),
+});
+
+export const intelligenceOverlapDetailsTargetSchema =
+	intelligenceOverlapTargetSchema.extend({
+		leftRanges: z.array(intelligenceChangedRangeSchema),
+		rightRanges: z.array(intelligenceChangedRangeSchema),
+	});
+
 export const intelligenceOverlapSchema = z.object({
 	id: z.string().min(1),
 	leftWorktreeId: z.string().min(1),
@@ -589,7 +624,9 @@ export const intelligenceSnapshotSchema = z.object({
 });
 
 export const intelligenceOverlapDetailsSchema = z.object({
-	overlap: intelligenceOverlapSchema,
+	overlap: intelligenceOverlapSchema.extend({
+		targets: z.array(intelligenceOverlapDetailsTargetSchema),
+	}),
 	left: intelligenceWorktreeSchema,
 	right: intelligenceWorktreeSchema,
 });
