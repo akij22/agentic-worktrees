@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { CapabilityError } from "@agentic-worktrees/capability-sdk";
 import {
   createOpencodeClient,
   type GlobalEvent,
@@ -11,6 +12,8 @@ import { createOpencodeClient as createOpencodeClientV2 } from "@opencode-ai/sdk
 import type {
   CodingAgentAccountUsage,
   CodingAgentAdapter,
+  CodingAgentCapabilityConnection,
+  CodingAgentSessionOptions,
   CodingAgentDiff,
   CodingAgentEvent,
   CodingAgentMessage,
@@ -19,20 +22,12 @@ import type {
   CodingAgentToolCall,
 } from "./types";
 import { readOpenCodeSessionId, reserveLocalPort } from "./opencode-utils";
+import { buildOpenCodeRuntimeConfig } from "./opencode-capability-config";
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
 const EVENT_RECONNECT_MS = 250;
 const INTERNAL_DONE_MESSAGE = "*Done. I'll confirm to the user.*";
-const OPENCODE_COMMAND_APPROVAL_CONFIG = JSON.stringify({
-  agent: {
-    build: {
-      permission: {
-        bash: "ask",
-      },
-    },
-  },
-});
 const REASONING_VARIANT_IDS = new Set([
   "none",
   "minimal",
@@ -340,6 +335,9 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     OpenCodePermissionReplyProtocol
   >();
   private readonly listeners = new Set<(event: CodingAgentEvent) => void>();
+  private readonly capabilityConnections = new Map<string, CodingAgentCapabilityConnection>();
+  private executablePath: string | null = null;
+  private startupDirectory: string | null = null;
 
   getStatus() {
     return {
@@ -350,6 +348,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   }
 
   async start(executablePath: string, cwd: string): Promise<string> {
+    this.executablePath = executablePath;
+    this.startupDirectory = cwd;
     if (this.process && this.process.exitCode === null && this.version) {
       return this.version;
     }
@@ -368,7 +368,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           // This is loaded by OpenCode as its highest-priority runtime config.
           // The build agent is the one selected in sendPrompt(), so its shell
           // commands must wait for the renderer's explicit decision.
-          OPENCODE_CONFIG_CONTENT: OPENCODE_COMMAND_APPROVAL_CONFIG,
+          OPENCODE_CONFIG_CONTENT: JSON.stringify(buildOpenCodeRuntimeConfig([...this.capabilityConnections.values()])),
         },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
@@ -524,7 +524,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       );
   }
 
-  async createSession(directory: string, title: string) {
+  async createSession(directory: string, title: string, options?: CodingAgentSessionOptions) {
+    if (options?.capabilities) this.capabilityConnections.set(options.capabilities.profileId, options.capabilities);
     const result = await this.requireClient().session.create({
       body: { title },
       query: { directory },
@@ -533,7 +534,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     return { id: result.data.id };
   }
 
-  async getSession(directory: string, sessionId: string) {
+  async getSession(directory: string, sessionId: string, options?: { capabilities?: CodingAgentCapabilityConnection }) {
+    if (options?.capabilities) this.capabilityConnections.set(options.capabilities.profileId, options.capabilities);
     const client = this.requireClient();
     const [sessionResult, statusesResult] = await Promise.all([
       client.session.get({
@@ -585,13 +587,14 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       providerId: string;
       modelId: string;
       reasoningVariant?: string;
+      capabilityProfileId?: string;
     },
   ): Promise<void> {
     await this.requireClient().session.promptAsync({
       path: { id: sessionId },
       query: { directory },
       body: {
-        agent: "build",
+        agent: input.capabilityProfileId || "build",
         model: {
           providerID: input.providerId,
           modelID: input.modelId,
@@ -605,10 +608,37 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     });
   }
 
+  async reconfigureCapabilities(input: {
+    connections: CodingAgentCapabilityConnection[];
+    sessions: Array<{ directory: string; sessionId: string }>;
+  }): Promise<void> {
+    for (const session of input.sessions) {
+      const current = await this.getSession(session.directory, session.sessionId);
+      if (current.status !== "idle") throw new CapabilityError("agent_reload_failed", "OpenCode capability reload requires idle sessions.");
+    }
+    const previous = [...this.capabilityConnections.values()];
+    const executablePath = this.executablePath;
+    const directory = this.startupDirectory;
+    if (!executablePath || !directory) throw new CapabilityError("agent_reload_failed", "OpenCode is not configured for capability reload.");
+    try {
+      this.capabilityConnections.clear();
+      for (const connection of input.connections) this.capabilityConnections.set(connection.profileId, connection);
+      await this.stop();
+      await this.start(executablePath, directory);
+      await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+    } catch {
+      this.capabilityConnections.clear();
+      for (const connection of previous) this.capabilityConnections.set(connection.profileId, connection);
+      await this.stop();
+      await this.start(executablePath, directory);
+      throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and was rolled back.");
+    }
+  }
+
   async compact(
     directory: string,
     sessionId: string,
-    input: { providerId: string; modelId: string },
+    input: { providerId: string; modelId: string; capabilityProfileId?: string },
   ): Promise<void> {
     await this.requireClient().session.summarize({
       path: { id: sessionId },
