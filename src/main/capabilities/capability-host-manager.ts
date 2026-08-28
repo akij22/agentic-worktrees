@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
-import { utilityProcess } from "electron";
+import { utilityProcess, type UtilityProcess } from "electron";
 import { CapabilityError } from "@agentic-worktrees/capability-sdk";
 import { isHostToMainMessage, type HostToMainMessage, type MainToHostMessage } from "./host-protocol";
 
@@ -13,8 +13,8 @@ export interface CapabilityHostConnection {
 
 export interface CapabilityUtilityProcess {
   postMessage(message: MainToHostMessage): void;
-  on(event: "message", listener: (message: unknown) => void): this;
-  on(event: "exit", listener: (code: number) => void): this;
+  onMessage(listener: (message: unknown) => void): void;
+  onExit(listener: (code: number) => void): void;
   kill(): boolean;
 }
 
@@ -55,12 +55,12 @@ export class CapabilityHostManager {
       }
     }, this.dependencies.startupTimeoutMs ?? 10_000);
 
-    child.on("message", (raw) => {
+    child.onMessage((raw) => {
       const value = raw && typeof raw === "object" && "data" in raw ? (raw as { data: unknown }).data : raw;
       if (!isHostToMainMessage(value)) return;
       this.handleMessage(runId, record, value, timer);
     });
-    child.on("exit", () => {
+    child.onExit(() => {
       clearTimeout(timer);
       if (this.hosts.get(runId) !== record) return;
       this.hosts.delete(runId);
@@ -128,9 +128,18 @@ export class CapabilityHostManager {
   }
 }
 
+function adaptElectronUtilityProcess(child: UtilityProcess): CapabilityUtilityProcess {
+  return {
+    postMessage(message) { child.postMessage(message); },
+    onMessage(listener) { child.on("message", listener); },
+    onExit(listener) { child.on("exit", listener); },
+    kill: () => child.kill(),
+  };
+}
+
 export function createElectronCapabilityHostManager(resolveSecret: CapabilityHostManagerDependencies["resolveSecret"]): CapabilityHostManager {
   return new CapabilityHostManager({
-    launch: (runId) => utilityProcess.fork(path.join(__dirname, "capability-host.js"), [], { serviceName: `Agentic Worktrees Capability Host ${runId}`, stdio: "pipe" }) as unknown as CapabilityUtilityProcess,
+    launch: (runId) => adaptElectronUtilityProcess(utilityProcess.fork(path.join(__dirname, "capability-host.js"), [], { serviceName: `Agentic Worktrees Capability Host ${runId}`, stdio: "pipe" })),
     resolveSecret,
   });
 }

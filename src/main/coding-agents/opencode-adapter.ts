@@ -325,8 +325,6 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   private process: ChildProcess | null = null;
   private client: ReturnType<typeof createOpencodeClient> | null = null;
   private v2Client: ReturnType<typeof createOpencodeClientV2> | null = null;
-  private baseUrl: string | null = null;
-  private password: string | null = null;
   private version: string | null = null;
   private error: string | null = null;
   private eventAbortController: AbortController | null = null;
@@ -377,8 +375,6 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     );
 
     this.process = child;
-    this.password = password;
-    this.baseUrl = baseUrl;
     this.error = null;
 
     let diagnosticOutputReported = false;
@@ -482,8 +478,6 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     this.process = null;
     this.client = null;
     this.v2Client = null;
-    this.baseUrl = null;
-    this.password = null;
     this.permissionReplyProtocols.clear();
     if (!child || child.exitCode !== null) return;
 

@@ -61,6 +61,14 @@ function sessionFromRow(row: SessionRow): SessionCapabilityRecord {
 }
 
 const installationSelect = `SELECT capability_id capabilityId, version, permission_digest permissionDigest, configured, created_at createdAt, updated_at updatedAt FROM capability_installations`;
+function parseStoredSetting(serialized: string): unknown {
+  try {
+    const parsed: unknown = JSON.parse(serialized);
+    return parsed;
+  } catch {
+    throw new CapabilityError("internal_error", "Stored capability settings are invalid.");
+  }
+}
 const sessionSelect = `SELECT id, run_id runId, capability_id capabilityId, version, status, error_code errorCode, activated_at activatedAt, deactivated_at deactivatedAt, created_at createdAt, updated_at updatedAt FROM session_capabilities`;
 
 export class CapabilityRepository {
@@ -97,7 +105,7 @@ export class CapabilityRepository {
 
   getSettings(capabilityId: string): CapabilitySettingRecord[] {
     const rows = this.sqlite.prepare("SELECT key, value_json valueJson, secret_ref secretRef FROM capability_settings WHERE capability_id = ? ORDER BY key").all(capabilityId) as Array<{ key: string; valueJson: string | null; secretRef: string | null }>;
-    return rows.map((row) => ({ key: row.key, ...(row.valueJson !== null ? { value: JSON.parse(row.valueJson) as unknown } : {}), ...(row.secretRef ? { secretRef: row.secretRef } : {}) }));
+    return rows.map((row) => ({ key: row.key, ...(row.valueJson !== null ? { value: parseStoredSetting(row.valueJson) } : {}), ...(row.secretRef ? { secretRef: row.secretRef } : {}) }));
   }
 
   getSessionCapability(runId: string, capabilityId: string): SessionCapabilityRecord | undefined {

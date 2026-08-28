@@ -6,7 +6,7 @@ describe("web search capability", () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ results: [{ title: "Electron", url: "https://exa.example/electron", text: "Desktop" }] }))); 
     const capability = createWebSearchCapability({ fetchImpl: fetchMock });
     const getOptional = vi.fn().mockResolvedValue("key");
-    const result = await capability.tools[0].execute({ query: "electron" } as never, {
+    const result = await capability.tools[0].execute({ query: "electron" }, {
       signal: new AbortController().signal, settings: { resultLimit: 5 }, secrets: { get: vi.fn(), getOptional }, logger: { info: vi.fn(), error: vi.fn() },
     });
     expect(getOptional).toHaveBeenCalledWith("exaApiKey");

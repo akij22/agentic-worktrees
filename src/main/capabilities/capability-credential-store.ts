@@ -20,12 +20,18 @@ export interface CapabilityCredentialStoreDependencies {
   logError(message: string, cause: unknown): void;
 }
 
+interface SafeLogCause {
+  name: string;
+  message: string;
+}
+
 const emptyPayload = (): CapabilityCredentialPayload => ({ version: 1, secrets: {} });
 const missing = (error: unknown): boolean => error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
-function redact(cause: unknown, values: readonly string[]): unknown {
+function redact(cause: unknown, values: readonly string[]): SafeLogCause {
   const replace = (text: string) => values.filter(Boolean).reduce((safe, value) => safe.replaceAll(value, "[REDACTED]"), text);
-  if (cause instanceof Error) return new Error(replace(cause.message));
-  return typeof cause === "string" ? replace(cause) : cause;
+  if (cause instanceof Error) return { name: cause.name, message: replace(cause.message) };
+  if (typeof cause === "string") return { name: "Error", message: replace(cause) };
+  return { name: "NonErrorCause", message: "A non-text credential storage error occurred." };
 }
 function isPayload(value: unknown): value is CapabilityCredentialPayload {
   if (!value || typeof value !== "object") return false;

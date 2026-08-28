@@ -15,7 +15,7 @@ export function defineCapability(definition: {
 }): CapabilityDefinition {
   return Object.freeze({
     manifest: Object.freeze(definition.manifest),
-    tools: Object.freeze([...definition.tools]) as unknown as CapabilityTool<never>[],
+    tools: Object.freeze([...definition.tools]),
   });
 }
 

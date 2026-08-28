@@ -61,5 +61,5 @@ export interface CapabilityTool<Input = unknown> {
 
 export interface CapabilityDefinition {
   manifest: CapabilityManifest;
-  tools: CapabilityTool<never>[];
+  tools: readonly CapabilityTool<unknown>[];
 }

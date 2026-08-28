@@ -24,6 +24,8 @@ describe("searchExaAuto", () => {
     await expect(searchExaAuto({ query: "electron" }, { fetchImpl: limited, signal })).rejects.toMatchObject({ code: "rate_limited" });
     const malformed = vi.fn<typeof fetch>().mockResolvedValue(new Response("not-json"));
     await expect(searchExaAuto({ query: "electron" }, { fetchImpl: malformed, signal })).rejects.toMatchObject({ code: "upstream_protocol_error" });
+    const wrongShape = vi.fn<typeof fetch>().mockResolvedValue(new Response("[]"));
+    await expect(searchExaAuto({ query: "electron" }, { fetchImpl: wrongShape, signal })).rejects.toMatchObject({ code: "upstream_protocol_error" });
     const aborted = vi.fn<typeof fetch>().mockRejectedValue(Object.assign(new Error("query secret"), { name: "AbortError" }));
     await expect(searchExaAuto({ query: "electron" }, { fetchImpl: aborted, signal })).rejects.toMatchObject({ code: "cancelled", message: "Web search was cancelled." });
   });

@@ -25,7 +25,7 @@ export interface CapabilityHostServer {
   close(): Promise<void>;
 }
 
-interface ActiveTool { capability: CapabilityDefinition; tool: CapabilityTool<never>; validate: ValidateFunction }
+interface ActiveTool { capability: CapabilityDefinition; tool: CapabilityTool<unknown>; validate: ValidateFunction }
 
 function authorized(header: string | undefined, expected: string): boolean {
   if (!header?.startsWith("Bearer ")) return false;
@@ -101,7 +101,7 @@ export function createCapabilityHostServer(options: CapabilityHostServerOptions)
         logger: { info: () => undefined, error: () => undefined },
       };
       try {
-        const result = limitCapabilityOutput(await entry.tool.execute(call.params.arguments as never, context));
+        const result = limitCapabilityOutput(await entry.tool.execute(call.params.arguments, context));
         return { content: result.content, isError: result.isError ?? false };
       } catch (error) {
         const safe = safeError(error);

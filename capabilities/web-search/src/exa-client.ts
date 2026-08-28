@@ -48,23 +48,47 @@ function safeResults(value: unknown): WebSearchResult[] {
   });
 }
 
-function parseJsonOrSse(text: string): unknown {
+interface ExaTransportPayload {
+  readonly [key: string]: unknown;
+}
+
+function isExaTransportPayload(value: unknown): value is ExaTransportPayload {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function decodeExaTransportPayload(value: unknown): ExaTransportPayload {
+  if (!isExaTransportPayload(value)) {
+    throw new CapabilityError("upstream_protocol_error", "Exa returned an invalid response.");
+  }
+  return value;
+}
+
+function parseJsonOrSse(text: string): ExaTransportPayload {
   const trimmed = text.trim();
   if (!trimmed) throw new CapabilityError("upstream_protocol_error", "Exa returned an empty response.");
-  try { return JSON.parse(trimmed); } catch { /* parse SSE below */ }
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return decodeExaTransportPayload(parsed);
+  } catch (error) {
+    if (error instanceof CapabilityError) throw error;
+  }
   const dataFrames = trimmed.split(/\r?\n/)
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trim())
     .filter((line) => line && line !== "[DONE]");
   for (let index = dataFrames.length - 1; index >= 0; index -= 1) {
-    try { return JSON.parse(dataFrames[index]); } catch { /* try earlier frame */ }
+    try {
+      const parsed: unknown = JSON.parse(dataFrames[index]);
+      return decodeExaTransportPayload(parsed);
+    } catch {
+      // Ignore malformed frames and try the preceding complete SSE event.
+    }
   }
   throw new CapabilityError("upstream_protocol_error", "Exa returned an invalid response.");
 }
 
-function unwrapMcp(payload: unknown): WebSearchResult[] {
-  if (!payload || typeof payload !== "object") return [];
-  const object = payload as Record<string, unknown>;
+function unwrapMcp(payload: ExaTransportPayload): WebSearchResult[] {
+  const object = payload;
   if (object.error) throw new CapabilityError("upstream_protocol_error", "Exa search failed.");
   const result = object.result && typeof object.result === "object" ? object.result as Record<string, unknown> : object;
   const direct = safeResults(result);
@@ -75,7 +99,7 @@ function unwrapMcp(payload: unknown): WebSearchResult[] {
     const text = (item as Record<string, unknown>).text;
     if (typeof text !== "string") continue;
     try {
-      const parsed = JSON.parse(text);
+      const parsed: unknown = JSON.parse(text);
       const nested = safeResults(parsed);
       if (nested.length) return nested;
     } catch {
@@ -94,7 +118,7 @@ function normalizeFailure(error: unknown): never {
   throw new CapabilityError("upstream_unavailable", "Exa is currently unavailable.");
 }
 
-async function readResponse(response: Response): Promise<unknown> {
+async function readResponse(response: Response): Promise<ExaTransportPayload> {
   if (response.status === 429) throw new CapabilityError("rate_limited", "Exa rate limit reached. Try again later or configure an optional API key.");
   if (!response.ok) throw new CapabilityError("upstream_unavailable", "Exa is currently unavailable.");
   return parseJsonOrSse(await response.text());

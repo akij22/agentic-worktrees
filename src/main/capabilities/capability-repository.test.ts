@@ -24,6 +24,18 @@ describe("CapabilityRepository", () => {
     expect(repository.getInstallation("agentic-worktrees.web-search")).toMatchObject({ configured: true });
   });
 
+  it("rejects corrupt stored setting JSON with a safe error", () => {
+    repository.upsertInstallation({ capabilityId: "agentic-worktrees.web-search", version: "0.1.0", permissionDigest: "digest", configured: true });
+    sqlite.prepare("INSERT INTO capability_settings (id, capability_id, key, value_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run("bad-setting", "agentic-worktrees.web-search", "resultLimit", "{sensitive-corrupt-value", Date.now(), Date.now());
+    expect(() => repository.getSettings("agentic-worktrees.web-search")).toThrow("Stored capability settings are invalid.");
+    try {
+      repository.getSettings("agentic-worktrees.web-search");
+    } catch (error) {
+      expect(String(error)).not.toContain("sensitive-corrupt-value");
+    }
+  });
+
   it("guards session transitions and lists interrupted records", () => {
     const pending = repository.transitionSessionCapability({ runId: "run-1", capabilityId: "agentic-worktrees.web-search", version: "0.1.0", to: "pending_activation" });
     expect(pending.status).toBe("pending_activation");

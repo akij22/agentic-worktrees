@@ -7,6 +7,8 @@ class FakeChild extends EventEmitter implements CapabilityUtilityProcess {
   sent: MainToHostMessage[] = [];
   killed = false;
   postMessage(message: MainToHostMessage): void { this.sent.push(message); }
+  onMessage(listener: (message: unknown) => void): void { this.on("message", listener); }
+  onExit(listener: (code: number) => void): void { this.on("exit", listener); }
   kill(): boolean { this.killed = true; return true; }
 }
 
