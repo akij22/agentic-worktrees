@@ -3,7 +3,7 @@ import { createWebSearchCapability } from "./index";
 
 describe("web search capability", () => {
   it("resolves the optional key at execution and returns attributed output", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ results: [{ title: "Electron", url: "https://exa.example/electron", text: "Desktop" }] }))); 
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ results: [{ title: "Electron", url: "https://exa.example/electron", text: "Desktop" }] })));
     const capability = createWebSearchCapability({ fetchImpl: fetchMock });
     const getOptional = vi.fn().mockResolvedValue("key");
     const result = await capability.tools[0].execute({ query: "electron" }, {
