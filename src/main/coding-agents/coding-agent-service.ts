@@ -97,6 +97,7 @@ export interface AgentSessionSnapshot {
 
 export interface CodingAgentCapabilityBridge {
   prepareSession(runId: string, agentKind: CodingAgentKind): Promise<CodingAgentCapabilityConnection>;
+  listConnections(agentKind: CodingAgentKind): CodingAgentCapabilityConnection[];
   stopSession(runId: string): void;
   listSessionCapabilities(runId: string): AgentSessionCapabilitySnapshot[];
   isReloading(runId: string): boolean;
@@ -326,6 +327,15 @@ const getSessionRecord = (runId: string) => {
   if (!row) throw new Error(`Coding-agent session not found: ${runId}`);
   return row;
 };
+
+const listCapabilityReloadSessions = (kind: CodingAgentKind) => getDatabase()
+  .select({ runId: codingAgentSessions.runId, externalSessionId: codingAgentSessions.externalSessionId, worktreeId: runs.worktreeId })
+  .from(codingAgentSessions)
+  .innerJoin(runs, eq(runs.id, codingAgentSessions.runId))
+  .innerJoin(codingAgentInstallations, eq(codingAgentInstallations.id, codingAgentSessions.installationId))
+  .where(eq(codingAgentInstallations.kind, kind))
+  .all()
+  .map((session) => ({ runId: session.runId, directory: getContext(session.worktreeId).worktree.path, sessionId: session.externalSessionId }));
 
 const toSummary = (
   row: ReturnType<typeof getSessionRecord>,
@@ -755,7 +765,8 @@ export const createAgentSession = async (input: {
   try {
     await ensureStarted(harness);
     if (capabilityConnection && input.agentKind === "opencode" && harness.adapter.reconfigureCapabilities) {
-      await harness.adapter.reconfigureCapabilities({ connections: [capabilityConnection], sessions: [] });
+      const existingSessions = listCapabilityReloadSessions("opencode");
+      await harness.adapter.reconfigureCapabilities({ connections: capabilityBridge?.listConnections("opencode") ?? [capabilityConnection], sessions: existingSessions.map(({ directory, sessionId }) => ({ directory, sessionId })) });
     }
     capabilityPreparedRuns.add(runId);
   } catch (error) {
@@ -823,6 +834,7 @@ export const getCodingAgentCapabilitySession = (runId: string) => {
   const context = getContext(row.run.worktreeId);
   return {
     agentKind: getHarnessForInstallation(row.installation).installationId,
+    version: row.installation.version,
     directory: context.worktree.path,
     sessionId: row.agent.externalSessionId,
     idle: row.run.status === "idle",
@@ -833,6 +845,7 @@ export const applyCodingAgentCapabilities = async (
   runId: string,
   connection: CodingAgentCapabilityConnection,
   expectedToolNames: string[],
+  allConnections: CodingAgentCapabilityConnection[] = [connection],
 ): Promise<"refreshed" | "reloaded"> => {
   const context = getCodingAgentCapabilitySession(runId);
   const harness = harnesses[context.agentKind];
@@ -843,8 +856,9 @@ export const applyCodingAgentCapabilities = async (
     return "refreshed";
   }
   if (!harness.adapter.reconfigureCapabilities) throw new Error("OpenCode capability reload is unavailable.");
-  await harness.adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: context.directory, sessionId: context.sessionId }] });
-  capabilityPreparedRuns.add(runId);
+  const sessions = listCapabilityReloadSessions("opencode");
+  await harness.adapter.reconfigureCapabilities({ connections: allConnections, sessions: sessions.map(({ directory, sessionId }) => ({ directory, sessionId })) });
+  for (const session of sessions) capabilityPreparedRuns.add(session.runId);
   return "reloaded";
 };
 
@@ -890,7 +904,7 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
     await ensureStarted(harness);
     const capabilityConnection = capabilityBridge ? await capabilityBridge.prepareSession(runId, harness.installationId) : undefined;
     if (capabilityConnection && harness.installationId === "opencode" && harness.adapter.reconfigureCapabilities && !capabilityPreparedRuns.has(runId)) {
-      await harness.adapter.reconfigureCapabilities({ connections: [capabilityConnection], sessions: [{ directory: context.worktree.path, sessionId: row.agent.externalSessionId }] });
+      await harness.adapter.reconfigureCapabilities({ connections: capabilityBridge?.listConnections("opencode") ?? [capabilityConnection], sessions: [{ directory: context.worktree.path, sessionId: row.agent.externalSessionId }] });
     }
     capabilityPreparedRuns.add(runId);
     const externalSession = capabilityConnection

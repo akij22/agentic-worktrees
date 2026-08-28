@@ -113,7 +113,24 @@ export const useCodingAgentSession = (runId: string) => {
     void capabilityApi?.list({ runId }).then(setCapabilityLibrary).catch(() => setError("Could not load chat capabilities."));
     const unsubscribeCapabilities = capabilityApi?.onChanged((event) => {
       if (event.runId !== runId) return;
-      void load();
+      setSnapshot((current) => {
+        if (!current) return current;
+        const nextCapability = {
+          id: event.capabilityId,
+          name: event.name,
+          version: event.version,
+          state: event.state,
+          ...(event.errorCode ? { errorCode: event.errorCode } : {}),
+          ...(event.activatedAt ? { activatedAt: event.activatedAt } : {}),
+          ...(event.deactivatedAt ? { deactivatedAt: event.deactivatedAt } : {}),
+        };
+        return {
+          ...current,
+          capabilities: [...current.capabilities.filter((item) => item.id !== event.capabilityId), nextCapability],
+          capabilityReloading: ["pending_activation", "pending_deactivation", "reloading"].includes(event.state),
+        };
+      });
+      if (["active", "inactive", "activation_failed"].includes(event.state)) void load();
       void capabilityApi.list({ runId }).then(setCapabilityLibrary).catch(() => undefined);
     }) ?? (() => undefined);
     const unsubscribeAgent = window.api.codingAgent.onEvent((event) => {

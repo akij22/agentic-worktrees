@@ -241,3 +241,37 @@ describe("OpenCode event streaming", () => {
     }
   });
 });
+
+
+describe("OpenCode capability reconfiguration", () => {
+  const connection = { serverName: "aw_run_1", profileId: "aw_run_1", url: "http://127.0.0.1:1/mcp", authorizationHeader: "Bearer token" };
+  it("checks every supplied session before restarting the shared process", async () => {
+    const adapter = new OpenCodeAdapter();
+    Object.assign(adapter as unknown as Record<string, unknown>, { executablePath: "/bin/opencode", startupDirectory: "/repo" });
+    const getSession = vi.spyOn(adapter, "getSession").mockImplementation(async (_directory, sessionId) => ({ id: sessionId, status: sessionId === "busy" ? "busy" : "idle" }));
+    const stop = vi.spyOn(adapter, "stop").mockResolvedValue();
+    vi.spyOn(adapter, "start").mockResolvedValue("1.18.23");
+    await expect(adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: "/one", sessionId: "idle" }, { directory: "/two", sessionId: "busy" }] })).rejects.toMatchObject({ code: "agent_reload_failed" });
+    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(stop).not.toHaveBeenCalled();
+  });
+
+  it("rejects prompts for every chat while reconfiguration is in flight", async () => {
+    const adapter = new OpenCodeAdapter();
+    Object.assign(adapter as unknown as Record<string, unknown>, { executablePath: "/bin/opencode", startupDirectory: "/repo" });
+    let release!: () => void;
+    let checks = 0;
+    vi.spyOn(adapter, "getSession").mockImplementation(() => {
+      checks += 1;
+      if (checks > 1) return Promise.resolve({ id: "session", status: "idle" });
+      return new Promise((resolve) => { release = () => resolve({ id: "session", status: "idle" }); });
+    });
+    vi.spyOn(adapter, "stop").mockResolvedValue();
+    vi.spyOn(adapter, "start").mockResolvedValue("1.18.23");
+    const reload = adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: "/repo", sessionId: "session" }] });
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    await expect(adapter.sendPrompt("/repo", "other", { content: "race", providerId: "p", modelId: "m" })).rejects.toMatchObject({ code: "agent_reload_failed" });
+    release();
+    await reload;
+  });
+});

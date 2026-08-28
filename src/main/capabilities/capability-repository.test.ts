@@ -30,6 +30,7 @@ describe("CapabilityRepository", () => {
     expect(repository.listInterruptedSessionCapabilities()).toHaveLength(1);
     const active = repository.transitionSessionCapability({ runId: "run-1", capabilityId: "agentic-worktrees.web-search", version: "0.1.0", to: "active" });
     expect(active.activatedAt).toBeInstanceOf(Date);
+    expect(repository.listActiveSessionCapabilities()).toHaveLength(1);
     expect(() => repository.transitionSessionCapability({ runId: "run-1", capabilityId: "agentic-worktrees.web-search", version: "0.1.0", to: "inactive" })).toThrow("active -> inactive");
   });
 

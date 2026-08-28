@@ -39,12 +39,12 @@ function isPayload(value: unknown): value is CapabilityCredentialPayload {
 }
 
 export class CapabilityCredentialStore {
-  private memory = emptyPayload();
   private queue: Promise<void> = Promise.resolve();
   constructor(private readonly dependencies: CapabilityCredentialStoreDependencies) {}
 
   async setSecret(capabilityId: string, settingKey: string, value: string): Promise<string> {
     if (!value) throw new CapabilityError("invalid_input", "Secret values cannot be empty.");
+    if (!(await this.canPersist())) throw new CapabilityError("permission_denied", "Secure credential storage is unavailable.");
     const reference = `cap_${randomUUID()}`;
     await this.serial(async () => {
       const payload = await this.load();
@@ -82,7 +82,7 @@ export class CapabilityCredentialStore {
   }
 
   private async load(): Promise<CapabilityCredentialPayload> {
-    if (!(await this.canPersist())) return structuredClone(this.memory);
+    if (!(await this.canPersist())) return emptyPayload();
     try {
       const decrypted = await this.dependencies.decrypt(await this.dependencies.readFile(this.dependencies.credentialPath));
       let parsed: unknown;
@@ -99,13 +99,12 @@ export class CapabilityCredentialStore {
   }
 
   private async save(payload: CapabilityCredentialPayload, sensitiveValues: readonly string[]): Promise<void> {
-    if (!(await this.canPersist())) { this.memory = structuredClone(payload); return; }
+    if (!(await this.canPersist())) throw new CapabilityError("permission_denied", "Secure credential storage is unavailable.");
     const temporaryPath = `${this.dependencies.credentialPath}.tmp`;
     try {
       const encrypted = await this.dependencies.encrypt(JSON.stringify(payload));
       await this.dependencies.writeFile(temporaryPath, encrypted, { mode: 0o600 });
       await this.dependencies.rename(temporaryPath, this.dependencies.credentialPath);
-      this.memory = emptyPayload();
     } catch (error) {
       try { await this.dependencies.unlink(temporaryPath); } catch { /* best effort temp cleanup */ }
       this.dependencies.logError("Failed to save capability credentials", redact(error, sensitiveValues));
@@ -117,7 +116,9 @@ export class CapabilityCredentialStore {
 export function createElectronCapabilityCredentialStore(credentialPath: string): CapabilityCredentialStore {
   return new CapabilityCredentialStore({
     credentialPath,
-    isEncryptionAvailable: () => safeStorage.isAsyncEncryptionAvailable(),
+    isEncryptionAvailable: async () => process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"
+      ? safeStorage.isAsyncEncryptionAvailable()
+      : false,
     encrypt: (value) => safeStorage.encryptStringAsync(value),
     decrypt: async (value) => (await safeStorage.decryptStringAsync(value)).result,
     readFile, writeFile, rename, unlink,

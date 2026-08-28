@@ -83,6 +83,7 @@ const capabilityConfig = (connection: CodingAgentCapabilityConnection | undefine
 
 const includesExpectedTools = (value: unknown, expected: readonly string[]): boolean => {
   const serialized = JSON.stringify(value);
+  if (expected.length === 0) return !serialized.includes("web_search");
   return expected.every((tool) => serialized.includes(tool));
 };
 

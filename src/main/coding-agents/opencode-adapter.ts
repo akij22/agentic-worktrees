@@ -338,6 +338,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   private readonly capabilityConnections = new Map<string, CodingAgentCapabilityConnection>();
   private executablePath: string | null = null;
   private startupDirectory: string | null = null;
+  private reconfiguringCapabilities = false;
 
   getStatus() {
     return {
@@ -380,14 +381,15 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     this.baseUrl = baseUrl;
     this.error = null;
 
+    let diagnosticOutputReported = false;
     child.stderr?.on("data", (chunk: Buffer) => {
-      const line = chunk.toString("utf8").trim();
-      if (line) console.info(`[opencode] ${line}`);
+      if (chunk.length > 0 && !diagnosticOutputReported) {
+        diagnosticOutputReported = true;
+        console.info("[opencode] Diagnostic output received and redacted.");
+      }
     });
-    child.stdout?.on("data", (chunk: Buffer) => {
-      const line = chunk.toString("utf8").trim();
-      if (line) console.info(`[opencode] ${line}`);
-    });
+    // Drain stdout without copying provider prompts, tool inputs, or results into app logs.
+    child.stdout?.on("data", () => undefined);
     child.once("error", (error) => {
       this.error = error.message;
     });
@@ -590,6 +592,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       capabilityProfileId?: string;
     },
   ): Promise<void> {
+    if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "Capabilities are being applied. Try again when reload completes.");
     await this.requireClient().session.promptAsync({
       path: { id: sessionId },
       query: { directory },
@@ -612,26 +615,32 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     connections: CodingAgentCapabilityConnection[];
     sessions: Array<{ directory: string; sessionId: string }>;
   }): Promise<void> {
-    for (const session of input.sessions) {
-      const current = await this.getSession(session.directory, session.sessionId);
-      if (current.status !== "idle") throw new CapabilityError("agent_reload_failed", "OpenCode capability reload requires idle sessions.");
-    }
-    const previous = [...this.capabilityConnections.values()];
-    const executablePath = this.executablePath;
-    const directory = this.startupDirectory;
-    if (!executablePath || !directory) throw new CapabilityError("agent_reload_failed", "OpenCode is not configured for capability reload.");
+    if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "OpenCode capability reload is already in progress.");
+    this.reconfiguringCapabilities = true;
     try {
-      this.capabilityConnections.clear();
-      for (const connection of input.connections) this.capabilityConnections.set(connection.profileId, connection);
-      await this.stop();
-      await this.start(executablePath, directory);
-      await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
-    } catch {
-      this.capabilityConnections.clear();
-      for (const connection of previous) this.capabilityConnections.set(connection.profileId, connection);
-      await this.stop();
-      await this.start(executablePath, directory);
-      throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and was rolled back.");
+      for (const session of input.sessions) {
+        const current = await this.getSession(session.directory, session.sessionId);
+        if (current.status !== "idle") throw new CapabilityError("agent_reload_failed", "OpenCode capability reload requires idle sessions.");
+      }
+      const previous = [...this.capabilityConnections.values()];
+      const executablePath = this.executablePath;
+      const directory = this.startupDirectory;
+      if (!executablePath || !directory) throw new CapabilityError("agent_reload_failed", "OpenCode is not configured for capability reload.");
+      try {
+        this.capabilityConnections.clear();
+        for (const connection of input.connections) this.capabilityConnections.set(connection.profileId, connection);
+        await this.stop();
+        await this.start(executablePath, directory);
+        await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+      } catch {
+        this.capabilityConnections.clear();
+        for (const connection of previous) this.capabilityConnections.set(connection.profileId, connection);
+        await this.stop();
+        await this.start(executablePath, directory);
+        throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and was rolled back.");
+      }
+    } finally {
+      this.reconfiguringCapabilities = false;
     }
   }
 

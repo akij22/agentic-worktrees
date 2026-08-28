@@ -26,10 +26,11 @@ describe("CapabilityCredentialStore", () => {
     expect(await store.getSecret(reference)).toBeUndefined();
   });
 
-  it("retains secrets in memory when encryption is unavailable", async () => {
-    const store = new CapabilityCredentialStore(dependencies({ isEncryptionAvailable: vi.fn().mockResolvedValue(false) }));
-    const reference = await store.setSecret("cap", "key", "value");
-    expect(await store.getSecret(reference)).toBe("value");
+  it("rejects secrets when encrypted persistence is unavailable", async () => {
+    const deps = dependencies({ isEncryptionAvailable: vi.fn().mockResolvedValue(false) });
+    const store = new CapabilityCredentialStore(deps);
+    await expect(store.setSecret("cap", "key", "value")).rejects.toMatchObject({ code: "permission_denied", message: "Secure credential storage is unavailable." });
+    expect(deps.writeFile).not.toHaveBeenCalled();
   });
 
   it("removes corrupt ciphertext and never logs loaded or new secret values", async () => {

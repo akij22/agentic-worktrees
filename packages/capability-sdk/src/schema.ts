@@ -1,4 +1,4 @@
-import Ajv from "ajv";
+import AjvConstructor from "ajv";
 import { CapabilityError } from "./errors";
 import type { CapabilityDefinition, CapabilityTool } from "./types";
 
@@ -38,7 +38,7 @@ export function validateCapabilityDefinition(definition: CapabilityDefinition): 
   if (secretSettings.some((secret) => !manifest.permissions.secrets.includes(secret))) {
     throw new CapabilityError("permission_denied", "A secret setting is not declared in permissions.");
   }
-  const ajv = new Ajv({ strict: true, allErrors: true });
+  const ajv = new AjvConstructor({ strict: true, allErrors: true });
   const names = new Set<string>();
   for (const tool of definition.tools) {
     if (!TOOL_NAME.test(tool.name)) {

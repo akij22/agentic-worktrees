@@ -77,9 +77,9 @@ let capabilityService: CapabilityService | null = null;
 const initializeCapabilities = (): CapabilityService => {
   const repository = new CapabilityRepository();
   const credentials = createElectronCapabilityCredentialStore(path.join(app.getPath('userData'), 'capability-credentials.bin'));
-  let service: CapabilityService;
   const hosts = createElectronCapabilityHostManager((capabilityId, settingKey) => service.resolveSecret(capabilityId, settingKey));
   const connections = new Map<string, import('./main/coding-agents/types').CodingAgentCapabilityConnection>();
+  const connectionKinds = new Map<string, import('./main/coding-agents/types').CodingAgentKind>();
   const prepare = async (runId: string, agentKind: import('./main/coding-agents/types').CodingAgentKind) => {
     const activeIds = repository.listSessionCapabilities(runId).filter((item) => item.status === 'active').map((item) => item.capabilityId);
     const settings = Object.fromEntries(activeIds.map((id) => [id, Object.fromEntries(repository.getSettings(id).filter((item) => item.value !== undefined).map((item) => [item.key, item.value]))]));
@@ -87,6 +87,7 @@ const initializeCapabilities = (): CapabilityService => {
     const profileId = `aw_${runId.toLowerCase().replace(/[^a-z0-9_]+/g, '_')}`;
     const connection = { serverName: agentKind === 'codex' ? host.serverName : profileId, url: host.url, authorizationHeader: `Bearer ${host.bearerToken}`, profileId };
     connections.set(runId, connection);
+    connectionKinds.set(runId, agentKind);
     return connection;
   };
   const activator = {
@@ -94,21 +95,22 @@ const initializeCapabilities = (): CapabilityService => {
     apply: async (runId: string, expectedToolNames: string[]) => {
       const context = getCodingAgentCapabilitySession(runId);
       const connection = connections.get(runId) ?? await prepare(runId, context.agentKind);
-      return applyCodingAgentCapabilities(runId, connection, expectedToolNames);
+      return applyCodingAgentCapabilities(runId, connection, expectedToolNames, [...connections.entries()].filter(([id]) => connectionKinds.get(id) === context.agentKind).map(([, value]) => value));
     },
     remove: async (runId: string) => {
       const context = getCodingAgentCapabilitySession(runId);
       const connection = connections.get(runId) ?? await prepare(runId, context.agentKind);
-      return applyCodingAgentCapabilities(runId, connection, []);
+      return applyCodingAgentCapabilities(runId, connection, [], [...connections.entries()].filter(([id]) => connectionKinds.get(id) === context.agentKind).map(([, value]) => value));
     },
     isAgentIdle: async (runId: string) => getCodingAgentCapabilitySession(runId).idle,
   };
-  service = new CapabilityService({ repository, credentials, hosts, activator, getAgentKind: async (runId) => getCodingAgentCapabilitySession(runId).agentKind });
+  const service = new CapabilityService({ repository, credentials, hosts, activator, getAgentKind: async (runId) => getCodingAgentCapabilitySession(runId).agentKind, getAgentVersion: async (runId) => getCodingAgentCapabilitySession(runId).version, logError: (event, code) => console.error(event, code) });
   configureCodingAgentCapabilityBridge({
     prepareSession: prepare,
-    stopSession: (runId) => { connections.delete(runId); hosts.stopHost(runId); },
+    listConnections: (agentKind) => [...connections.entries()].filter(([id]) => connectionKinds.get(id) === agentKind).map(([, value]) => value),
+    stopSession: (runId) => { connections.delete(runId); connectionKinds.delete(runId); hosts.stopHost(runId); },
     listSessionCapabilities: (runId) => repository.listSessionCapabilities(runId).map((record) => ({ id: record.capabilityId, name: getBundledCapability(record.capabilityId).manifest.name, version: record.version, state: record.status, ...(record.errorCode ? { errorCode: record.errorCode } : {}), ...(record.activatedAt ? { activatedAt: record.activatedAt.toISOString() } : {}), ...(record.deactivatedAt ? { deactivatedAt: record.deactivatedAt.toISOString() } : {}) })),
-    isReloading: (runId) => repository.listSessionCapabilities(runId).some((record) => record.status === 'reloading'),
+    isReloading: (runId) => repository.listSessionCapabilities(runId).some((record) => ['pending_activation', 'pending_deactivation', 'reloading'].includes(record.status)),
   });
   configureCapabilityIpc(service);
   return service;

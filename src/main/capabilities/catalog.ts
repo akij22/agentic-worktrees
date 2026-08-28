@@ -9,8 +9,16 @@ export interface BundledCapability {
   readonly toolNames: readonly string[];
 }
 
+function deepFreeze<Value>(value: Value): Value {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested);
+  }
+  return value;
+}
+
 const entry: BundledCapability = Object.freeze({
-  manifest: Object.freeze(webSearchManifest),
+  manifest: deepFreeze(webSearchManifest),
   reviewStatus: "bundled-reviewed" as const,
   toolNames: Object.freeze(["web_search"]),
 });

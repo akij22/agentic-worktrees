@@ -23,7 +23,7 @@ describe('AppShell visual language', () => {
       name: 'Main navigation',
     });
 
-    expect(navigation.querySelectorAll('svg')).toHaveLength(3);
+    expect(navigation.querySelectorAll('svg')).toHaveLength(4);
     expect(navigation.querySelector('img')).toBeNull();
     expect(screen.getByRole('img', { name: 'Agentic Worktrees' })).toBeTruthy();
   });

@@ -16,7 +16,7 @@ describe("CapabilityService", () => {
   afterEach(() => sqlite.close());
   it("configures keyless search and activates with ordered reload events", async () => {
     const repository = new CapabilityRepository(sqlite); const events: string[] = [];
-    const service = new CapabilityService({ repository, credentials: { setSecret: vi.fn(), getSecret: vi.fn(), removeSecret: vi.fn() } as never, hosts: { setActiveCapabilities: vi.fn().mockResolvedValue(["web_search"]), stopAll: vi.fn() } as never, activator: { prepareSession: vi.fn(), apply: vi.fn().mockResolvedValue("reloaded"), remove: vi.fn(), isAgentIdle: vi.fn().mockResolvedValue(true) }, getAgentKind: vi.fn().mockResolvedValue("codex"), probe: vi.fn().mockRejectedValue(new Error("offline")) });
+    const service = new CapabilityService({ repository, credentials: { setSecret: vi.fn(), getSecret: vi.fn(), removeSecret: vi.fn() } as never, hosts: { setActiveCapabilities: vi.fn().mockResolvedValue(["web_search"]), stopAll: vi.fn() } as never, activator: { prepareSession: vi.fn(), apply: vi.fn().mockResolvedValue("reloaded"), remove: vi.fn(), isAgentIdle: vi.fn().mockResolvedValue(true) }, getAgentKind: vi.fn().mockResolvedValue("opencode"), probe: vi.fn().mockRejectedValue(new Error("offline")) });
     service.subscribeToCapabilityEvents((event) => events.push(event.state));
     const id = "agentic-worktrees.web-search";
     const configured = await service.configureCapability({ capabilityId: id, acceptedPermissionDigest: permissionDigest(getBundledCapability(id).manifest), settings: { providerMode: "auto", resultLimit: 5 } });

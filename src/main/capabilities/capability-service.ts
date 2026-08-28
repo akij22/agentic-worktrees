@@ -13,12 +13,24 @@ export interface CapabilityServiceDependencies {
   hosts: CapabilityHostManager;
   activator: CodingAgentCapabilityActivator;
   getAgentKind(runId: string): Promise<CodingAgentKind>;
+  getAgentVersion?(runId: string): Promise<string>;
   probe?: typeof fetch;
+  logError?(event: string, code: string): void;
 }
 
-function recordState(record: SessionCapabilityRecord | undefined, configured: boolean): CapabilityStateDto {
-  if (record) return record.status;
-  return configured ? "ready" : "available";
+const MINIMUM_AGENT_VERSIONS: Record<CodingAgentKind, string> = { codex: "0.150.1", opencode: "1.18.23" };
+function isVersionAtLeast(actual: string, minimum: string): boolean {
+  const value = actual.match(/\d+\.\d+\.\d+/)?.[0]?.split(".").map(Number);
+  const floor = minimum.split(".").map(Number);
+  if (!value) return false;
+  for (let index = 0; index < 3; index += 1) {
+    if ((value[index] ?? 0) !== (floor[index] ?? 0)) return (value[index] ?? 0) > (floor[index] ?? 0);
+  }
+  return true;
+}
+
+function recordState(record: SessionCapabilityRecord | undefined, baseState: "available" | "needs_setup" | "ready"): CapabilityStateDto {
+  return record?.status ?? baseState;
 }
 function sessionDto(record: SessionCapabilityRecord): CapabilitySessionStateDto {
   const catalog = getBundledCapability(record.capabilityId);
@@ -40,7 +52,8 @@ export class CapabilityService {
       const installation = this.dependencies.repository.getInstallation(capability.manifest.id);
       const record = runId ? this.dependencies.repository.getSessionCapability(runId, capability.manifest.id) : undefined;
       const secretConfigured = this.dependencies.repository.getSettings(capability.manifest.id).some((setting) => setting.key === "exaApiKey" && Boolean(setting.secretRef));
-      return toCapabilitySummaryDto(capability, recordState(record, Boolean(installation?.configured)), secretConfigured);
+      const baseState = !installation ? "available" : installation.configured && installation.permissionDigest === permissionDigest(capability.manifest) && installation.version === capability.manifest.version ? "ready" : "needs_setup";
+      return toCapabilitySummaryDto(capability, recordState(record, baseState), secretConfigured);
     });
   }
 
@@ -49,7 +62,8 @@ export class CapabilityService {
     const installation = this.dependencies.repository.getInstallation(capabilityId);
     const record = runId ? this.dependencies.repository.getSessionCapability(runId, capabilityId) : undefined;
     const secretConfigured = this.dependencies.repository.getSettings(capabilityId).some((setting) => setting.key === "exaApiKey" && Boolean(setting.secretRef));
-    return toCapabilityDetailDto(capability, recordState(record, Boolean(installation?.configured)), secretConfigured);
+    const baseState = !installation ? "available" : installation.configured && installation.permissionDigest === permissionDigest(capability.manifest) && installation.version === capability.manifest.version ? "ready" : "needs_setup";
+    return toCapabilityDetailDto(capability, recordState(record, baseState), secretConfigured);
   }
 
   async configureCapability(input: CapabilityConfigureRequest): Promise<CapabilityDetailDto> {
@@ -84,8 +98,10 @@ export class CapabilityService {
   async activateCapability(runId: string, capabilityId: string): Promise<CapabilitySessionStateDto> {
     const capability = getBundledCapability(capabilityId);
     const installation = this.dependencies.repository.getInstallation(capabilityId);
-    if (!installation?.configured) throw new CapabilityError("permission_denied", "Configure this capability before activation.");
+    if (!installation?.configured || installation.permissionDigest !== permissionDigest(capability.manifest) || installation.version !== capability.manifest.version) throw new CapabilityError("permission_denied", "Review and configure this capability before activation.");
     const agentKind = await this.dependencies.getAgentKind(runId);
+    const agentVersion = await this.dependencies.getAgentVersion?.(runId);
+    if (agentVersion && !isVersionAtLeast(agentVersion, MINIMUM_AGENT_VERSIONS[agentKind])) throw new CapabilityError("activation_failed", "Update the coding agent before activating this capability.");
     if (capability.manifest.compatibility[agentKind] !== "supported") throw new CapabilityError("activation_failed", "Capability is incompatible with this coding agent.");
     const current = this.dependencies.repository.getSessionCapability(runId, capabilityId);
     if (current?.status === "active") return sessionDto(current);
@@ -95,13 +111,13 @@ export class CapabilityService {
     this.emit(pending);
     try {
       await this.dependencies.activator.prepareSession(runId, agentKind);
-      const settings = this.hostSettings([...previousIds, capabilityId]);
-      const toolNames = await this.dependencies.hosts.setActiveCapabilities(runId, [...new Set([...previousIds, capabilityId])], settings);
-      const mode = await this.dependencies.activator.apply(runId, toolNames);
-      if (mode === "reloaded") {
+      if (agentKind === "opencode") {
         const reloading = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "reloading" });
         this.emit(reloading);
       }
+      const settings = this.hostSettings([...previousIds, capabilityId]);
+      const toolNames = await this.dependencies.hosts.setActiveCapabilities(runId, [...new Set([...previousIds, capabilityId])], settings);
+      await this.dependencies.activator.apply(runId, toolNames);
       const active = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "active" });
       this.emit(active);
       return sessionDto(active);
@@ -119,17 +135,29 @@ export class CapabilityService {
     const current = this.dependencies.repository.getSessionCapability(runId, capabilityId);
     if (!current || current.status === "inactive") return sessionDto(current ?? this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "inactive" }));
     if (!(await this.dependencies.activator.isAgentIdle(runId))) throw new CapabilityError("activation_failed", "Capabilities can only be changed between turns.");
+    const agentKind = await this.dependencies.getAgentKind(runId);
     const pending = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "pending_deactivation" });
     this.emit(pending);
+    if (agentKind === "opencode") {
+      const reloading = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "reloading" });
+      this.emit(reloading);
+    }
     const remaining = this.dependencies.repository.listSessionCapabilities(runId).filter((item) => item.capabilityId !== capabilityId && item.status === "active").map((item) => item.capabilityId);
     try {
       await this.dependencies.hosts.setActiveCapabilities(runId, remaining, this.hostSettings(remaining));
-      const mode = await this.dependencies.activator.remove(runId);
-      if (mode === "reloaded") this.emit(this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "reloading" }));
+      await this.dependencies.activator.remove(runId);
       const inactive = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "inactive" });
       this.emit(inactive);
       return sessionDto(inactive);
     } catch (error) {
+      const previousIds = [...remaining, capabilityId];
+      try {
+        const rollbackTools = await this.dependencies.hosts.setActiveCapabilities(runId, previousIds, this.hostSettings(previousIds));
+        await this.dependencies.activator.apply(runId, rollbackTools);
+      } catch (rollbackError) {
+        const rollbackCode = rollbackError instanceof CapabilityError ? rollbackError.code : "activation_failed";
+        this.dependencies.logError?.("capability.deactivation.rollback.failed", rollbackCode);
+      }
       const code = error instanceof CapabilityError ? error.code : "activation_failed";
       const failed = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "activation_failed", errorCode: code });
       this.emit(failed);
@@ -143,6 +171,16 @@ export class CapabilityService {
     for (const record of this.dependencies.repository.listInterruptedSessionCapabilities()) {
       const failed = this.dependencies.repository.transitionSessionCapability({ runId: record.runId, capabilityId: record.capabilityId, version: record.version, to: "activation_failed", errorCode: "activation_failed" });
       this.emit(failed);
+    }
+    const activeRunIds = [...new Set(this.dependencies.repository.listActiveSessionCapabilities().map((record) => record.runId))];
+    for (const runId of activeRunIds) {
+      try {
+        const agentKind = await this.dependencies.getAgentKind(runId);
+        await this.dependencies.activator.prepareSession(runId, agentKind);
+      } catch (error) {
+        const code = error instanceof CapabilityError ? error.code : "activation_failed";
+        this.dependencies.logError?.("capability.reconcile.failed", code);
+      }
     }
   }
   stopCapabilities(): Promise<void> { return this.dependencies.hosts.stopAll(); }

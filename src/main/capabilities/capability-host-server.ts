@@ -1,8 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import Ajv, { type ValidateFunction } from "ajv";
+import AjvConstructor, { type ValidateFunction } from "ajv";
+// The MCP SDK exports ESM subpaths that eslint-import-resolver-typescript does not resolve.
+// eslint-disable-next-line import/no-unresolved
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+// eslint-disable-next-line import/no-unresolved
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+// eslint-disable-next-line import/no-unresolved
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CapabilityError, limitCapabilityOutput, type CapabilityDefinition, type CapabilityExecutionContext, type CapabilityTool } from "@agentic-worktrees/capability-sdk";
 import { getHostedCapability } from "./host-registry";
@@ -56,7 +60,7 @@ export function createCapabilityHostServer(options: CapabilityHostServerOptions)
     throw new CapabilityError("permission_denied", "Capability hosts must bind to loopback.");
   }
   const registry = options.registry ?? getHostedCapability;
-  const validators = new Ajv({ strict: true, allErrors: true });
+  const validators = new AjvConstructor({ strict: true, allErrors: true });
   const activeTools = new Map<string, ActiveTool>();
   let activeSettings: Record<string, Record<string, unknown>> = {};
 
@@ -75,16 +79,24 @@ export function createCapabilityHostServer(options: CapabilityHostServerOptions)
       if (!entry) return { isError: true, content: [{ type: "text" as const, text: "Unknown or inactive capability tool." }] };
       if (!entry.validate(call.params.arguments ?? {})) return { isError: true, content: [{ type: "text" as const, text: "Invalid capability tool input." }] };
       const manifest = entry.capability.manifest;
+      const resolveDeclaredSecret = async (name: string): Promise<string | undefined> => {
+        const setting = manifest.settings[name];
+        const permissionName = name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+        if (setting?.type !== "secret" || !manifest.permissions.secrets.includes(permissionName)) {
+          throw new CapabilityError("permission_denied", "Capability secret access is not declared.");
+        }
+        return options.resolveSecret(manifest.id, name);
+      };
       const context: CapabilityExecutionContext = {
         signal: extra.signal,
         settings: Object.freeze(activeSettings[manifest.id] ?? {}),
         secrets: {
           async get(name) {
-            const value = await options.resolveSecret(manifest.id, name);
+            const value = await resolveDeclaredSecret(name);
             if (!value) throw new CapabilityError("missing_secret", "A required capability secret is missing.");
             return value;
           },
-          getOptional: (name) => options.resolveSecret(manifest.id, name),
+          getOptional: resolveDeclaredSecret,
         },
         logger: { info: () => undefined, error: () => undefined },
       };

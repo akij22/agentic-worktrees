@@ -133,6 +133,10 @@ export class CapabilityRepository {
     return record;
   }
 
+  listActiveSessionCapabilities(): SessionCapabilityRecord[] {
+    return (this.sqlite.prepare(`${sessionSelect} WHERE status = 'active' ORDER BY run_id, capability_id`).all() as SessionRow[]).map(sessionFromRow);
+  }
+
   listInterruptedSessionCapabilities(): SessionCapabilityRecord[] {
     return (this.sqlite.prepare(`${sessionSelect} WHERE status IN ('pending_activation', 'pending_deactivation', 'reloading') ORDER BY updated_at`).all() as SessionRow[]).map(sessionFromRow);
   }
