@@ -17,6 +17,7 @@ export interface CapabilityHostServerOptions {
   hostname?: "127.0.0.1" | "::1";
   resolveSecret(capabilityId: string, settingKey: string): Promise<string | undefined>;
   registry?: (id: string) => CapabilityDefinition | undefined;
+  executionTimeoutMs?: number;
 }
 
 export interface CapabilityHostServer {
@@ -55,6 +56,35 @@ function respondJson(response: ServerResponse, status: number, value: unknown): 
   response.end(JSON.stringify(value));
 }
 
+async function executeWithDeadline<T>(
+  execute: (signal: AbortSignal) => Promise<T>,
+  callerSignal: AbortSignal,
+  timeoutMs: number,
+): Promise<T> {
+  const controller = new AbortController();
+  let timedOut = false;
+  let rejectBoundary!: (error: CapabilityError) => void;
+  const boundary = new Promise<never>((_resolve, reject) => { rejectBoundary = reject; });
+  const cancel = () => {
+    controller.abort();
+    rejectBoundary(new CapabilityError("cancelled", "Capability execution was cancelled."));
+  };
+  if (callerSignal.aborted) cancel();
+  else callerSignal.addEventListener("abort", cancel, { once: true });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+    rejectBoundary(new CapabilityError("upstream_unavailable", "Capability execution timed out."));
+  }, timeoutMs);
+  try {
+    return await Promise.race([execute(controller.signal), boundary]);
+  } finally {
+    clearTimeout(timer);
+    callerSignal.removeEventListener("abort", cancel);
+    if (!timedOut && callerSignal.aborted) controller.abort();
+  }
+}
+
 export function createCapabilityHostServer(options: CapabilityHostServerOptions): CapabilityHostServer {
   if (options.hostname && options.hostname !== "127.0.0.1" && options.hostname !== "::1") {
     throw new CapabilityError("permission_denied", "Capability hosts must bind to loopback.");
@@ -87,8 +117,7 @@ export function createCapabilityHostServer(options: CapabilityHostServerOptions)
         }
         return options.resolveSecret(manifest.id, name);
       };
-      const context: CapabilityExecutionContext = {
-        signal: extra.signal,
+      const contextBase = {
         settings: Object.freeze(activeSettings[manifest.id] ?? {}),
         secrets: {
           async get(name) {
@@ -99,9 +128,13 @@ export function createCapabilityHostServer(options: CapabilityHostServerOptions)
           getOptional: resolveDeclaredSecret,
         },
         logger: { info: () => undefined, error: () => undefined },
-      };
+      } satisfies Omit<CapabilityExecutionContext, "signal">;
       try {
-        const result = limitCapabilityOutput(await entry.tool.execute(call.params.arguments, context));
+        const result = limitCapabilityOutput(await executeWithDeadline(
+          (signal) => entry.tool.execute(call.params.arguments, { ...contextBase, signal }),
+          extra.signal,
+          options.executionTimeoutMs ?? 30_000,
+        ));
         return { content: result.content, isError: result.isError ?? false };
       } catch (error) {
         const safe = safeError(error);

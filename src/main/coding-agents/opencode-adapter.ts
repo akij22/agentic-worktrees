@@ -22,7 +22,7 @@ import type {
   CodingAgentToolCall,
 } from "./types";
 import { readOpenCodeSessionId, reserveLocalPort } from "./opencode-utils";
-import { buildOpenCodeRuntimeConfig } from "./opencode-capability-config";
+import { buildOpenCodeRuntimeConfig, normalizeOpenCodeIdentifier } from "./opencode-capability-config";
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
@@ -338,6 +338,11 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   private startupDirectory: string | null = null;
   private reconfiguringCapabilities = false;
 
+  constructor(
+    private readonly capabilityReloadTimeoutMs = 10_000,
+    private readonly capabilityVerificationTimeoutMs = 10_000,
+  ) {}
+
   getStatus() {
     return {
       running: this.process !== null && this.process.exitCode === null,
@@ -608,13 +613,21 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   async reconfigureCapabilities(input: {
     connections: CodingAgentCapabilityConnection[];
     sessions: Array<{ directory: string; sessionId: string }>;
+    expectedToolNamesByProfile?: Record<string, string[]>;
+    absentConnections?: CodingAgentCapabilityConnection[];
   }): Promise<void> {
     if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "OpenCode capability reload is already in progress.");
     this.reconfiguringCapabilities = true;
     try {
-      for (const session of input.sessions) {
-        const current = await this.getSession(session.directory, session.sessionId);
-        if (current.status !== "idle") throw new CapabilityError("agent_reload_failed", "OpenCode capability reload requires idle sessions.");
+      const idleDeadline = Date.now() + this.capabilityReloadTimeoutMs;
+      let sessionsIdle = false;
+      while (!sessionsIdle) {
+        const snapshots = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+        const valid = snapshots.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId);
+        if (!valid) throw new CapabilityError("agent_reload_failed", "OpenCode returned an unexpected session during capability reload.");
+        sessionsIdle = snapshots.every((snapshot) => snapshot.status === "idle");
+        if (!sessionsIdle && Date.now() >= idleDeadline) throw new CapabilityError("agent_reload_failed", "OpenCode capability reload timed out waiting for idle sessions.");
+        if (!sessionsIdle) await delay(Math.min(100, this.capabilityReloadTimeoutMs));
       }
       const previous = [...this.capabilityConnections.values()];
       const executablePath = this.executablePath;
@@ -625,16 +638,69 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
         for (const connection of input.connections) this.capabilityConnections.set(connection.profileId, connection);
         await this.stop();
         await this.start(executablePath, directory);
-        await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+        const resumed = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+        if (!resumed.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId)) {
+          throw new CapabilityError("agent_reload_failed", "OpenCode resumed an unexpected session.");
+        }
+        if (input.expectedToolNamesByProfile) {
+          await this.verifyCapabilities(input.connections, input.expectedToolNamesByProfile, input.sessions[0]?.directory ?? directory, input.absentConnections);
+        }
       } catch {
         this.capabilityConnections.clear();
         for (const connection of previous) this.capabilityConnections.set(connection.profileId, connection);
         await this.stop();
-        await this.start(executablePath, directory);
+        try {
+          await this.start(executablePath, directory);
+          const restored = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+          if (!restored.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId)) throw new Error("Unexpected rollback session.");
+        } catch {
+          throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and its previous sessions could not be restored.");
+        }
         throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and was rolled back.");
       }
     } finally {
       this.reconfiguringCapabilities = false;
+    }
+  }
+
+  async verifyCapabilities(
+    connections: readonly CodingAgentCapabilityConnection[],
+    expectedToolNamesByProfile: Readonly<Record<string, readonly string[]>>,
+    directory: string,
+    absentConnections: readonly CodingAgentCapabilityConnection[] = [],
+  ): Promise<void> {
+    const deadline = Date.now() + this.capabilityVerificationTimeoutMs;
+    let verified = false;
+    while (!verified) {
+      const client = this.requireClient();
+      try {
+        const [mcp, tools, config] = await Promise.all([
+          client.mcp.status({ query: { directory }, throwOnError: true }),
+          client.tool.ids({ query: { directory }, throwOnError: true }),
+          client.config.get({ query: { directory }, throwOnError: true }),
+        ]);
+        const presentConnectionsVerified = connections.every((connection) => {
+          const serverName = normalizeOpenCodeIdentifier(connection.serverName);
+          const profileId = normalizeOpenCodeIdentifier(connection.profileId);
+          const status = mcp.data[serverName];
+          if (status?.status !== "connected" || !config.data.agent?.[profileId]) return false;
+          const expected = (expectedToolNamesByProfile[connection.profileId] ?? []).map((tool) => `${serverName}_${tool}`).sort();
+          if (!(connection.profileId in expectedToolNamesByProfile)) return true;
+          const actual = tools.data.filter((tool) => tool.startsWith(`${serverName}_`)).sort();
+          return actual.join("\0") === expected.join("\0");
+        });
+        const absentConnectionsVerified = absentConnections.every((connection) => {
+          const serverName = normalizeOpenCodeIdentifier(connection.serverName);
+          const profileId = normalizeOpenCodeIdentifier(connection.profileId);
+          return !mcp.data[serverName] && !config.data.agent?.[profileId] && !tools.data.some((tool) => tool.startsWith(`${serverName}_`));
+        });
+        verified = presentConnectionsVerified && absentConnectionsVerified;
+        if (verified) return;
+      } catch {
+        // OpenCode may still be loading MCP tools after its health endpoint is ready.
+      }
+      if (Date.now() >= deadline) throw new CapabilityError("agent_reload_failed", "OpenCode capability tools could not be verified.");
+      await delay(Math.min(100, this.capabilityVerificationTimeoutMs));
     }
   }
 

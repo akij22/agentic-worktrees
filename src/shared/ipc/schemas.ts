@@ -928,7 +928,7 @@ export const capabilityConfigureRequestSchema = z.object({
 		providerMode: z.literal("auto"),
 		resultLimit: z.number().int().min(1).max(20),
 	}),
-	exaApiKey: z.string().trim().min(1).max(4_096).optional(),
+	exaApiKey: z.string().trim().max(4_096).optional(),
 });
 export const capabilityActivateRequestSchema = z.object({ runId: z.string().trim().min(1), capabilityId: capabilityIdSchema });
 export const capabilityDeactivateRequestSchema = capabilityActivateRequestSchema;

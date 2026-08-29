@@ -18,10 +18,23 @@ describe("CapabilityRepository", () => {
   });
   afterEach(() => sqlite.close());
 
-  it("persists configuration and replaces settings transactionally", () => {
-    repository.upsertInstallation({ capabilityId: "agentic-worktrees.web-search", version: "0.1.0", permissionDigest: "digest", configured: true });
-    expect(repository.replaceSettings("agentic-worktrees.web-search", [{ key: "resultLimit", value: 5 }, { key: "exaApiKey", secretRef: "opaque" }])).toEqual([{ key: "exaApiKey", secretRef: "opaque" }, { key: "resultLimit", value: 5 }]);
-    expect(repository.getInstallation("agentic-worktrees.web-search")).toMatchObject({ configured: true });
+  it("persists installation and settings in one transaction", () => {
+    const installation = { capabilityId: "agentic-worktrees.web-search", version: "0.1.0", permissionDigest: "digest", configured: true };
+    repository.saveConfiguration(installation, [{ key: "resultLimit", value: 5 }, { key: "exaApiKey", secretRef: "opaque" }]);
+    expect(repository.getSettings(installation.capabilityId)).toEqual([{ key: "exaApiKey", secretRef: "opaque" }, { key: "resultLimit", value: 5 }]);
+    expect(repository.getInstallation(installation.capabilityId)).toMatchObject({ configured: true });
+  });
+
+  it("rolls back the installation when replacing settings fails", () => {
+    const capabilityId = "agentic-worktrees.web-search";
+    repository.saveConfiguration({ capabilityId, version: "0.1.0", permissionDigest: "old", configured: false }, [{ key: "providerMode", value: "auto" }]);
+    sqlite.exec(`CREATE TRIGGER reject_result_limit BEFORE INSERT ON capability_settings WHEN NEW.key = 'resultLimit' BEGIN SELECT RAISE(ABORT, 'rejected'); END;`);
+    expect(() => repository.saveConfiguration(
+      { capabilityId, version: "0.2.0", permissionDigest: "new", configured: true },
+      [{ key: "resultLimit", value: 5 }],
+    )).toThrow();
+    expect(repository.getInstallation(capabilityId)).toMatchObject({ version: "0.1.0", permissionDigest: "old", configured: false });
+    expect(repository.getSettings(capabilityId)).toEqual([{ key: "providerMode", value: "auto" }]);
   });
 
   it("rejects corrupt stored setting JSON with a safe error", () => {

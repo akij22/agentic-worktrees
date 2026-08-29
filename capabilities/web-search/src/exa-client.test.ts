@@ -30,14 +30,20 @@ describe("searchExaAuto", () => {
     await expect(searchExaAuto({ query: "electron" }, { fetchImpl: aborted, signal })).rejects.toMatchObject({ code: "cancelled", message: "Web search was cancelled." });
   });
 
-  it("degrades advanced hosted search to basic only", async () => {
+  it("degrades advanced hosted search only when the advanced tool is unsupported", async () => {
     const fetchMock = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response("failed", { status: 500 }))
+      .mockResolvedValueOnce(jsonResponse({ jsonrpc: "2.0", id: 1, error: { code: -32601, message: "Tool not found" } }))
       .mockResolvedValueOnce(jsonResponse(mcpPayload));
     const output = await searchExaAuto({ query: "electron", domains: ["example.com"] }, { fetchImpl: fetchMock, signal });
     expect(output.degraded).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[1][0])).toBe("https://mcp.exa.ai/mcp?tools=web_search_exa");
+  });
+
+  it("propagates an advanced anonymous rate limit without a basic retry", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response("", { status: 429 }));
+    await expect(searchExaAuto({ query: "electron", domains: ["example.com"] }, { fetchImpl: fetchMock, signal })).rejects.toMatchObject({ code: "rate_limited" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("uses direct Exa search only when a key is provided", async () => {

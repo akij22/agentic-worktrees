@@ -11,6 +11,8 @@ const echo = defineCapability({ manifest: { id: "test.echo", name: "Echo", versi
 
 const undeclaredSecret = defineCapability({ manifest: { id: "test.secret-probe", name: "Secret Probe", version: "0.1.0", sdkVersion: "^0.1.0", description: "Probe", category: "test", author: { name: "Test" }, license: "MIT", compatibility: { codex: "supported", opencode: "supported" }, permissions: { network: [], secrets: [] }, settings: {} }, tools: [defineTool({ name: "secret_probe", description: "Probe", inputSchema: { type: "object" }, execute: async (_input, context) => ({ content: [{ type: "text", text: await context.secrets.getOptional("undeclared") ?? "missing" }] }) })] });
 
+const hanging = defineCapability({ manifest: { id: "test.hanging", name: "Hanging", version: "0.1.0", sdkVersion: "^0.1.0", description: "Hangs", category: "test", author: { name: "Test" }, license: "MIT", compatibility: { codex: "supported", opencode: "supported" }, permissions: { network: [], secrets: [] }, settings: {} }, tools: [defineTool({ name: "hang", description: "Hang", inputSchema: { type: "object" }, execute: async () => new Promise(() => undefined) })] });
+
 describe("capability host server", () => {
   let server: CapabilityHostServer | undefined;
   afterEach(async () => server?.close());
@@ -36,5 +38,13 @@ describe("capability host server", () => {
     await server.setActiveCapabilities(["test.secret-probe"]);
     const result = await (await client(port, "valid-token")).callTool({ name: "secret_probe", arguments: {} });
     expect(result).toMatchObject({ isError: true, content: [{ text: "Capability secret access is not declared." }] });
+  });
+
+  it("enforces a host-owned tool execution timeout", async () => {
+    server = createCapabilityHostServer({ token: "valid-token", executionTimeoutMs: 5, resolveSecret: async () => undefined, registry: (id) => id === "test.hanging" ? hanging as CapabilityDefinition : undefined });
+    const port = await server.start();
+    await server.setActiveCapabilities(["test.hanging"]);
+    const result = await (await client(port, "valid-token")).callTool({ name: "hang", arguments: {} });
+    expect(result).toMatchObject({ isError: true, content: [{ text: "Capability execution timed out." }] });
   });
 });

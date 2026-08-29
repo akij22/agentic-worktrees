@@ -11,6 +11,7 @@ export type PickerOption = {
   id: string;
   label: string;
   hint?: string;
+  group?: string;
   disabled?: boolean;
 };
 
@@ -181,9 +182,11 @@ export const PickerMenu = ({
             ) : (
               filtered.map((option, index) => {
                 const isSelected = option.id === value;
+                const showGroup = Boolean(option.group) && option.group !== filtered[index - 1]?.group;
                 return (
+                  <div key={option.id}>
+                    {showGroup ? <p className="px-2.5 pb-1 pt-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground first:pt-1" role="presentation">{option.group}</p> : null}
                   <button
-                    key={option.id}
                     ref={(element) => {
                       optionRefs.current[index] = element;
                     }}
@@ -216,6 +219,7 @@ export const PickerMenu = ({
                       </span>
                     ) : null}
                   </button>
+                  </div>
                 );
               })
             )}

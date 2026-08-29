@@ -275,6 +275,19 @@ describe("preload GitHub auth status subscription", () => {
 		);
 	});
 
+	it("parses coding-agent snapshots and strips private connection fields", async () => {
+		const api = mocks.exposed as { codingAgent: { getSession(request: { runId: string }): Promise<unknown> } };
+		const now = new Date();
+		vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+			session: { id: "run-1", agentKind: "codex", agentName: "Codex", worktreeId: "worktree-1", repositoryId: "repo-1", title: "Run", status: "idle", errorMessage: null, hasUnviewedChanges: false, providerId: "openai", modelId: "model", createdAt: now, updatedAt: now },
+			context: { worktree: {}, repository: {} }, messages: [], diff: [], turnDiff: [], capabilities: [], capabilityReloading: false,
+			bearerToken: "must-be-stripped",
+		});
+		const snapshot = await api.codingAgent.getSession({ runId: "run-1" });
+		expect(snapshot).not.toHaveProperty("bearerToken");
+		expect(ipcRenderer.invoke).toHaveBeenCalledWith(IPC_CHANNELS.CODING_AGENT_SESSION_GET, { runId: "run-1" });
+	});
+
 	it("parses workspace terminal events and removes the exact listener", () => {
 		const api = mocks.exposed as {
 			workspace: {

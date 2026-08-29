@@ -325,7 +325,7 @@ export const SessionComposer = ({
               triggerClassName="max-w-52"
             />
             {capabilityLibrary.length > 0 && onActivateCapability && onDeactivateCapability ? (
-              <CapabilityPicker runId={session.id} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
+              <CapabilityPicker runId={session.id} agentKind={session.agentKind} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
             ) : null}
             {reasoningVariants.length > 0 ? (
               <PickerMenu

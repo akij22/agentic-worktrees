@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { utilityProcess, type UtilityProcess } from "electron";
 import { CapabilityError } from "@agentic-worktrees/capability-sdk";
+import { getBundledCapability } from "./catalog";
 import { isHostToMainMessage, type HostToMainMessage, type MainToHostMessage } from "./host-protocol";
 
 export interface CapabilityHostConnection {
@@ -22,6 +23,7 @@ export interface CapabilityHostManagerDependencies {
   launch(runId: string): CapabilityUtilityProcess;
   resolveSecret(capabilityId: string, settingKey: string): Promise<string | undefined>;
   startupTimeoutMs?: number;
+  updateTimeoutMs?: number;
 }
 
 interface HostRecord {
@@ -31,7 +33,24 @@ interface HostRecord {
   ready: Promise<CapabilityHostConnection>;
   resolveReady(connection: CapabilityHostConnection): void;
   rejectReady(error: Error): void;
-  pending: Map<string, { resolve(toolNames: string[]): void; reject(error: Error): void }>;
+  startupTimer?: ReturnType<typeof setTimeout>;
+  activeCapabilityIds: Set<string>;
+  pending: Map<string, {
+    capabilityIds: string[];
+    timer: ReturnType<typeof setTimeout>;
+    resolve(toolNames: string[]): void;
+    reject(error: Error): void;
+  }>;
+}
+
+function isDeclaredSecret(capabilityId: string, settingKey: string): boolean {
+  try {
+    const manifest = getBundledCapability(capabilityId).manifest;
+    const permissionName = settingKey.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+    return manifest.settings[settingKey]?.type === "secret" && manifest.permissions.secrets.includes(permissionName);
+  } catch {
+    return false;
+  }
 }
 
 export class CapabilityHostManager {
@@ -46,27 +65,39 @@ export class CapabilityHostManager {
     let resolveReady!: (connection: CapabilityHostConnection) => void;
     let rejectReady!: (error: Error) => void;
     const ready = new Promise<CapabilityHostConnection>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
-    const record: HostRecord = { child, token, ready, resolveReady, rejectReady, pending: new Map() };
-    this.hosts.set(runId, record);
-    const timer = setTimeout(() => {
+    const record: HostRecord = {
+      child,
+      token,
+      ready,
+      resolveReady,
+      rejectReady,
+      activeCapabilityIds: new Set(activeCapabilityIds),
+      pending: new Map(),
+    };
+    record.startupTimer = setTimeout(() => {
       if (!record.connection) {
         record.rejectReady(new CapabilityError("internal_error", "Capability host startup timed out."));
         this.stopHost(runId);
       }
     }, this.dependencies.startupTimeoutMs ?? 10_000);
+    this.hosts.set(runId, record);
 
     child.onMessage((raw) => {
+      if (this.hosts.get(runId) !== record) return;
       const value = raw && typeof raw === "object" && "data" in raw ? (raw as { data: unknown }).data : raw;
       if (!isHostToMainMessage(value)) return;
-      this.handleMessage(runId, record, value, timer);
+      this.handleMessage(runId, record, value);
     });
     child.onExit(() => {
-      clearTimeout(timer);
+      if (record.startupTimer) clearTimeout(record.startupTimer);
       if (this.hosts.get(runId) !== record) return;
       this.hosts.delete(runId);
       const error = new CapabilityError("internal_error", "Capability host stopped unexpectedly.");
       if (!record.connection) record.rejectReady(error);
-      for (const request of record.pending.values()) request.reject(error);
+      for (const request of record.pending.values()) {
+        clearTimeout(request.timer);
+        request.reject(error);
+      }
       record.pending.clear();
     });
     child.postMessage({ type: "host.initialize", runId, token, activeCapabilityIds, settings });
@@ -79,7 +110,11 @@ export class CapabilityHostManager {
     if (!record) throw new CapabilityError("internal_error", "Capability host is unavailable.");
     const requestId = randomUUID();
     return new Promise<string[]>((resolve, reject) => {
-      record.pending.set(requestId, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (!record.pending.delete(requestId)) return;
+        reject(new CapabilityError("activation_failed", "Capability host update timed out."));
+      }, this.dependencies.updateTimeoutMs ?? 10_000);
+      record.pending.set(requestId, { capabilityIds: [...capabilityIds], timer, resolve, reject });
       record.child.postMessage({ type: "host.capabilities.set", requestId, capabilityIds, settings });
     });
   }
@@ -92,9 +127,14 @@ export class CapabilityHostManager {
     const record = this.hosts.get(runId);
     if (!record) return;
     this.hosts.delete(runId);
-    record.child.kill();
+    if (record.startupTimer) clearTimeout(record.startupTimer);
     const error = new CapabilityError("cancelled", "Capability host stopped.");
-    for (const request of record.pending.values()) request.reject(error);
+    if (!record.connection) record.rejectReady(error);
+    record.child.kill();
+    for (const request of record.pending.values()) {
+      clearTimeout(request.timer);
+      request.reject(error);
+    }
     record.pending.clear();
   }
 
@@ -102,14 +142,18 @@ export class CapabilityHostManager {
     for (const runId of [...this.hosts.keys()]) this.stopHost(runId);
   }
 
-  private handleMessage(runId: string, record: HostRecord, message: HostToMainMessage, timer: ReturnType<typeof setTimeout>): void {
+  private handleMessage(runId: string, record: HostRecord, message: HostToMainMessage): void {
     if (message.type === "host.ready") {
       if (message.runId !== runId) return;
-      clearTimeout(timer);
+      if (record.startupTimer) clearTimeout(record.startupTimer);
       const connection = { runId, serverName: "agentic_worktrees", url: `http://127.0.0.1:${message.port}/mcp`, bearerToken: record.token };
       record.connection = connection;
       record.resolveReady(connection);
     } else if (message.type === "host.secret.request") {
+      if (!record.activeCapabilityIds.has(message.capabilityId) || !isDeclaredSecret(message.capabilityId, message.settingKey)) {
+        record.child.postMessage({ type: "host.secret.result", requestId: message.requestId, errorCode: "missing_secret" });
+        return;
+      }
       void this.resolveSecret(message.capabilityId, message.settingKey).then(
         (value) => record.child.postMessage({ type: "host.secret.result", requestId: message.requestId, ...(value ? { value } : { errorCode: "missing_secret" }) }),
         () => record.child.postMessage({ type: "host.secret.result", requestId: message.requestId, errorCode: "missing_secret" }),
@@ -118,11 +162,14 @@ export class CapabilityHostManager {
       const pending = record.pending.get(message.requestId);
       if (!pending) return;
       record.pending.delete(message.requestId);
+      clearTimeout(pending.timer);
+      record.activeCapabilityIds = new Set(pending.capabilityIds);
       pending.resolve(message.toolNames);
     } else if (message.requestId) {
       const pending = record.pending.get(message.requestId);
       if (!pending) return;
       record.pending.delete(message.requestId);
+      clearTimeout(pending.timer);
       pending.reject(new CapabilityError(message.code, message.message));
     }
   }

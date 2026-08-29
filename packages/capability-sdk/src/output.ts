@@ -18,6 +18,15 @@ function truncateText(text: string): string {
   return candidate;
 }
 
+function boundedDetails(details: unknown): unknown | undefined {
+  if (details === undefined) return undefined;
+  try {
+    return Buffer.byteLength(JSON.stringify(details)) <= CAPABILITY_OUTPUT_MAX_BYTES ? details : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function limitCapabilityOutput(result: CapabilityToolResult): CapabilityToolResult {
   let remaining = CAPABILITY_OUTPUT_MAX_BYTES;
   const content = result.content.slice(0, 1).map((item) => {
@@ -26,5 +35,6 @@ export function limitCapabilityOutput(result: CapabilityToolResult): CapabilityT
     remaining -= Buffer.byteLength(allowed);
     return { type: "text" as const, text: allowed };
   });
-  return { ...result, content };
+  const details = boundedDetails(result.details);
+  return { content, ...(result.isError === undefined ? {} : { isError: result.isError }), ...(details === undefined ? {} : { details }) };
 }

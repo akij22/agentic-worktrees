@@ -328,14 +328,21 @@ const getSessionRecord = (runId: string) => {
   return row;
 };
 
-const listCapabilityReloadSessions = (kind: CodingAgentKind) => getDatabase()
+const listCapabilityReloadSessions = (kind: CodingAgentKind, affectedRunId?: string) => getDatabase()
   .select({ runId: codingAgentSessions.runId, externalSessionId: codingAgentSessions.externalSessionId, worktreeId: runs.worktreeId })
   .from(codingAgentSessions)
   .innerJoin(runs, eq(runs.id, codingAgentSessions.runId))
   .innerJoin(codingAgentInstallations, eq(codingAgentInstallations.id, codingAgentSessions.installationId))
   .where(eq(codingAgentInstallations.kind, kind))
   .all()
-  .map((session) => ({ runId: session.runId, directory: getContext(session.worktreeId).worktree.path, sessionId: session.externalSessionId }));
+  .filter((session) => session.runId === affectedRunId || capabilityPreparedRuns.has(session.runId))
+  .flatMap((session) => {
+    try {
+      return [{ runId: session.runId, directory: getContext(session.worktreeId).worktree.path, sessionId: session.externalSessionId }];
+    } catch {
+      return [];
+    }
+  });
 
 const toSummary = (
   row: ReturnType<typeof getSessionRecord>,
@@ -856,8 +863,13 @@ export const applyCodingAgentCapabilities = async (
     return "refreshed";
   }
   if (!harness.adapter.reconfigureCapabilities) throw new Error("OpenCode capability reload is unavailable.");
-  const sessions = listCapabilityReloadSessions("opencode");
-  await harness.adapter.reconfigureCapabilities({ connections: allConnections, sessions: sessions.map(({ directory, sessionId }) => ({ directory, sessionId })) });
+  const sessions = listCapabilityReloadSessions("opencode", runId);
+  await harness.adapter.reconfigureCapabilities({
+    connections: allConnections,
+    sessions: sessions.map(({ directory, sessionId }) => ({ directory, sessionId })),
+    expectedToolNamesByProfile: { [connection.profileId]: expectedToolNames },
+    ...(expectedToolNames.length === 0 && !allConnections.some((candidate) => candidate.profileId === connection.profileId) ? { absentConnections: [connection] } : {}),
+  });
   for (const session of sessions) capabilityPreparedRuns.add(session.runId);
   return "reloaded";
 };

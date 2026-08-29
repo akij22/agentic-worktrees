@@ -127,6 +127,15 @@ const codexThreadResponseSchema = z.object({
   thread: codexThreadSchema,
 });
 
+const codexMcpServerStatusListSchema = z.object({
+  data: z.array(z.object({
+    name: z.string(),
+    runtimeStatus: z.enum(["notStarted", "starting", "connected", "authenticationRequired", "failed", "cancelled", "disabled"]).nullable(),
+    tools: z.record(z.string(), z.unknown()),
+  }).passthrough()),
+  nextCursor: z.string().nullable(),
+});
+
 const codexThreadIdSchema = z.object({
   thread: z.object({ id: z.string() }).passthrough(),
 });
@@ -553,6 +562,13 @@ export const readCodexAccountUsage = (
     windows,
   };
 };
+
+export const readCodexMcpServerStatuses = (value: unknown): Array<{ name: string; healthy: boolean; toolNames: string[] }> =>
+  codexMcpServerStatusListSchema.parse(value).data.map((server) => ({
+    name: server.name,
+    healthy: server.runtimeStatus === "connected",
+    toolNames: Object.keys(server.tools),
+  }));
 
 export const readCodexThreadId = (value: unknown): string | null => {
   const result = codexThreadIdSchema.safeParse(value);

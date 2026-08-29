@@ -10,6 +10,7 @@ import {
   readCodexApprovalRequest,
   readCodexDiffs,
   readCodexMessages,
+  readCodexMcpServerStatuses,
   readCodexModels,
   readCodexNotification,
   readCodexThread,
@@ -81,10 +82,19 @@ const capabilityConfig = (connection: CodingAgentCapabilityConnection | undefine
   ? { mcp_servers: { [connection.serverName]: { url: connection.url, http_headers: { Authorization: connection.authorizationHeader } } } }
   : undefined;
 
-const includesExpectedTools = (value: unknown, expected: readonly string[]): boolean => {
-  const serialized = JSON.stringify(value);
-  if (expected.length === 0) return !serialized.includes("web_search");
-  return expected.every((tool) => serialized.includes(tool));
+const hasExpectedCapabilityServer = (
+  value: unknown,
+  serverName: string,
+  expected: readonly string[],
+): boolean => {
+  try {
+    const server = readCodexMcpServerStatuses(value).find((candidate) => candidate.name === serverName && candidate.healthy);
+    if (expected.length === 0) return !server;
+    if (!server) return false;
+    return [...new Set(server.toolNames)].sort().join("\0") === [...new Set(expected)].sort().join("\0");
+  } catch {
+    return false;
+  }
 };
 
 export class CodexAdapter implements CodingAgentAdapter {
@@ -233,14 +243,17 @@ export class CodexAdapter implements CodingAgentAdapter {
     expectedToolNames: string[],
   ): Promise<void> {
     this.directoryByThread.set(sessionId, directory);
-    await this.client.request<unknown>("config/mcpServer/reload", {
+    const resumed = await this.client.request<unknown>("thread/resume", {
       threadId: sessionId,
-      config: capabilityConfig(connection),
+      cwd: directory,
+      config: expectedToolNames.length === 0 ? { mcp_servers: {} } : capabilityConfig(connection),
     });
+    if (readCodexThreadId(resumed) !== sessionId) throw new Error("Codex resumed an unexpected thread during capability refresh.");
+    await this.client.request<unknown>("config/mcpServer/reload", undefined);
     const deadline = Date.now() + 10_000;
     do {
-      const status = await this.client.request<unknown>("mcpServerStatus/list", { threadId: sessionId });
-      if (includesExpectedTools(status, expectedToolNames)) return;
+      const status = await this.client.request<unknown>("mcpServerStatus/list", { threadId: sessionId, detail: "toolsAndAuthOnly", limit: 100 });
+      if (hasExpectedCapabilityServer(status, connection.serverName, expectedToolNames)) return;
       await new Promise((resolve) => setTimeout(resolve, 100));
     } while (Date.now() < deadline);
     throw new Error("Capability activation could not be verified in Codex.");

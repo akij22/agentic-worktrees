@@ -608,8 +608,17 @@ describe("Codex capability MCP integration", () => {
   it("reloads and verifies late capability tools", async () => {
     const { adapter, client } = createAdapter();
     client.reply("config/mcpServer/reload", {});
-    client.reply("mcpServerStatus/list", { servers: [{ name: "agentic_worktrees", tools: ["web_search"] }] });
+    client.reply("mcpServerStatus/list", { data: [{ name: "agentic_worktrees", runtimeStatus: "connected", tools: { web_search: {} } }], nextCursor: null });
     await adapter.refreshCapabilities("/repo", "thread-1", connection, ["web_search"]);
-    expect(client.methods()).toContain("config/mcpServer/reload");
+    expect(client.requestFor("thread/resume").params).toMatchObject({ threadId: "thread-1", config: { mcp_servers: { agentic_worktrees: { url: connection.url } } } });
+    expect(client.requestFor("config/mcpServer/reload").params).toBeUndefined();
+  });
+
+  it("detaches the chat-scoped server and verifies it is absent", async () => {
+    const { adapter, client } = createAdapter();
+    client.reply("config/mcpServer/reload", {});
+    client.reply("mcpServerStatus/list", { data: [], nextCursor: null });
+    await adapter.refreshCapabilities("/repo", "thread-1", connection, []);
+    expect(client.requestFor("thread/resume").params).toMatchObject({ config: { mcp_servers: {} } });
   });
 });

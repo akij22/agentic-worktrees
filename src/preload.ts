@@ -6,6 +6,7 @@ import {
 	capabilityDetailSchema,
 	capabilitySessionStateSchema,
 	capabilitySummarySchema,
+	codingAgentSessionSnapshotSchema,
 	githubAuthStatusSchema,
 	githubDeviceChallengeSchema,
 	githubListBranchesResponseSchema,
@@ -247,8 +248,10 @@ const api: Api = {
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_CREATE, request),
 		setSessionModel: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE, request),
-		getSession: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
+		getSession: async (request) =>
+			codingAgentSessionSnapshotSchema.parse(
+				await ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
+			),
 		markSessionViewed: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED, request),
 		getSessionUsage: (request) =>

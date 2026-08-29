@@ -72,25 +72,37 @@ export class CapabilityService {
     if (input.acceptedPermissionDigest !== digest) throw new CapabilityError("permission_denied", "Capability permissions changed. Review and accept them again.");
     const existing = this.dependencies.repository.getSettings(input.capabilityId);
     const oldSecret = existing.find((setting) => setting.key === "exaApiKey")?.secretRef;
-    const newSecret = input.exaApiKey ? await this.dependencies.credentials.setSecret(input.capabilityId, "exaApiKey", input.exaApiKey) : oldSecret;
+    const newSecret = input.exaApiKey === undefined
+      ? oldSecret
+      : input.exaApiKey
+        ? await this.dependencies.credentials.setSecret(input.capabilityId, "exaApiKey", input.exaApiKey)
+        : undefined;
     try {
-      this.dependencies.repository.upsertInstallation({ capabilityId: input.capabilityId, version: capability.manifest.version, permissionDigest: digest, configured: true });
-      this.dependencies.repository.replaceSettings(input.capabilityId, [
-        { key: "providerMode", value: input.settings.providerMode },
-        { key: "resultLimit", value: input.settings.resultLimit },
-        ...(newSecret ? [{ key: "exaApiKey", secretRef: newSecret }] : []),
-      ]);
+      this.dependencies.repository.saveConfiguration(
+        { capabilityId: input.capabilityId, version: capability.manifest.version, permissionDigest: digest, configured: true },
+        [
+          { key: "providerMode", value: input.settings.providerMode },
+          { key: "resultLimit", value: input.settings.resultLimit },
+          ...(newSecret ? [{ key: "exaApiKey", secretRef: newSecret }] : []),
+        ],
+      );
     } catch (error) {
-      if (newSecret && newSecret !== oldSecret) await this.dependencies.credentials.removeSecret(newSecret);
+      if (newSecret && newSecret !== oldSecret) {
+        await this.dependencies.credentials.removeSecret(newSecret).catch(() => this.dependencies.logError?.("capability.configuration.secret.compensation.failed", "internal_error"));
+      }
       throw error;
     }
-    if (oldSecret && newSecret !== oldSecret) await this.dependencies.credentials.removeSecret(oldSecret);
+    if (oldSecret && newSecret !== oldSecret) {
+      await this.dependencies.credentials.removeSecret(oldSecret).catch(() => this.dependencies.logError?.("capability.configuration.old_secret.cleanup.failed", "internal_error"));
+    }
     let warningCode: "upstream_unavailable" | undefined;
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 5_000);
-      try { await (this.dependencies.probe ?? fetch)("https://mcp.exa.ai/mcp", { method: "HEAD", signal: controller.signal }); }
-      finally { clearTimeout(timer); }
+      try {
+        const response = await (this.dependencies.probe ?? fetch)("https://mcp.exa.ai/mcp", { method: "HEAD", signal: controller.signal });
+        if (!response.ok) warningCode = "upstream_unavailable";
+      } finally { clearTimeout(timer); }
     } catch { warningCode = "upstream_unavailable"; }
     return { ...this.getCapability(input.capabilityId), ...(warningCode ? { warningCode } : {}) };
   }
@@ -122,7 +134,18 @@ export class CapabilityService {
       this.emit(active);
       return sessionDto(active);
     } catch (error) {
-      await this.dependencies.hosts.setActiveCapabilities(runId, previousIds, this.hostSettings(previousIds)).catch(() => undefined);
+      try {
+        const rollbackTools = await this.dependencies.hosts.setActiveCapabilities(runId, previousIds, this.hostSettings(previousIds));
+        if (previousIds.length === 0) {
+          await this.dependencies.activator.remove(runId);
+          this.dependencies.hosts.stopHost(runId);
+        } else {
+          await this.dependencies.activator.apply(runId, rollbackTools);
+        }
+      } catch (rollbackError) {
+        const rollbackCode = rollbackError instanceof CapabilityError ? rollbackError.code : "activation_failed";
+        this.dependencies.logError?.("capability.activation.rollback.failed", rollbackCode);
+      }
       const code = error instanceof CapabilityError ? error.code : "activation_failed";
       const failed = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "activation_failed", errorCode: code });
       this.emit(failed);
@@ -147,6 +170,7 @@ export class CapabilityService {
       await this.dependencies.hosts.setActiveCapabilities(runId, remaining, this.hostSettings(remaining));
       await this.dependencies.activator.remove(runId);
       const inactive = this.dependencies.repository.transitionSessionCapability({ runId, capabilityId, version: capability.manifest.version, to: "inactive" });
+      if (remaining.length === 0) this.dependencies.hosts.stopHost(runId);
       this.emit(inactive);
       return sessionDto(inactive);
     } catch (error) {

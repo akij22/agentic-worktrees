@@ -245,15 +245,41 @@ describe("OpenCode event streaming", () => {
 
 describe("OpenCode capability reconfiguration", () => {
   const connection = { serverName: "aw_run_1", profileId: "aw_run_1", url: "http://127.0.0.1:1/mcp", authorizationHeader: "Bearer token" };
-  it("checks every supplied session before restarting the shared process", async () => {
-    const adapter = new OpenCodeAdapter();
+  it("waits boundedly for every supplied session before restarting the shared process", async () => {
+    const adapter = new OpenCodeAdapter(5);
     Object.assign(adapter as unknown as Record<string, unknown>, { executablePath: "/bin/opencode", startupDirectory: "/repo" });
     const getSession = vi.spyOn(adapter, "getSession").mockImplementation(async (_directory, sessionId) => ({ id: sessionId, status: sessionId === "busy" ? "busy" : "idle" }));
     const stop = vi.spyOn(adapter, "stop").mockResolvedValue();
     vi.spyOn(adapter, "start").mockResolvedValue("1.18.23");
     await expect(adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: "/one", sessionId: "idle" }, { directory: "/two", sessionId: "busy" }] })).rejects.toMatchObject({ code: "agent_reload_failed" });
-    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(getSession).toHaveBeenCalled();
     expect(stop).not.toHaveBeenCalled();
+  });
+
+  it("verifies the exact profile, connected MCP server, and normalized tools", async () => {
+    const adapter = new OpenCodeAdapter(10_000, 5);
+    Object.assign(adapter as unknown as Record<string, unknown>, {
+      client: {
+        mcp: { status: vi.fn().mockResolvedValue({ data: { aw_run_1: { status: "connected" } } }) },
+        tool: { ids: vi.fn().mockResolvedValue({ data: ["aw_run_1_web_search"] }) },
+        config: { get: vi.fn().mockResolvedValue({ data: { agent: { aw_run_1: { mode: "primary" } } } }) },
+      },
+    });
+    await expect(adapter.verifyCapabilities([connection], { aw_run_1: ["web_search"] }, "/repo")).resolves.toBeUndefined();
+    await expect(adapter.verifyCapabilities([connection], { aw_run_1: ["other_tool"] }, "/repo")).rejects.toMatchObject({ code: "agent_reload_failed" });
+    await expect(adapter.verifyCapabilities([], {}, "/repo", [connection])).rejects.toMatchObject({ code: "agent_reload_failed" });
+  });
+
+  it("restarts the previous configuration and resumes validated sessions after failure", async () => {
+    const adapter = new OpenCodeAdapter();
+    Object.assign(adapter as unknown as Record<string, unknown>, { executablePath: "/bin/opencode", startupDirectory: "/repo" });
+    const getSession = vi.spyOn(adapter, "getSession").mockResolvedValue({ id: "session", status: "idle" });
+    const stop = vi.spyOn(adapter, "stop").mockResolvedValue();
+    const start = vi.spyOn(adapter, "start").mockRejectedValueOnce(new Error("health failed")).mockResolvedValueOnce("1.18.23");
+    await expect(adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: "/repo", sessionId: "session" }] })).rejects.toMatchObject({ code: "agent_reload_failed" });
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(getSession).toHaveBeenCalledTimes(2);
   });
 
   it("rejects prompts for every chat while reconfiguration is in flight", async () => {

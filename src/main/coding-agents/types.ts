@@ -156,6 +156,8 @@ export interface CodingAgentAdapter {
   reconfigureCapabilities?(input: {
     connections: CodingAgentCapabilityConnection[];
     sessions: Array<{ directory: string; sessionId: string }>;
+    expectedToolNamesByProfile?: Record<string, string[]>;
+    absentConnections?: CodingAgentCapabilityConnection[];
   }): Promise<void>;
   getUsage(
     directory: string,

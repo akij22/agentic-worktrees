@@ -100,7 +100,15 @@ const initializeCapabilities = (): CapabilityService => {
     remove: async (runId: string) => {
       const context = getCodingAgentCapabilitySession(runId);
       const connection = connections.get(runId) ?? await prepare(runId, context.agentKind);
-      return applyCodingAgentCapabilities(runId, connection, [], [...connections.entries()].filter(([id]) => connectionKinds.get(id) === context.agentKind).map(([, value]) => value));
+      connections.delete(runId);
+      try {
+        const result = await applyCodingAgentCapabilities(runId, connection, [], [...connections.entries()].filter(([id]) => connectionKinds.get(id) === context.agentKind).map(([, value]) => value));
+        connectionKinds.delete(runId);
+        return result;
+      } catch (error) {
+        connections.set(runId, connection);
+        throw error;
+      }
     },
     isAgentIdle: async (runId: string) => getCodingAgentCapabilitySession(runId).idle,
   };
@@ -110,7 +118,13 @@ const initializeCapabilities = (): CapabilityService => {
     listConnections: (agentKind) => [...connections.entries()].filter(([id]) => connectionKinds.get(id) === agentKind).map(([, value]) => value),
     stopSession: (runId) => { connections.delete(runId); connectionKinds.delete(runId); hosts.stopHost(runId); },
     listSessionCapabilities: (runId) => repository.listSessionCapabilities(runId).map((record) => ({ id: record.capabilityId, name: getBundledCapability(record.capabilityId).manifest.name, version: record.version, state: record.status, ...(record.errorCode ? { errorCode: record.errorCode } : {}), ...(record.activatedAt ? { activatedAt: record.activatedAt.toISOString() } : {}), ...(record.deactivatedAt ? { deactivatedAt: record.deactivatedAt.toISOString() } : {}) })),
-    isReloading: (runId) => repository.listSessionCapabilities(runId).some((record) => ['pending_activation', 'pending_deactivation', 'reloading'].includes(record.status)),
+    isReloading: (runId) => {
+      const interruptedStates = ['pending_activation', 'pending_deactivation', 'reloading'];
+      if (connectionKinds.get(runId) === 'opencode') {
+        return repository.listInterruptedSessionCapabilities().some((record) => connectionKinds.get(record.runId) === 'opencode');
+      }
+      return repository.listSessionCapabilities(runId).some((record) => interruptedStates.includes(record.status));
+    },
   });
   configureCapabilityIpc(service);
   return service;

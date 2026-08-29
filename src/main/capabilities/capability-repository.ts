@@ -94,13 +94,24 @@ export class CapabilityRepository {
   }
 
   replaceSettings(capabilityId: string, settings: readonly CapabilitySettingRecord[]): CapabilitySettingRecord[] {
-    return this.sqlite.transaction(() => {
+    return this.sqlite.transaction(() => this.replaceSettingsWithinTransaction(capabilityId, settings))();
+  }
+
+  saveConfiguration(
+    installation: Omit<CapabilityInstallationRecord, "createdAt" | "updatedAt">,
+    settings: readonly CapabilitySettingRecord[],
+  ): CapabilityInstallationRecord {
+    const record = this.sqlite.transaction(() => {
       const now = Date.now();
-      this.sqlite.prepare("DELETE FROM capability_settings WHERE capability_id = ?").run(capabilityId);
-      const insert = this.sqlite.prepare(`INSERT INTO capability_settings (id, capability_id, key, value_json, secret_ref, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-      for (const setting of settings) insert.run(randomUUID(), capabilityId, setting.key, setting.value === undefined ? null : JSON.stringify(setting.value), setting.secretRef ?? null, now, now);
-      return this.getSettings(capabilityId);
+      this.sqlite.prepare(`INSERT INTO capability_installations (capability_id, version, permission_digest, configured, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(capability_id) DO UPDATE SET version = excluded.version, permission_digest = excluded.permission_digest, configured = excluded.configured, updated_at = excluded.updated_at`)
+        .run(installation.capabilityId, installation.version, installation.permissionDigest, installation.configured ? 1 : 0, now, now);
+      this.replaceSettingsWithinTransaction(installation.capabilityId, settings);
+      return this.getInstallation(installation.capabilityId);
     })();
+    if (!record) throw new CapabilityError("internal_error", "Capability configuration could not be saved.");
+    return record;
   }
 
   getSettings(capabilityId: string): CapabilitySettingRecord[] {
@@ -131,6 +142,14 @@ export class CapabilityRepository {
       if (!record) throw new CapabilityError("internal_error", "Capability state could not be saved.");
       return record;
     })();
+  }
+
+  private replaceSettingsWithinTransaction(capabilityId: string, settings: readonly CapabilitySettingRecord[]): CapabilitySettingRecord[] {
+    const now = Date.now();
+    this.sqlite.prepare("DELETE FROM capability_settings WHERE capability_id = ?").run(capabilityId);
+    const insert = this.sqlite.prepare(`INSERT INTO capability_settings (id, capability_id, key, value_json, secret_ref, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    for (const setting of settings) insert.run(randomUUID(), capabilityId, setting.key, setting.value === undefined ? null : JSON.stringify(setting.value), setting.secretRef ?? null, now, now);
+    return this.getSettings(capabilityId);
   }
 
   private insertInitial(input: { runId: string; capabilityId: string; version: string; to: PersistedCapabilityStatus; errorCode?: string }, now: number): SessionCapabilityRecord {

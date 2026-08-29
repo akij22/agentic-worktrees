@@ -10,4 +10,12 @@ describe("limitCapabilityOutput", () => {
       expect((limited.content[0]?.text.split("\n").length ?? 0)).toBeLessThanOrEqual(2_000);
     }
   });
+
+  it("omits JSON details that exceed the output boundary or cannot be serialized", () => {
+    expect(limitCapabilityOutput({ content: [{ type: "text", text: "ok" }], details: { value: "x".repeat(60_000) } })).not.toHaveProperty("details");
+    const cyclic: { self?: unknown } = {};
+    cyclic.self = cyclic;
+    expect(limitCapabilityOutput({ content: [{ type: "text", text: "ok" }], details: cyclic })).not.toHaveProperty("details");
+    expect(limitCapabilityOutput({ content: [{ type: "text", text: "ok" }], details: { value: "bounded" } })).toHaveProperty("details", { value: "bounded" });
+  });
 });

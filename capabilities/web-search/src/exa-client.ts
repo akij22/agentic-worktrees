@@ -87,9 +87,23 @@ function parseJsonOrSse(text: string): ExaTransportPayload {
   throw new CapabilityError("upstream_protocol_error", "Exa returned an invalid response.");
 }
 
+class UnsupportedAdvancedSearchError extends Error {
+  constructor() {
+    super("Exa advanced search is unavailable.");
+    this.name = "UnsupportedAdvancedSearchError";
+  }
+}
+
 function unwrapMcp(payload: ExaTransportPayload): WebSearchResult[] {
   const object = payload;
-  if (object.error) throw new CapabilityError("upstream_protocol_error", "Exa search failed.");
+  if (object.error) {
+    const error = typeof object.error === "object" && object.error ? object.error as Record<string, unknown> : {};
+    const message = typeof error.message === "string" ? error.message : "";
+    if (error.code === -32601 || /(?:tool|method).*(?:not found|unsupported|unavailable)/iu.test(message)) {
+      throw new UnsupportedAdvancedSearchError();
+    }
+    throw new CapabilityError("upstream_protocol_error", "Exa search failed.");
+  }
   const result = object.result && typeof object.result === "object" ? object.result as Record<string, unknown> : object;
   const direct = safeResults(result);
   if (direct.length) return direct;
@@ -112,6 +126,7 @@ function unwrapMcp(payload: ExaTransportPayload): WebSearchResult[] {
 
 function normalizeFailure(error: unknown): never {
   if (error instanceof CapabilityError) throw error;
+  if (error instanceof UnsupportedAdvancedSearchError) throw new CapabilityError("upstream_protocol_error", "Exa search failed.");
   if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
     throw new CapabilityError("cancelled", "Web search was cancelled.");
   }
@@ -177,7 +192,7 @@ export async function searchExaAuto(input: WebSearchInput, options: SearchExaOpt
     try {
       return { provider: "exa-hosted", degraded: false, results: await hostedSearch(input, options, true) };
     } catch (error) {
-      if (options.signal.aborted || (error instanceof CapabilityError && error.code === "cancelled")) throw error;
+      if (!(error instanceof UnsupportedAdvancedSearchError)) throw error;
       return { provider: "exa-hosted", degraded: true, results: await hostedSearch(basicFallbackInput(input), options, false) };
     }
   } catch (error) {
