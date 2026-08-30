@@ -107,6 +107,13 @@ let capabilityBridge: CodingAgentCapabilityBridge | null = null;
 const capabilityPreparedRuns = new Set<string>();
 export const configureCodingAgentCapabilityBridge = (bridge: CodingAgentCapabilityBridge | null): void => { capabilityBridge = bridge; capabilityPreparedRuns.clear(); };
 const capabilityProfileId = (runId: string): string => `aw_${runId.toLowerCase().replace(/[^a-z0-9_]+/g, "_")}`;
+const capabilityConnectionStates = new Set(["active", "pending_activation", "pending_deactivation", "reloading"]);
+const sessionNeedsCapabilityConnection = (runId: string): boolean =>
+  capabilityBridge?.listSessionCapabilities(runId).some(({ state }) => capabilityConnectionStates.has(state)) ?? false;
+const configuredCapabilityProfileId = (runId: string): string | undefined => {
+  const expected = capabilityProfileId(runId);
+  return capabilityBridge?.listConnections("opencode").some(({ profileId }) => profileId === expected) ? expected : undefined;
+};
 
 export interface AgentUiEvent {
   runId: string | null;
@@ -768,14 +775,17 @@ export const createAgentSession = async (input: {
   }
   getHarnessForInstallation(installation);
   const runId = nanoid();
-  const capabilityConnection = capabilityBridge ? await capabilityBridge.prepareSession(runId, input.agentKind) : undefined;
+  const capabilityConnection = capabilityBridge && sessionNeedsCapabilityConnection(runId)
+    ? await capabilityBridge.prepareSession(runId, input.agentKind)
+    : undefined;
   try {
     await ensureStarted(harness);
     if (capabilityConnection && input.agentKind === "opencode" && harness.adapter.reconfigureCapabilities) {
       const existingSessions = listCapabilityReloadSessions("opencode");
       await harness.adapter.reconfigureCapabilities({ connections: capabilityBridge?.listConnections("opencode") ?? [capabilityConnection], sessions: existingSessions.map(({ directory, sessionId }) => ({ directory, sessionId })) });
     }
-    capabilityPreparedRuns.add(runId);
+    if (capabilityConnection) capabilityPreparedRuns.add(runId);
+    else capabilityPreparedRuns.delete(runId);
   } catch (error) {
     capabilityBridge?.stopSession(runId);
     throw error;
@@ -914,11 +924,18 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
     const context = getContext(row.run.worktreeId);
     const harness = getHarnessForInstallation(row.installation);
     await ensureStarted(harness);
-    const capabilityConnection = capabilityBridge ? await capabilityBridge.prepareSession(runId, harness.installationId) : undefined;
+    const needsCapabilityConnection = sessionNeedsCapabilityConnection(runId);
+    const capabilityConnection = capabilityBridge && needsCapabilityConnection
+      ? await capabilityBridge.prepareSession(runId, harness.installationId)
+      : undefined;
     if (capabilityConnection && harness.installationId === "opencode" && harness.adapter.reconfigureCapabilities && !capabilityPreparedRuns.has(runId)) {
       await harness.adapter.reconfigureCapabilities({ connections: capabilityBridge?.listConnections("opencode") ?? [capabilityConnection], sessions: [{ directory: context.worktree.path, sessionId: row.agent.externalSessionId }] });
     }
-    capabilityPreparedRuns.add(runId);
+    if (capabilityConnection) capabilityPreparedRuns.add(runId);
+    else {
+      capabilityPreparedRuns.delete(runId);
+      capabilityBridge?.stopSession(runId);
+    }
     const externalSession = capabilityConnection
       ? await harness.adapter.getSession(context.worktree.path, row.agent.externalSessionId, { capabilities: capabilityConnection })
       : await harness.adapter.getSession(context.worktree.path, row.agent.externalSessionId);
@@ -1057,6 +1074,7 @@ export const sendAgentMessage = async (
       .run();
   }
   setRunStatus(runId, "busy", null);
+  const activeCapabilityProfileId = harness.installationId === "opencode" ? configuredCapabilityProfileId(runId) : undefined;
   try {
     await harness.adapter.sendPrompt(
       context.worktree.path,
@@ -1066,7 +1084,7 @@ export const sendAgentMessage = async (
         providerId: row.agent.providerId,
         modelId: row.agent.modelId,
         reasoningVariant,
-        ...(harness.installationId === "opencode" ? { capabilityProfileId: capabilityProfileId(runId) } : {}),
+        ...(activeCapabilityProfileId ? { capabilityProfileId: activeCapabilityProfileId } : {}),
       },
     );
     // Adapters may return before the harness finishes processing. Reconcile
@@ -1088,6 +1106,7 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
   const harness = getHarnessForInstallation(row.installation);
   await ensureStarted(harness);
   setRunStatus(runId, "busy", null);
+  const activeCapabilityProfileId = harness.installationId === "opencode" ? configuredCapabilityProfileId(runId) : undefined;
   try {
     await harness.adapter.compact(
       context.worktree.path,
@@ -1095,7 +1114,7 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
       {
         providerId: row.agent.providerId,
         modelId: row.agent.modelId,
-        ...(harness.installationId === "opencode" ? { capabilityProfileId: capabilityProfileId(runId) } : {}),
+        ...(activeCapabilityProfileId ? { capabilityProfileId: activeCapabilityProfileId } : {}),
       },
     );
     // OpenCode resolves only after compaction completes. Codex acknowledges

@@ -154,6 +154,7 @@ import {
   type AgentUiEvent,
   autoDiscoverAgent,
   compactAgentSession,
+  configureCodingAgentCapabilityBridge,
   createAgentSession,
   getAgentInstallationStatus,
   getAgentSessionSnapshot,
@@ -310,6 +311,7 @@ const seedSessionDiff = (runId: string): void => {
 };
 
 beforeEach(() => {
+  configureCodingAgentCapabilityBridge(null);
   vi.useFakeTimers();
   sqlite = new BetterSqlite3(":memory:");
   sqlite.exec(bootstrapSchemaSql);
@@ -348,6 +350,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  configureCodingAgentCapabilityBridge(null);
   vi.clearAllTimers();
   vi.useRealTimers();
   mocks.database = null;
@@ -509,6 +512,44 @@ describe("coding-agent service routing", () => {
     expect(mocks.openCode.adapter.sendPrompt).not.toHaveBeenCalled();
   });
 
+  it("keeps the capability host absent after final deactivation and uses the default OpenCode profile", async () => {
+    seedSession("opencode-run", "opencode", "opencode-session");
+    const connection = { serverName: "aw_opencode_run", profileId: "aw_opencode_run", url: "http://127.0.0.1:43123/mcp", authorizationHeader: "Bearer token" };
+    const connections = new Map<string, typeof connection>();
+    let capabilityState = "active";
+    const prepareSession = vi.fn(async (runId: string) => { connections.set(runId, connection); return connection; });
+    const stopSession = vi.fn((runId: string) => { connections.delete(runId); });
+    configureCodingAgentCapabilityBridge({
+      prepareSession,
+      listConnections: (agentKind) => agentKind === "opencode" ? [...connections.values()] : [],
+      stopSession,
+      listSessionCapabilities: () => [{ id: "agentic-worktrees.web-search", name: "Web Search", version: "0.1.0", state: capabilityState }],
+      isReloading: () => false,
+    });
+
+    await getAgentSessionSnapshot("opencode-run");
+    expect(prepareSession).toHaveBeenCalledOnce();
+    expect(connections.has("opencode-run")).toBe(true);
+
+    capabilityState = "inactive";
+    connections.delete("opencode-run");
+    prepareSession.mockClear();
+    stopSession.mockClear();
+    mocks.openCode.adapter.getSession.mockClear();
+    await getAgentSessionSnapshot("opencode-run");
+    await sendAgentMessage("opencode-run", "Continue without tools");
+
+    expect(prepareSession).not.toHaveBeenCalled();
+    expect(stopSession).toHaveBeenCalledWith("opencode-run");
+    expect(connections.has("opencode-run")).toBe(false);
+    expect(mocks.openCode.adapter.getSession).toHaveBeenLastCalledWith(process.cwd(), "opencode-session");
+    expect(mocks.openCode.adapter.sendPrompt).toHaveBeenCalledWith(
+      process.cwd(),
+      "opencode-session",
+      expect.not.objectContaining({ capabilityProfileId: expect.anything() }),
+    );
+  });
+
   it("does not clear a newly submitted OpenCode turn before it becomes active", async () => {
     seedSession("opencode-run", "opencode", "opencode-session");
 
@@ -536,7 +577,7 @@ describe("coding-agent service routing", () => {
     expect(mocks.openCode.adapter.compact).toHaveBeenCalledWith(
       process.cwd(),
       "opencode-session",
-      { providerId: "anthropic", modelId: "claude-sonnet", capabilityProfileId: "aw_opencode_run" },
+      { providerId: "anthropic", modelId: "claude-sonnet" },
     );
     expect(mocks.database?.select().from(runs).get()?.status).toBe("idle");
   });

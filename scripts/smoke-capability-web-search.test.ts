@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { smokeSessionIsIdle } from "./lib/electron-capability-smoke-driver.mjs";
 import { runCapabilitySmoke } from "./smoke-capability-web-search.mjs";
 
 const versionDriver = (agents: Array<{kind:"codex"|"opencode";version:string}>) => ({ launch:vi.fn(), listConfiguredAgents:vi.fn().mockResolvedValue(agents), getFirstWorktreeId:vi.fn(), createSession:vi.fn(), sendMessage:vi.fn(), waitForIdle:vi.fn(), configureKeylessWebSearch:vi.fn(), activateWebSearch:vi.fn(), deactivateWebSearch:vi.fn(), getSnapshot:vi.fn(), readProcessLogs:vi.fn(() => ""), close:vi.fn() });
 
-function successfulDriver() {
+function successfulDriver(unavailableReply = "capability unavailable.") {
   const sent = new Map<string, string[]>();
   const deactivated = new Set<string>();
   let sequence = 0;
@@ -22,8 +23,9 @@ function successfulDriver() {
       const searched = prompts.some((prompt) => prompt.includes("official Electron website"));
       return {
         messages: [
-          ...prompts.map((content, index) => ({ id: String(index), content, tools: [] })),
-          ...(searched ? [{ id: "search-result", content: "Result: https://www.electronjs.org", tools: [{ tool: "web_search" }] }] : []),
+          ...prompts.map((content, index) => ({ id: String(index), role: "user", content, tools: [] })),
+          ...(searched ? [{ id: "search-result", role: "assistant", content: "Result: https://www.electronjs.org", tools: [{ tool: "web_search" }] }] : []),
+          ...(prompts.some((prompt) => prompt.includes("reply exactly")) ? [{ id: "unavailable-result", role: "assistant", content: unavailableReply, tools: [] }] : []),
         ],
         capabilities: [{ id: "agentic-worktrees.web-search", state: deactivated.has(runId) ? "inactive" : "active" }],
       };
@@ -34,6 +36,13 @@ function successfulDriver() {
 }
 
 describe("capability smoke seam", () => {
+  it("waits only for idle sessions and fails terminal error states", () => {
+    expect(smokeSessionIsIdle("idle")).toBe(true);
+    expect(smokeSessionIsIdle("busy")).toBe(false);
+    expect(() => smokeSessionIsIdle("error")).toThrow("entered error");
+    expect(() => smokeSessionIsIdle("unavailable")).toThrow("became unavailable");
+  });
+
   it("reports exact missing CLI floors", async () => {
     await expect(runCapabilitySmoke(versionDriver([{kind:"opencode",version:"1.18.23"}]) as never)).rejects.toThrow("Codex CLI 0.150.1 or newer is required.");
     await expect(runCapabilitySmoke(versionDriver([{kind:"codex",version:"0.150.1"}]) as never)).rejects.toThrow("OpenCode 1.18.23 or newer is required.");
@@ -47,5 +56,9 @@ describe("capability smoke seam", () => {
     expect(driver.deactivateWebSearch).toHaveBeenCalledTimes(4);
     expect(driver.sendMessage.mock.calls.filter(([, content]) => content.includes("capability unavailable"))).toHaveLength(4);
     expect(driver.close).toHaveBeenCalledOnce();
+  });
+
+  it("rejects deactivation when the agent does not confirm tool unavailability", async () => {
+    await expect(runCapabilitySmoke(successfulDriver("I can still search.") as never, { timeoutMs: 10 })).rejects.toThrow("did not confirm that web_search was unavailable");
   });
 });

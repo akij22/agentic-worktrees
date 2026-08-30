@@ -5,6 +5,7 @@ const minimums = { codex: "0.150.1", opencode: "1.18.23" };
 function atLeast(actual, minimum) { const a=actual.split(/[.-]/).slice(0,3).map(Number); const b=minimum.split(".").map(Number); return b.every((part,index) => (a[index] ?? 0) === part) || ((a[0]??0)*1e6+(a[1]??0)*1e3+(a[2]??0) >= b[0]*1e6+b[1]*1e3+b[2]); }
 function snapshotMessages(snapshot) { if (!snapshot || typeof snapshot !== "object" || !("messages" in snapshot) || !Array.isArray(snapshot.messages)) return []; return snapshot.messages; }
 function messages(snapshot) { return snapshotMessages(snapshot).map((item) => item && typeof item === "object" && "content" in item ? String(item.content) : "").join("\n"); }
+function assistantMessages(snapshot) { return snapshotMessages(snapshot).flatMap((item) => item && typeof item === "object" && "role" in item && item.role === "assistant" && "content" in item ? [String(item.content)] : []); }
 function webSearchToolCalls(snapshot) { return snapshotMessages(snapshot).reduce((count, message) => {
   if (!message || typeof message !== "object" || !("tools" in message) || !Array.isArray(message.tools)) return count;
   return count + message.tools.filter((tool) => tool && typeof tool === "object" && "tool" in tool && tool.tool === "web_search").length;
@@ -53,6 +54,7 @@ export async function runCapabilitySmoke(driver, { apiKey, timeoutMs = 120_000 }
         await driver.waitForIdle(runId, timeoutMs);
         const afterDeactivation = await driver.getSnapshot(runId);
         if (webSearchToolCalls(afterDeactivation) !== priorToolCalls) throw new Error(`${agent.kind} still exposed web_search after deactivation.`);
+        if (!assistantMessages(afterDeactivation).some((content) => content.trim().toLowerCase() === "capability unavailable.")) throw new Error(`${agent.kind} did not confirm that web_search was unavailable.`);
       }
     };
     await runScenario(undefined, "keyless");

@@ -17,6 +17,13 @@ import { _electron as electron } from "@playwright/test";
  * @property {() => Promise<void>} close
  */
 
+/** @param {string} status */
+export function smokeSessionIsIdle(status) {
+  if (status === "error") throw new Error("Coding-agent smoke session entered error state.");
+  if (status === "unavailable") throw new Error("Coding-agent smoke session became unavailable.");
+  return status === "idle";
+}
+
 /** @returns {CapabilitySmokeDriver} */
 export function createElectronCapabilitySmokeDriver(executablePath = process.env.AW_SMOKE_EXECUTABLE) {
   let application; let page; const logs = [];
@@ -34,7 +41,7 @@ export function createElectronCapabilitySmokeDriver(executablePath = process.env
     getFirstWorktreeId: async () => { const id = await evaluate(async () => (await window.api.worktrees.listAll())[0]?.id); if (!id) throw new Error("At least one worktree is required."); return id; },
     createSession: (agentKind, worktreeId) => evaluate(async ({ agentKind: kind, worktreeId: id }) => (await window.api.codingAgent.createSession({ agentKind: kind, worktreeId: id, title: `Capability smoke: ${kind}` })).id, { agentKind, worktreeId }),
     sendMessage: (runId, content) => evaluate(({ runId: id, content: text }) => window.api.codingAgent.sendMessage({ runId: id, content: text }), { runId, content }),
-    async waitForIdle(runId, timeoutMs) { const deadline = Date.now() + timeoutMs; while (Date.now() < deadline) { const idle = await evaluate(async (id) => ["idle", "error", "unavailable"].includes((await window.api.codingAgent.getSession({ runId: id })).session.status), runId); if (idle) return; await new Promise((resolve) => setTimeout(resolve, 250)); } throw new Error("Coding-agent smoke session timed out."); },
+    async waitForIdle(runId, timeoutMs) { const deadline = Date.now() + timeoutMs; while (Date.now() < deadline) { const status = await evaluate(async (id) => (await window.api.codingAgent.getSession({ runId: id })).session.status, runId); if (smokeSessionIsIdle(status)) return; await new Promise((resolve) => setTimeout(resolve, 250)); } throw new Error("Coding-agent smoke session timed out."); },
     configureKeylessWebSearch: (apiKey) => evaluate(async (key) => { const detail = await window.api.capabilities.get({ capabilityId: "agentic-worktrees.web-search" }); await window.api.capabilities.configure({ capabilityId: detail.id, acceptedPermissionDigest: detail.permissionDigest, settings: { providerMode: "auto", resultLimit: 5 }, exaApiKey: key ?? "" }); }, apiKey),
     activateWebSearch: (runId) => evaluate((id) => window.api.capabilities.activate({ runId: id, capabilityId: "agentic-worktrees.web-search" }), runId),
     deactivateWebSearch: (runId) => evaluate((id) => window.api.capabilities.deactivate({ runId: id, capabilityId: "agentic-worktrees.web-search" }), runId),
