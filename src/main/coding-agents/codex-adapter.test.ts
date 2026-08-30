@@ -14,7 +14,7 @@ interface RecordedResponse {
 }
 
 class FakeCodexClient {
-  private readonly replies = new Map<string, unknown>();
+  private readonly replies = new Map<string, unknown | ((params: unknown) => unknown)>();
   private readonly requests: RecordedRequest[] = [];
   private readonly responses: RecordedResponse[] = [];
   private readonly listeners = new Set<
@@ -22,7 +22,7 @@ class FakeCodexClient {
   >();
   running = false;
 
-  reply(method: string, result: unknown): void {
+  reply(method: string, result: unknown | ((params: unknown) => unknown)): void {
     this.replies.set(method, result);
   }
 
@@ -43,7 +43,8 @@ class FakeCodexClient {
     if (!this.replies.has(method)) {
       throw new Error(`Missing fake reply for ${method}`);
     }
-    return this.replies.get(method) as Result;
+    const reply = this.replies.get(method);
+    return (typeof reply === "function" ? reply(params) : reply) as Result;
   }
 
   respond(id: string | number, result: unknown): void {
@@ -69,6 +70,10 @@ class FakeCodexClient {
     );
     if (!request) throw new Error(`Request not found: ${method}`);
     return request;
+  }
+
+  requestsFor(method: string): RecordedRequest[] {
+    return this.requests.filter((request) => request.method === method);
   }
 
   responsesFor(id: string | number): RecordedResponse[] {
@@ -605,12 +610,29 @@ describe("Codex capability MCP integration", () => {
     await adapter.createSession("/repo", "Run", { modelId: "gpt-5.4", capabilities: connection });
     expect(client.requestFor("thread/start").params).toMatchObject({ config: { mcp_servers: { agentic_worktrees: { url: connection.url, http_headers: { Authorization: "Bearer run-token" } } } } });
   });
-  it("resumes the thread with chat-scoped MCP config and verifies late capability tools without reloading disk config", async () => {
+  it("unsubscribes a loaded thread before cold-resuming it with late capability tools", async () => {
     const { adapter, client } = createAdapter();
-    client.reply("mcpServerStatus/list", { data: [{ name: "agentic_worktrees", runtimeStatus: "connected", tools: { web_search: {} } }], nextCursor: null });
+    let subscribed = true;
+    let webSearchActive = false;
+    client.reply("thread/unsubscribe", () => {
+      subscribed = false;
+      return { status: "unsubscribed" };
+    });
+    client.reply("thread/resume", (params: unknown) => {
+      const config = (params as { config?: { mcp_servers?: Record<string, unknown> } }).config;
+      if (!subscribed && config) webSearchActive = "agentic_worktrees" in (config.mcp_servers ?? {});
+      subscribed = true;
+      return { thread: { id: "thread-1" } };
+    });
+    client.reply("mcpServerStatus/list", () => webSearchActive
+      ? { data: [{ name: "agentic_worktrees", runtimeStatus: "connected", tools: { web_search: {} } }], nextCursor: null }
+      : { data: [], nextCursor: null });
+
     await adapter.refreshCapabilities("/repo", "thread-1", connection, ["web_search"]);
+
+    expect(client.methods()).toEqual(["thread/unsubscribe", "thread/resume", "mcpServerStatus/list"]);
+    expect(client.requestFor("thread/unsubscribe").params).toEqual({ threadId: "thread-1" });
     expect(client.requestFor("thread/resume").params).toMatchObject({ threadId: "thread-1", config: { mcp_servers: { agentic_worktrees: { url: connection.url } } } });
-    expect(client.methods()).toEqual(["thread/resume", "mcpServerStatus/list"]);
     expect(client.requestFor("mcpServerStatus/list").params).toEqual({
       threadId: "thread-1",
       detail: "toolsAndAuthOnly",
@@ -618,10 +640,36 @@ describe("Codex capability MCP integration", () => {
     });
   });
 
-  it("detaches the chat-scoped server and verifies it is absent", async () => {
+  it("detaches the chat-scoped server by unsubscribing before cold resume", async () => {
     const { adapter, client } = createAdapter();
+    client.reply("thread/unsubscribe", { status: "unsubscribed" });
     client.reply("mcpServerStatus/list", { data: [], nextCursor: null });
     await adapter.refreshCapabilities("/repo", "thread-1", connection, []);
+    expect(client.methods()).toEqual(["thread/unsubscribe", "thread/resume", "mcpServerStatus/list"]);
     expect(client.requestFor("thread/resume").params).toMatchObject({ config: { mcp_servers: {} } });
+  });
+
+  it("cold-resumes the previous thread config and preserves the original refresh error on failure", async () => {
+    const { adapter, client } = createAdapter();
+    client.reply("thread/unsubscribe", { status: "unsubscribed" });
+    client.reply("mcpServerStatus/list", () => {
+      throw new Error("MCP status unavailable");
+    });
+
+    await expect(
+      adapter.refreshCapabilities("/repo", "thread-1", connection, ["web_search"]),
+    ).rejects.toThrow("Codex capability refresh failed: MCP status unavailable");
+
+    expect(client.methods()).toEqual([
+      "thread/unsubscribe",
+      "thread/resume",
+      "mcpServerStatus/list",
+      "thread/unsubscribe",
+      "thread/resume",
+    ]);
+    expect(client.requestsFor("thread/resume").map(({ params }) => params)).toEqual([
+      expect.objectContaining({ config: { mcp_servers: { agentic_worktrees: expect.any(Object) } } }),
+      expect.objectContaining({ config: { mcp_servers: {} } }),
+    ]);
   });
 });

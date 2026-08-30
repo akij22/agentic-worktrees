@@ -108,6 +108,10 @@ export class CodexAdapter implements CodingAgentAdapter {
     string,
     Extract<CodexNotification, { type: "tokenUsage" }>["params"]["tokenUsage"]
   >();
+  private readonly capabilityByThread = new Map<
+    string,
+    CodingAgentCapabilityConnection
+  >();
 
   constructor(
     private readonly client: CodexClient = new CodexAppServerClient(),
@@ -139,6 +143,7 @@ export class CodexAdapter implements CodingAgentAdapter {
     this.activeTurnByThread.clear();
     this.pendingApprovals.clear();
     this.usageByThread.clear();
+    this.capabilityByThread.clear();
   }
 
   async listModels(directory: string): Promise<CodingAgentModel[]> {
@@ -168,6 +173,9 @@ export class CodexAdapter implements CodingAgentAdapter {
       threadId,
       name: title,
     });
+    if (options.capabilities) {
+      this.capabilityByThread.set(threadId, options.capabilities);
+    }
     return { id: threadId };
   }
 
@@ -187,6 +195,9 @@ export class CodexAdapter implements CodingAgentAdapter {
       throw new Error("Codex resumed an unexpected thread.");
     }
 
+    if (options?.capabilities) {
+      this.capabilityByThread.set(sessionId, options.capabilities);
+    }
     const thread = await this.refreshThread(sessionId);
     return { id: thread.id, status: threadStatus(thread) };
   }
@@ -243,19 +254,51 @@ export class CodexAdapter implements CodingAgentAdapter {
     expectedToolNames: string[],
   ): Promise<void> {
     this.directoryByThread.set(sessionId, directory);
-    const resumed = await this.client.request<unknown>("thread/resume", {
+    const previousConnection = this.capabilityByThread.get(sessionId);
+    const desiredConfig = expectedToolNames.length === 0
+      ? { mcp_servers: {} }
+      : capabilityConfig(connection);
+    await this.client.request<unknown>("thread/unsubscribe", {
       threadId: sessionId,
-      cwd: directory,
-      config: expectedToolNames.length === 0 ? { mcp_servers: {} } : capabilityConfig(connection),
     });
-    if (readCodexThreadId(resumed) !== sessionId) throw new Error("Codex resumed an unexpected thread during capability refresh.");
-    const deadline = Date.now() + 10_000;
-    do {
-      const status = await this.client.request<unknown>("mcpServerStatus/list", { threadId: sessionId, detail: "toolsAndAuthOnly", limit: 100 });
-      if (hasExpectedCapabilityServer(status, connection.serverName, expectedToolNames)) return;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    } while (Date.now() < deadline);
-    throw new Error("Capability activation could not be verified in Codex.");
+    try {
+      const resumed = await this.client.request<unknown>("thread/resume", {
+        threadId: sessionId,
+        cwd: directory,
+        config: desiredConfig,
+      });
+      if (readCodexThreadId(resumed) !== sessionId) throw new Error("Codex resumed an unexpected thread during capability refresh.");
+      const deadline = Date.now() + 10_000;
+      do {
+        const status = await this.client.request<unknown>("mcpServerStatus/list", { threadId: sessionId, detail: "toolsAndAuthOnly", limit: 100 });
+        if (hasExpectedCapabilityServer(status, connection.serverName, expectedToolNames)) {
+          if (expectedToolNames.length === 0) this.capabilityByThread.delete(sessionId);
+          else this.capabilityByThread.set(sessionId, connection);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } while (Date.now() < deadline);
+      throw new Error("Capability activation could not be verified in Codex.");
+    } catch (error) {
+      try {
+        await this.client.request<unknown>("thread/unsubscribe", {
+          threadId: sessionId,
+        });
+        const restored = await this.client.request<unknown>("thread/resume", {
+          threadId: sessionId,
+          cwd: directory,
+          config: previousConnection
+            ? capabilityConfig(previousConnection)
+            : { mcp_servers: {} },
+        });
+        if (readCodexThreadId(restored) !== sessionId) {
+          throw new Error("Codex resumed an unexpected thread during capability rollback.");
+        }
+      } catch (rollbackError) {
+        throw new Error(`Codex capability refresh failed: ${errorMessage(error)} Rollback failed: ${errorMessage(rollbackError)}`);
+      }
+      throw new Error(`Codex capability refresh failed: ${errorMessage(error)}`);
+    }
   }
 
   async abort(directory: string, sessionId: string): Promise<void> {
