@@ -18,26 +18,20 @@ function truncateText(text: string): string {
   return candidate;
 }
 
-function boundedDetails(details: unknown): { value: unknown; bytes: number } | undefined {
+function boundedDetails(details: unknown, maxBytes: number): unknown | undefined {
   if (details === undefined) return undefined;
   try {
     const serialized = JSON.stringify(details);
-    if (serialized === undefined) return undefined;
-    const bytes = Buffer.byteLength(serialized);
-    return bytes <= CAPABILITY_OUTPUT_MAX_BYTES ? { value: details, bytes } : undefined;
+    if (serialized === undefined || Buffer.byteLength(serialized) > maxBytes) return undefined;
+    return details;
   } catch {
     return undefined;
   }
 }
 
 export function limitCapabilityOutput(result: CapabilityToolResult): CapabilityToolResult {
-  const details = boundedDetails(result.details);
-  let remaining = CAPABILITY_OUTPUT_MAX_BYTES - (details?.bytes ?? 0);
-  const content = result.content.slice(0, 1).map((item) => {
-    const text = truncateText(item.text);
-    const allowed = Buffer.from(text).subarray(0, remaining).toString("utf8").replace(/\uFFFD$/u, "");
-    remaining -= Buffer.byteLength(allowed);
-    return { type: "text" as const, text: allowed };
-  });
-  return { content, ...(result.isError === undefined ? {} : { isError: result.isError }), ...(details === undefined ? {} : { details: details.value }) };
+  const content = result.content.slice(0, 1).map((item) => ({ type: "text" as const, text: truncateText(item.text) }));
+  const contentBytes = content.reduce((total, item) => total + Buffer.byteLength(item.text), 0);
+  const details = boundedDetails(result.details, CAPABILITY_OUTPUT_MAX_BYTES - contentBytes);
+  return { content, ...(result.isError === undefined ? {} : { isError: result.isError }), ...(details === undefined ? {} : { details }) };
 }

@@ -11,13 +11,13 @@ describe("limitCapabilityOutput", () => {
     }
   });
 
-  it("shares one byte budget between JSON details and text content", () => {
-    const limited = limitCapabilityOutput({ content: [{ type: "text", text: "c".repeat(30 * 1024) }], details: { value: "d".repeat(30 * 1024) } });
-    const detailsBytes = Buffer.byteLength(JSON.stringify(limited.details));
+  it("prioritizes MCP text before adding JSON details to the shared byte budget", () => {
+    const text = "c".repeat(30 * 1024);
+    const limited = limitCapabilityOutput({ content: [{ type: "text", text }], details: { value: "d".repeat(30 * 1024) } });
     const contentBytes = Buffer.byteLength(limited.content[0]?.text ?? "");
-    expect(detailsBytes + contentBytes).toBeLessThanOrEqual(50 * 1024);
-    expect(limited.details).toBeDefined();
-    expect(contentBytes).toBeLessThan(30 * 1024);
+    expect(limited.content[0]?.text).toBe(text);
+    expect(contentBytes).toBe(30 * 1024);
+    expect(limited).not.toHaveProperty("details");
   });
 
   it("omits JSON details that exceed the output boundary or cannot be serialized", () => {
