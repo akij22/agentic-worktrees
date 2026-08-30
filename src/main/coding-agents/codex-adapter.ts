@@ -112,6 +112,9 @@ export class CodexAdapter implements CodingAgentAdapter {
     string,
     CodingAgentCapabilityConnection
   >();
+  private executablePath: string | null = null;
+  private startupDirectory: string | null = null;
+  private reconfiguringCapabilities = false;
 
   constructor(
     private readonly client: CodexClient = new CodexAppServerClient(),
@@ -132,6 +135,8 @@ export class CodexAdapter implements CodingAgentAdapter {
     if (this.client.getStatus().running && this.version) return this.version;
     const version = await this.readVersion(executablePath);
     await this.client.start(executablePath, cwd);
+    this.executablePath = executablePath;
+    this.startupDirectory = cwd;
     this.version = version;
     return version;
   }
@@ -230,6 +235,9 @@ export class CodexAdapter implements CodingAgentAdapter {
       reasoningVariant?: string;
     },
   ): Promise<void> {
+    if (this.reconfiguringCapabilities) {
+      throw new Error("Codex capability reload is in progress.");
+    }
     if (input.providerId !== "openai") {
       throw new Error(`Codex does not support provider ${input.providerId}.`);
     }
@@ -254,50 +262,76 @@ export class CodexAdapter implements CodingAgentAdapter {
     expectedToolNames: string[],
   ): Promise<void> {
     this.directoryByThread.set(sessionId, directory);
-    const previousConnection = this.capabilityByThread.get(sessionId);
-    const desiredConfig = expectedToolNames.length === 0
-      ? { mcp_servers: {} }
-      : capabilityConfig(connection);
-    await this.client.request<unknown>("thread/unsubscribe", {
-      threadId: sessionId,
+    const sessions = [...this.directoryByThread].map(([ownedSessionId, ownedDirectory]) => ({
+      directory: ownedDirectory,
+      sessionId: ownedSessionId,
+      ...(ownedSessionId === sessionId && expectedToolNames.length > 0
+        ? { capabilities: connection }
+        : this.capabilityByThread.has(ownedSessionId)
+          ? { capabilities: this.capabilityByThread.get(ownedSessionId) }
+          : {}),
+    }));
+    await this.reconfigureCapabilities({
+      connections: expectedToolNames.length > 0 ? [connection] : [],
+      sessions,
+      expectedToolNamesByProfile: { [connection.profileId]: expectedToolNames },
+      ...(expectedToolNames.length === 0 ? { absentConnections: [connection] } : {}),
     });
+  }
+
+  async reconfigureCapabilities(input: {
+    connections: CodingAgentCapabilityConnection[];
+    sessions: Array<{
+      directory: string;
+      sessionId: string;
+      capabilityProfileId?: string;
+      capabilities?: CodingAgentCapabilityConnection;
+    }>;
+    expectedToolNamesByProfile?: Record<string, string[]>;
+    absentConnections?: CodingAgentCapabilityConnection[];
+  }): Promise<void> {
+    if (this.reconfiguringCapabilities) throw new Error("Codex capability reload is already in progress.");
+    const executablePath = this.executablePath;
+    const startupDirectory = this.startupDirectory;
+    if (!executablePath || !startupDirectory) throw new Error("Codex is not configured for capability reload.");
+    this.reconfiguringCapabilities = true;
+    const previousCapabilities = new Map(this.capabilityByThread);
     try {
-      const resumed = await this.client.request<unknown>("thread/resume", {
-        threadId: sessionId,
-        cwd: directory,
-        config: desiredConfig,
-      });
-      if (readCodexThreadId(resumed) !== sessionId) throw new Error("Codex resumed an unexpected thread during capability refresh.");
-      const deadline = Date.now() + 10_000;
-      do {
-        const status = await this.client.request<unknown>("mcpServerStatus/list", { threadId: sessionId, detail: "toolsAndAuthOnly", limit: 100 });
-        if (hasExpectedCapabilityServer(status, connection.serverName, expectedToolNames)) {
-          if (expectedToolNames.length === 0) this.capabilityByThread.delete(sessionId);
-          else this.capabilityByThread.set(sessionId, connection);
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      } while (Date.now() < deadline);
-      throw new Error("Capability activation could not be verified in Codex.");
-    } catch (error) {
-      try {
-        await this.client.request<unknown>("thread/unsubscribe", {
-          threadId: sessionId,
-        });
-        const restored = await this.client.request<unknown>("thread/resume", {
-          threadId: sessionId,
-          cwd: directory,
-          config: previousConnection
-            ? capabilityConfig(previousConnection)
-            : { mcp_servers: {} },
-        });
-        if (readCodexThreadId(restored) !== sessionId) {
-          throw new Error("Codex resumed an unexpected thread during capability rollback.");
-        }
-      } catch (rollbackError) {
-        throw new Error(`Codex capability refresh failed: ${errorMessage(error)} Rollback failed: ${errorMessage(rollbackError)}`);
+      const snapshots = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+      if (!snapshots.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId)) {
+        throw new Error("Codex returned an unexpected session during capability reload.");
       }
-      throw new Error(`Codex capability refresh failed: ${errorMessage(error)}`);
+      if (!snapshots.every((snapshot) => snapshot.status === "idle")) {
+        throw new Error("Codex capabilities can only be reloaded when every owned session is idle.");
+      }
+      try {
+        await this.restartAndResume(executablePath, startupDirectory, input.sessions);
+        if (input.expectedToolNamesByProfile) {
+          await this.verifyCapabilities(
+            input.connections,
+            input.sessions,
+            input.expectedToolNamesByProfile,
+            input.absentConnections ?? [],
+          );
+        }
+      } catch (error) {
+        const rollbackSessions = input.sessions.map((session) => ({
+          directory: session.directory,
+          sessionId: session.sessionId,
+          ...(session.capabilityProfileId ? { capabilityProfileId: session.capabilityProfileId } : {}),
+          ...(previousCapabilities.has(session.sessionId)
+            ? { capabilities: previousCapabilities.get(session.sessionId) }
+            : {}),
+        }));
+        try {
+          await this.restartAndResume(executablePath, startupDirectory, rollbackSessions);
+        } catch (rollbackError) {
+          throw new Error(`Codex capability reload failed: ${errorMessage(error)} Rollback failed: ${errorMessage(rollbackError)}`);
+        }
+        throw new Error(`Codex capability reload failed and was rolled back: ${errorMessage(error)}`);
+      }
+    } finally {
+      this.reconfiguringCapabilities = false;
     }
   }
 
@@ -417,6 +451,75 @@ export class CodexAdapter implements CodingAgentAdapter {
   subscribe(listener: (event: CodingAgentEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  private async restartAndResume(
+    executablePath: string,
+    startupDirectory: string,
+    sessions: Array<{
+      directory: string;
+      sessionId: string;
+      capabilityProfileId?: string;
+      capabilities?: CodingAgentCapabilityConnection;
+    }>,
+  ): Promise<void> {
+    await this.stop();
+    await this.start(executablePath, startupDirectory);
+    for (const session of sessions) {
+      const resumed = await this.client.request<unknown>("thread/resume", {
+        threadId: session.sessionId,
+        cwd: session.directory,
+        config: session.capabilities
+          ? capabilityConfig(session.capabilities)
+          : { mcp_servers: {} },
+      });
+      if (readCodexThreadId(resumed) !== session.sessionId) {
+        throw new Error("Codex resumed an unexpected session after capability reload.");
+      }
+      this.directoryByThread.set(session.sessionId, session.directory);
+      if (session.capabilities) this.capabilityByThread.set(session.sessionId, session.capabilities);
+      else this.capabilityByThread.delete(session.sessionId);
+    }
+  }
+
+  private async verifyCapabilities(
+    connections: readonly CodingAgentCapabilityConnection[],
+    sessions: ReadonlyArray<{
+      sessionId: string;
+      capabilityProfileId?: string;
+      capabilities?: CodingAgentCapabilityConnection;
+    }>,
+    expectedToolNamesByProfile: Readonly<Record<string, readonly string[]>>,
+    absentConnections: readonly CodingAgentCapabilityConnection[],
+  ): Promise<void> {
+    const deadline = Date.now() + 10_000;
+    do {
+      let verified = true;
+      for (const session of sessions) {
+        const status = await this.client.request<unknown>("mcpServerStatus/list", {
+          threadId: session.sessionId,
+          detail: "toolsAndAuthOnly",
+          limit: 100,
+        });
+        const connection = session.capabilities;
+        if (connection && connection.profileId in expectedToolNamesByProfile) {
+          verified &&= hasExpectedCapabilityServer(
+            status,
+            connection.serverName,
+            expectedToolNamesByProfile[connection.profileId] ?? [],
+          );
+        }
+        for (const absent of absentConnections) {
+          if (session.capabilityProfileId === absent.profileId) {
+            verified &&= hasExpectedCapabilityServer(status, absent.serverName, []);
+          }
+        }
+      }
+      if (verified && connections.every((connection) =>
+        [...this.capabilityByThread.values()].some((candidate) => candidate.profileId === connection.profileId))) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } while (Date.now() < deadline);
+    throw new Error("Capability activation could not be verified in Codex.");
   }
 
   private async refreshThread(threadId: string): Promise<CodexThreadSnapshot> {

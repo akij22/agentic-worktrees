@@ -335,14 +335,18 @@ const getSessionRecord = (runId: string) => {
   return row;
 };
 
-const listCapabilityReloadSessions = (kind: CodingAgentKind, affectedRunId?: string) => getDatabase()
+const listCapabilityReloadSessions = (
+  kind: CodingAgentKind,
+  affectedRunId?: string,
+  includeAll = false,
+) => getDatabase()
   .select({ runId: codingAgentSessions.runId, externalSessionId: codingAgentSessions.externalSessionId, worktreeId: runs.worktreeId })
   .from(codingAgentSessions)
   .innerJoin(runs, eq(runs.id, codingAgentSessions.runId))
   .innerJoin(codingAgentInstallations, eq(codingAgentInstallations.id, codingAgentSessions.installationId))
   .where(eq(codingAgentInstallations.kind, kind))
   .all()
-  .filter((session) => session.runId === affectedRunId || capabilityPreparedRuns.has(session.runId))
+  .filter((session) => includeAll || session.runId === affectedRunId || capabilityPreparedRuns.has(session.runId))
   .flatMap((session) => {
     try {
       return [{ runId: session.runId, directory: getContext(session.worktreeId).worktree.path, sessionId: session.externalSessionId }];
@@ -868,9 +872,29 @@ export const applyCodingAgentCapabilities = async (
   const harness = harnesses[context.agentKind];
   await ensureStarted(harness);
   if (context.agentKind === "codex") {
-    if (!harness.adapter.refreshCapabilities) throw new Error("Codex capability refresh is unavailable.");
-    await harness.adapter.refreshCapabilities(context.directory, context.sessionId, connection, expectedToolNames);
-    return "refreshed";
+    if (!harness.adapter.reconfigureCapabilities) throw new Error("Codex capability reload is unavailable.");
+    const connectionByProfile = new Map(allConnections.map((candidate) => [candidate.profileId, candidate]));
+    const sessions = listCapabilityReloadSessions("codex", runId, true);
+    await harness.adapter.reconfigureCapabilities({
+      connections: allConnections,
+      sessions: sessions.map((session) => ({
+        directory: session.directory,
+        sessionId: session.sessionId,
+        capabilityProfileId: capabilityProfileId(session.runId),
+        ...(connectionByProfile.has(capabilityProfileId(session.runId))
+          ? { capabilities: connectionByProfile.get(capabilityProfileId(session.runId)) }
+          : {}),
+      })),
+      expectedToolNamesByProfile: { [connection.profileId]: expectedToolNames },
+      ...(expectedToolNames.length === 0 && !connectionByProfile.has(connection.profileId)
+        ? { absentConnections: [connection] }
+        : {}),
+    });
+    for (const session of sessions) {
+      if (connectionByProfile.has(capabilityProfileId(session.runId))) capabilityPreparedRuns.add(session.runId);
+      else capabilityPreparedRuns.delete(session.runId);
+    }
+    return "reloaded";
   }
   if (!harness.adapter.reconfigureCapabilities) throw new Error("OpenCode capability reload is unavailable.");
   const sessions = listCapabilityReloadSessions("opencode", runId);

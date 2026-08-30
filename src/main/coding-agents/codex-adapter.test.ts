@@ -21,16 +21,20 @@ class FakeCodexClient {
     (message: CodexIncomingMessage) => void
   >();
   running = false;
+  startCount = 0;
+  stopCount = 0;
 
   reply(method: string, result: unknown | ((params: unknown) => unknown)): void {
     this.replies.set(method, result);
   }
 
   async start(): Promise<void> {
+    this.startCount += 1;
     this.running = true;
   }
 
   async stop(): Promise<void> {
+    this.stopCount += 1;
     this.running = false;
   }
 
@@ -610,66 +614,119 @@ describe("Codex capability MCP integration", () => {
     await adapter.createSession("/repo", "Run", { modelId: "gpt-5.4", capabilities: connection });
     expect(client.requestFor("thread/start").params).toMatchObject({ config: { mcp_servers: { agentic_worktrees: { url: connection.url, http_headers: { Authorization: "Bearer run-token" } } } } });
   });
-  it("unsubscribes a loaded thread before cold-resuming it with late capability tools", async () => {
+
+  it("restarts the owned app-server and resumes every session with isolated MCP config", async () => {
     const { adapter, client } = createAdapter();
-    let subscribed = true;
-    let webSearchActive = false;
-    client.reply("thread/unsubscribe", () => {
-      subscribed = false;
-      return { status: "unsubscribed" };
+    Object.assign(adapter as unknown as Record<string, unknown>, {
+      executablePath: "/bin/codex",
+      startupDirectory: "/data",
     });
-    client.reply("thread/resume", (params: unknown) => {
-      const config = (params as { config?: { mcp_servers?: Record<string, unknown> } }).config;
-      if (!subscribed && config) webSearchActive = "agentic_worktrees" in (config.mcp_servers ?? {});
-      subscribed = true;
-      return { thread: { id: "thread-1" } };
-    });
-    client.reply("mcpServerStatus/list", () => webSearchActive
-      ? { data: [{ name: "agentic_worktrees", runtimeStatus: "connected", tools: { web_search: {} } }], nextCursor: null }
-      : { data: [], nextCursor: null });
+    client.reply("thread/resume", (params: unknown) => ({
+      thread: { id: (params as { threadId: string }).threadId },
+    }));
+    client.reply("thread/read", (params: unknown) => ({
+      thread: {
+        id: (params as { threadId: string }).threadId,
+        status: { type: "idle" },
+        turns: [],
+      },
+    }));
+    client.reply("mcpServerStatus/list", (params: unknown) =>
+      (params as { threadId: string }).threadId === "thread-1"
+        ? { data: [{ name: "agentic_worktrees", runtimeStatus: "connected", tools: { web_search: {} } }], nextCursor: null }
+        : { data: [], nextCursor: null });
 
-    await adapter.refreshCapabilities("/repo", "thread-1", connection, ["web_search"]);
-
-    expect(client.methods()).toEqual(["thread/unsubscribe", "thread/resume", "mcpServerStatus/list"]);
-    expect(client.requestFor("thread/unsubscribe").params).toEqual({ threadId: "thread-1" });
-    expect(client.requestFor("thread/resume").params).toMatchObject({ threadId: "thread-1", config: { mcp_servers: { agentic_worktrees: { url: connection.url } } } });
-    expect(client.requestFor("mcpServerStatus/list").params).toEqual({
-      threadId: "thread-1",
-      detail: "toolsAndAuthOnly",
-      limit: 100,
+    await adapter.reconfigureCapabilities({
+      connections: [connection],
+      sessions: [
+        { directory: "/one", sessionId: "thread-1", capabilities: connection },
+        { directory: "/two", sessionId: "thread-2" },
+      ],
+      expectedToolNamesByProfile: { [connection.profileId]: ["web_search"] },
     });
+
+    expect(client.stopCount).toBe(1);
+    expect(client.startCount).toBe(1);
+    expect(client.methods()).not.toContain("thread/unsubscribe");
+    expect(client.requestsFor("thread/resume").slice(-2).map(({ params }) => params)).toEqual([
+      expect.objectContaining({ threadId: "thread-1", config: { mcp_servers: { agentic_worktrees: expect.any(Object) } } }),
+      expect.objectContaining({ threadId: "thread-2", config: { mcp_servers: {} } }),
+    ]);
   });
 
-  it("detaches the chat-scoped server by unsubscribing before cold resume", async () => {
+  it("restarts and resumes a deactivated session with an explicitly empty MCP config", async () => {
     const { adapter, client } = createAdapter();
-    client.reply("thread/unsubscribe", { status: "unsubscribed" });
+    Object.assign(adapter as unknown as Record<string, unknown>, {
+      executablePath: "/bin/codex",
+      startupDirectory: "/data",
+    });
     client.reply("mcpServerStatus/list", { data: [], nextCursor: null });
-    await adapter.refreshCapabilities("/repo", "thread-1", connection, []);
-    expect(client.methods()).toEqual(["thread/unsubscribe", "thread/resume", "mcpServerStatus/list"]);
-    expect(client.requestFor("thread/resume").params).toMatchObject({ config: { mcp_servers: {} } });
-  });
 
-  it("cold-resumes the previous thread config and preserves the original refresh error on failure", async () => {
-    const { adapter, client } = createAdapter();
-    client.reply("thread/unsubscribe", { status: "unsubscribed" });
-    client.reply("mcpServerStatus/list", () => {
-      throw new Error("MCP status unavailable");
+    await adapter.reconfigureCapabilities({
+      connections: [],
+      sessions: [{
+        directory: "/one",
+        sessionId: "thread-1",
+        capabilityProfileId: connection.profileId,
+      }],
+      expectedToolNamesByProfile: { [connection.profileId]: [] },
+      absentConnections: [connection],
     });
 
-    await expect(
-      adapter.refreshCapabilities("/repo", "thread-1", connection, ["web_search"]),
-    ).rejects.toThrow("Codex capability refresh failed: MCP status unavailable");
-
-    expect(client.methods()).toEqual([
-      "thread/unsubscribe",
-      "thread/resume",
-      "mcpServerStatus/list",
-      "thread/unsubscribe",
-      "thread/resume",
-    ]);
-    expect(client.requestsFor("thread/resume").map(({ params }) => params)).toEqual([
-      expect.objectContaining({ config: { mcp_servers: { agentic_worktrees: expect.any(Object) } } }),
+    expect(client.requestsFor("thread/resume").at(-1)?.params).toEqual(
       expect.objectContaining({ config: { mcp_servers: {} } }),
+    );
+    expect(client.methods()).not.toContain("thread/unsubscribe");
+  });
+
+  it("restarts again and restores every previous session config when rehydration fails", async () => {
+    const { adapter, client } = createAdapter();
+    Object.assign(adapter as unknown as Record<string, unknown>, {
+      executablePath: "/bin/codex",
+      startupDirectory: "/data",
+    });
+    let failDesiredResume = true;
+    client.reply("thread/read", (params: unknown) => ({
+      thread: { id: (params as { threadId: string }).threadId, status: { type: "idle" }, turns: [] },
+    }));
+    client.reply("thread/resume", (params: unknown) => {
+      const request = params as { threadId: string; config?: { mcp_servers?: Record<string, unknown> } };
+      if (failDesiredResume && request.config?.mcp_servers?.agentic_worktrees) {
+        failDesiredResume = false;
+        throw new Error("rehydration failed");
+      }
+      return { thread: { id: request.threadId } };
+    });
+
+    await expect(adapter.reconfigureCapabilities({
+      connections: [connection],
+      sessions: [
+        { directory: "/one", sessionId: "thread-1", capabilities: connection },
+        { directory: "/two", sessionId: "thread-2" },
+      ],
+    })).rejects.toThrow("Codex capability reload failed and was rolled back: rehydration failed");
+
+    expect(client.stopCount).toBe(2);
+    expect(client.startCount).toBe(2);
+    expect(client.requestsFor("thread/resume").slice(-2).map(({ params }) => params)).toEqual([
+      expect.objectContaining({ threadId: "thread-1", config: { mcp_servers: {} } }),
+      expect.objectContaining({ threadId: "thread-2", config: { mcp_servers: {} } }),
     ]);
+  });
+
+  it("does not restart while any owned Codex session is busy", async () => {
+    const { adapter, client } = createAdapter();
+    Object.assign(adapter as unknown as Record<string, unknown>, {
+      executablePath: "/bin/codex",
+      startupDirectory: "/data",
+    });
+    client.reply("thread/resume", (params: unknown) => ({ thread: { id: (params as { threadId: string }).threadId } }));
+    client.reply("thread/read", { thread: { id: "busy", status: { type: "active" }, turns: [] } });
+
+    await expect(adapter.reconfigureCapabilities({
+      connections: [connection],
+      sessions: [{ directory: "/one", sessionId: "busy", capabilities: connection }],
+    })).rejects.toThrow("every owned session is idle");
+    expect(client.stopCount).toBe(0);
   });
 });
