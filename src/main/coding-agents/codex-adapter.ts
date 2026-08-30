@@ -249,7 +249,6 @@ export class CodexAdapter implements CodingAgentAdapter {
       config: expectedToolNames.length === 0 ? { mcp_servers: {} } : capabilityConfig(connection),
     });
     if (readCodexThreadId(resumed) !== sessionId) throw new Error("Codex resumed an unexpected thread during capability refresh.");
-    await this.client.request<unknown>("config/mcpServer/reload", undefined);
     const deadline = Date.now() + 10_000;
     do {
       const status = await this.client.request<unknown>("mcpServerStatus/list", { threadId: sessionId, detail: "toolsAndAuthOnly", limit: 100 });

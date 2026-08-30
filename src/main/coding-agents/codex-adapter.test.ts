@@ -605,18 +605,21 @@ describe("Codex capability MCP integration", () => {
     await adapter.createSession("/repo", "Run", { modelId: "gpt-5.4", capabilities: connection });
     expect(client.requestFor("thread/start").params).toMatchObject({ config: { mcp_servers: { agentic_worktrees: { url: connection.url, http_headers: { Authorization: "Bearer run-token" } } } } });
   });
-  it("reloads and verifies late capability tools", async () => {
+  it("resumes the thread with chat-scoped MCP config and verifies late capability tools without reloading disk config", async () => {
     const { adapter, client } = createAdapter();
-    client.reply("config/mcpServer/reload", {});
     client.reply("mcpServerStatus/list", { data: [{ name: "agentic_worktrees", runtimeStatus: "connected", tools: { web_search: {} } }], nextCursor: null });
     await adapter.refreshCapabilities("/repo", "thread-1", connection, ["web_search"]);
     expect(client.requestFor("thread/resume").params).toMatchObject({ threadId: "thread-1", config: { mcp_servers: { agentic_worktrees: { url: connection.url } } } });
-    expect(client.requestFor("config/mcpServer/reload").params).toBeUndefined();
+    expect(client.methods()).toEqual(["thread/resume", "mcpServerStatus/list"]);
+    expect(client.requestFor("mcpServerStatus/list").params).toEqual({
+      threadId: "thread-1",
+      detail: "toolsAndAuthOnly",
+      limit: 100,
+    });
   });
 
   it("detaches the chat-scoped server and verifies it is absent", async () => {
     const { adapter, client } = createAdapter();
-    client.reply("config/mcpServer/reload", {});
     client.reply("mcpServerStatus/list", { data: [], nextCursor: null });
     await adapter.refreshCapabilities("/repo", "thread-1", connection, []);
     expect(client.requestFor("thread/resume").params).toMatchObject({ config: { mcp_servers: {} } });
