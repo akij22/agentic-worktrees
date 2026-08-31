@@ -22,7 +22,8 @@
     "db:migrate": "drizzle-kit migrate",
     "rebuild": "electron-rebuild -f -w better-sqlite3 -w node-pty",
     "build:capability-host": "vite build --config vite.capability-host.config.ts",
-    "smoke:capabilities": "node scripts/smoke-capability-web-search.mjs"
+    "smoke:capabilities": "node scripts/smoke-capability-web-search.mjs",
+    "capability:create": "tsx scripts/capability-kit/cli.ts"
   },
   "keywords": [],
   "author": {
@@ -59,6 +60,7 @@
     "eslint-plugin-import": "^2.32.0",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.3.2",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vite": "^5.4.21",
     "vitest": "^4.1.10"
