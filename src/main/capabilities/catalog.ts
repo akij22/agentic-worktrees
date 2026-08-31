@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { CapabilityError, type CapabilityManifest } from "@agentic-worktrees/capability-sdk";
 // capability-kit:catalog-imports:start
+import { urlFetchManifest } from "@agentic-worktrees/url-fetch-capability";
 import { webSearchManifest } from "@agentic-worktrees/web-search-capability";
 // capability-kit:catalog-imports:end
 import type { CapabilityDetailDto, CapabilityStateDto, CapabilitySummaryDto } from "../../shared/ipc/schemas";
@@ -19,6 +20,7 @@ export function createBundledCapability(manifest: CapabilityManifest, toolNames:
 }
 const bundledCapabilityEntries = [
   // capability-kit:catalog-entries:start
+  createBundledCapability(urlFetchManifest, ["fetch_url"]),
   createBundledCapability(webSearchManifest, ["web_search"]),
   // capability-kit:catalog-entries:end
 ] as const;

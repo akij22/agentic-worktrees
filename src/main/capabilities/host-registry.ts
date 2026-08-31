@@ -1,10 +1,12 @@
 import type { CapabilityDefinition } from "@agentic-worktrees/capability-sdk";
 // capability-kit:host-imports:start
+import urlFetchCapability from "@agentic-worktrees/url-fetch-capability";
 import webSearchCapability from "@agentic-worktrees/web-search-capability";
 // capability-kit:host-imports:end
 
 const hostedCapabilities = [
   // capability-kit:host-entries:start
+  urlFetchCapability,
   webSearchCapability,
   // capability-kit:host-entries:end
 ] as const;

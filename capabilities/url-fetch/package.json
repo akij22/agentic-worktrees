@@ -1,0 +1,12 @@
+{
+  "name": "@agentic-worktrees/url-fetch-capability",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@agentic-worktrees/capability-sdk": "0.1.0",
+    "htmlparser2": "^12.0.0",
+    "ipaddr.js": "^1.9.1"
+  }
+}
