@@ -25,6 +25,16 @@ describe("capability schema", () => {
     expect(() => validateCapabilityDefinition({ ...definition, manifest: { ...manifest, id: "Invalid ID" } })).toThrow("manifest.id");
   });
 
+  it("accepts exact hosts and public-web while rejecting malformed or duplicate network permissions", () => {
+    for (const permission of ["public-web", "api.example.com"]) {
+      expect(() => validateCapabilityDefinition(defineCapability({ manifest: { ...manifest, permissions: { network: [permission], secrets: [] } }, tools: [] }))).not.toThrow();
+    }
+    for (const permission of ["https://example.com", "*.example.com", "Example.com", "example.com/path", "public-*", ""]) {
+      expect(() => validateCapabilityDefinition(defineCapability({ manifest: { ...manifest, permissions: { network: [permission], secrets: [] } }, tools: [] }))).toThrow("network permission");
+    }
+    expect(() => validateCapabilityDefinition(defineCapability({ manifest: { ...manifest, permissions: { network: ["example.com", "example.com"], secrets: [] } }, tools: [] }))).toThrow("network permission");
+  });
+
   it("rejects duplicate names, invalid schemas, compatibility, and undeclared secrets", () => {
     const tool = defineTool({ name: "echo_text", description: "Echo", inputSchema: { type: "object" }, execute: async () => ({ content: [] }) });
     expect(() => validateCapabilityDefinition(defineCapability({ manifest, tools: [tool, tool] }))).toThrow("Duplicate");
