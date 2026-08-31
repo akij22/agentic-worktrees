@@ -4,4 +4,4 @@ export async function runCapabilityCreateCli(argv:readonly string[],io:Capabilit
  if(argv.length!==3||argv[1]!=="--tool"||!argv[0]||!argv[2]){io.error("Usage: npm run capability:create -- <slug> --tool <tool_name>");return 1;}
  try{const result=await createCapability({rootDirectory:process.cwd(),slug:argv[0],toolName:argv[2]}); for(const item of [...result.created,...result.modified])io.log(item); io.log(`Next:\nnpm install\nnpm test -- capabilities/${argv[0]}\nnpm run typecheck`);return 0;}catch(error){io.error(error instanceof Error?error.message:"Capability creation failed.");return 1;}
 }
-if(path.resolve(process.argv[1]??"")===fileURLToPath(import.meta.url)) process.exitCode=await runCapabilityCreateCli(process.argv.slice(2));
+if(path.resolve(process.argv[1]??"")===fileURLToPath(import.meta.url)) void runCapabilityCreateCli(process.argv.slice(2)).then((code) => { process.exitCode = code; });

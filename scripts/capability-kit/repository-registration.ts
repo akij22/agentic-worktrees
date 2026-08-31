@@ -8,7 +8,8 @@ function patchRegion(source: string, marker: string, line: string): string {
   if (body.split("\n").some((item) => item.trim() === line)) throw new Error("Capability is already registered.");
   const indent = body.match(/\n(\s*)\S/)?.[1] ?? "";
   const lines = [...body.split("\n").map((item) => item.trim()).filter(Boolean), line].sort((a, b) => a.localeCompare(b));
-  return source.slice(0, startIndex) + `\n${lines.map((item) => indent + item).join("\n")}\n${source.slice(endIndex)}`;
+  const endIndent = source.slice(source.lastIndexOf("\n", endIndex) + 1, endIndex);
+  return source.slice(0, startIndex) + `\n${lines.map((item) => indent + item).join("\n")}\n${endIndent}${source.slice(endIndex)}`;
 }
 export async function createRepositoryRegistrationPatches(rootDirectory: string, names: CapabilityNames, readFile: (path: string) => Promise<string>): Promise<ReadonlyMap<string, string>> {
   const catalogRelative = "src/main/capabilities/catalog.ts", hostRelative = "src/main/capabilities/host-registry.ts";
