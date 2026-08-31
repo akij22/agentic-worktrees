@@ -10,6 +10,7 @@ import {
 import type { CapabilityDetailDto } from "../../../../shared/ipc/schemas";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { capabilityNetworkPermissionLabel } from "../lib/capability-form";
 
 const format = (value: string) =>
   value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -148,7 +149,7 @@ export function CapabilityDetail({
                         key={item}
                         className="rounded bg-code-background px-2 py-0.5 font-mono text-[11px] text-code-foreground"
                       >
-                        {item}
+                        {capabilityNetworkPermissionLabel(item)}
                       </code>
                     ))
                   : "None"}
