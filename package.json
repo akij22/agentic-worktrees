@@ -22,8 +22,10 @@
     "db:migrate": "drizzle-kit migrate",
     "rebuild": "electron-rebuild -f -w better-sqlite3 -w node-pty",
     "build:capability-host": "vite build --config vite.capability-host.config.ts",
-    "smoke:capabilities": "node scripts/smoke-capability-web-search.mjs",
-    "capability:create": "tsx scripts/capability-kit/cli.ts"
+    "smoke:capabilities": "node scripts/capability-smoke/run.mjs",
+    "capability:create": "tsx scripts/capability-kit/cli.ts",
+    "smoke:capabilities:web-search": "node scripts/capability-smoke/run.mjs --scenario web-search",
+    "smoke:capabilities:url-fetch": "node scripts/capability-smoke/run.mjs --scenario url-fetch"
   },
   "keywords": [],
   "author": {

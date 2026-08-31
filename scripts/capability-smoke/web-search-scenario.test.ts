@@ -1,0 +1,1 @@
+import{describe,expect,it}from"vitest";import{webSearchScenario}from"./web-search-scenario.mjs";describe("Web Search scenario",()=>{it("has the reusable scenario contract",()=>{expect(webSearchScenario.id).toBe("web-search");expect(typeof webSearchScenario.run).toBe("function");});});

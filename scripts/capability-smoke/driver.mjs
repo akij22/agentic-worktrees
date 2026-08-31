@@ -9,9 +9,9 @@ import { _electron as electron } from "@playwright/test";
  * @property {(agentKind: AgentKind, worktreeId: string) => Promise<string>} createSession
  * @property {(runId: string, content: string) => Promise<void>} sendMessage
  * @property {(runId: string, timeoutMs: number) => Promise<void>} waitForIdle
- * @property {(apiKey?: string) => Promise<void>} configureKeylessWebSearch
- * @property {(runId: string) => Promise<void>} activateWebSearch
- * @property {(runId: string) => Promise<void>} deactivateWebSearch
+ * @property {(capabilityId: string, settings: Record<string, unknown>, secrets?: Record<string, string|null>) => Promise<void>} configureCapability
+ * @property {(runId: string, capabilityId: string) => Promise<void>} activateCapability
+ * @property {(runId: string, capabilityId: string) => Promise<void>} deactivateCapability
  * @property {(runId: string) => Promise<unknown>} getSnapshot
  * @property {() => string} readProcessLogs
  * @property {() => Promise<void>} close
@@ -42,9 +42,9 @@ export function createElectronCapabilitySmokeDriver(executablePath = process.env
     createSession: (agentKind, worktreeId) => evaluate(async ({ agentKind: kind, worktreeId: id }) => (await window.api.codingAgent.createSession({ agentKind: kind, worktreeId: id, title: `Capability smoke: ${kind}` })).id, { agentKind, worktreeId }),
     sendMessage: (runId, content) => evaluate(({ runId: id, content: text }) => window.api.codingAgent.sendMessage({ runId: id, content: text }), { runId, content }),
     async waitForIdle(runId, timeoutMs) { const deadline = Date.now() + timeoutMs; while (Date.now() < deadline) { const status = await evaluate(async (id) => (await window.api.codingAgent.getSession({ runId: id })).session.status, runId); if (smokeSessionIsIdle(status)) return; await new Promise((resolve) => setTimeout(resolve, 250)); } throw new Error("Coding-agent smoke session timed out."); },
-    configureKeylessWebSearch: (apiKey) => evaluate(async (key) => { const detail = await window.api.capabilities.get({ capabilityId: "agentic-worktrees.web-search" }); await window.api.capabilities.configure({ capabilityId: detail.id, acceptedPermissionDigest: detail.permissionDigest, settings: { providerMode: "auto", resultLimit: 5 }, exaApiKey: key ?? "" }); }, apiKey),
-    activateWebSearch: (runId) => evaluate((id) => window.api.capabilities.activate({ runId: id, capabilityId: "agentic-worktrees.web-search" }), runId),
-    deactivateWebSearch: (runId) => evaluate((id) => window.api.capabilities.deactivate({ runId: id, capabilityId: "agentic-worktrees.web-search" }), runId),
+    configureCapability: (capabilityId, settings, secrets = {}) => evaluate(async (input) => { const detail = await window.api.capabilities.get({ capabilityId: input.capabilityId }); await window.api.capabilities.configure({ capabilityId: detail.id, acceptedPermissionDigest: detail.permissionDigest, settings: input.settings, secrets: input.secrets }); }, { capabilityId, settings, secrets }),
+    activateCapability: (runId, capabilityId) => evaluate((input) => window.api.capabilities.activate(input), { runId, capabilityId }),
+    deactivateCapability: (runId, capabilityId) => evaluate((input) => window.api.capabilities.deactivate(input), { runId, capabilityId }),
     getSnapshot: (runId) => evaluate((id) => window.api.codingAgent.getSession({ runId: id }), runId),
     readProcessLogs: () => logs.join(""),
     async close() { await application?.close(); application = undefined; page = undefined; },
