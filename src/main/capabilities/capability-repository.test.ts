@@ -49,6 +49,13 @@ describe("CapabilityRepository", () => {
     }
   });
 
+  it("rejects stored setting JSON with a non-scalar value", () => {
+    repository.upsertInstallation({ capabilityId: "agentic-worktrees.web-search", version: "0.1.0", permissionDigest: "digest", configured: true });
+    sqlite.prepare("INSERT INTO capability_settings (id, capability_id, key, value_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run("object-setting", "agentic-worktrees.web-search", "resultLimit", "{}", Date.now(), Date.now());
+    expect(() => repository.getSettings("agentic-worktrees.web-search")).toThrow("Stored capability settings are invalid.");
+  });
+
   it("guards session transitions and lists interrupted records", () => {
     const pending = repository.transitionSessionCapability({ runId: "run-1", capabilityId: "agentic-worktrees.web-search", version: "0.1.0", to: "pending_activation" });
     expect(pending.status).toBe("pending_activation");

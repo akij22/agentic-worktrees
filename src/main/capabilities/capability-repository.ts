@@ -16,9 +16,11 @@ export interface CapabilityInstallationRecord {
   updatedAt: Date;
 }
 
+type CapabilitySettingValue = string | number | boolean;
+
 export interface CapabilitySettingRecord {
   key: string;
-  value?: unknown;
+  value?: CapabilitySettingValue;
   secretRef?: string;
 }
 
@@ -61,13 +63,21 @@ function sessionFromRow(row: SessionRow): SessionCapabilityRecord {
 }
 
 const installationSelect = `SELECT capability_id capabilityId, version, permission_digest permissionDigest, configured, created_at createdAt, updated_at updatedAt FROM capability_installations`;
-function parseStoredSetting(serialized: string): unknown {
+function parseStoredSetting(serialized: string): CapabilitySettingValue {
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(serialized);
-    return parsed;
+    parsed = JSON.parse(serialized);
   } catch {
     throw new CapabilityError("internal_error", "Stored capability settings are invalid.");
   }
+  if (
+    typeof parsed === "string"
+    || typeof parsed === "boolean"
+    || (typeof parsed === "number" && Number.isFinite(parsed))
+  ) {
+    return parsed;
+  }
+  throw new CapabilityError("internal_error", "Stored capability settings are invalid.");
 }
 const sessionSelect = `SELECT id, run_id runId, capability_id capabilityId, version, status, error_code errorCode, activated_at activatedAt, deactivated_at deactivatedAt, created_at createdAt, updated_at updatedAt FROM session_capabilities`;
 
