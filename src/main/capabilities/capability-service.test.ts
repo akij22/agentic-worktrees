@@ -38,6 +38,18 @@ describe("CapabilityService", () => {
     expect(stopHost).toHaveBeenCalledWith("run-1");
   });
 
+  it("configures and activates a settings-free capability without credentials", async () => {
+    const repository = new CapabilityRepository(sqlite); const id = "agentic-worktrees.url-fetch";
+    const credentials = { setSecret: vi.fn(), getSecret: vi.fn(), removeSecret: vi.fn() };
+    const setActiveCapabilities = vi.fn().mockResolvedValue(["fetch_url"]);
+    const service = new CapabilityService({ repository, credentials: credentials as never, hosts: { setActiveCapabilities, stopHost: vi.fn(), stopAll: vi.fn() } as never, activator: { prepareSession: vi.fn(), apply: vi.fn(), remove: vi.fn(), isAgentIdle: vi.fn().mockResolvedValue(true) }, getAgentKind: vi.fn().mockResolvedValue("codex") });
+    await expect(service.configureCapability({ capabilityId: id, acceptedPermissionDigest: permissionDigest(getBundledCapability(id).manifest), settings: {}, secrets: {} })).resolves.toMatchObject({ state: "ready" });
+    await expect(service.activateCapability("run-1", id)).resolves.toMatchObject({ state: "active" });
+    expect(setActiveCapabilities).toHaveBeenCalledWith("run-1", [id], { [id]: {} });
+    expect(credentials.setSecret).not.toHaveBeenCalled();
+    await expect(service.deactivateCapability("run-1", id)).resolves.toMatchObject({ state: "inactive" });
+  });
+
   it("clears an existing optional key when explicitly configured keyless", async () => {
     const repository = new CapabilityRepository(sqlite); const removeSecret = vi.fn().mockResolvedValue(undefined); const id = "agentic-worktrees.web-search";
     repository.saveConfiguration({ capabilityId: id, version: "0.1.0", permissionDigest: permissionDigest(getBundledCapability(id).manifest), configured: true }, [{ key: "exaApiKey", secretRef: "old-secret" }]);

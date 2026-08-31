@@ -5,6 +5,8 @@ describe("bundled capability catalog", () => {
   it("lists and safely projects immutable reviewed capabilities", () => {
     const listed = listBundledCapabilities();
     expect(Object.isFrozen(listed)).toBe(true);
+    expect(listed.map((item) => item.manifest.id)).toEqual(["agentic-worktrees.url-fetch", "agentic-worktrees.web-search"]);
+    expect(getBundledCapability("agentic-worktrees.url-fetch").toolNames).toEqual(["fetch_url"]);
     const detail = toCapabilityDetailDto(getBundledCapability("agentic-worktrees.web-search"));
     expect(detail.compatibility).toEqual({ codex: "supported", opencode: "supported" });
     expect(JSON.stringify(detail)).not.toMatch(/bearerToken|endpoint|secretValue|execute/);
