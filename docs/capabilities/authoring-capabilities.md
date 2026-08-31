@@ -4,7 +4,18 @@ Agentic Worktrees capability SDK v0.1 is a deliberately small, provider-neutral 
 
 ## 1. Create a workspace package
 
-Create `capabilities/echo-text/package.json` and depend only on the local SDK:
+Use the repository-local starter kit:
+
+```bash
+npm run capability:create -- echo-text --tool echo_text
+npm install
+npm test -- capabilities/echo-text
+npm run typecheck
+```
+
+The command creates `capabilities/echo-text`, adds separate reviewed metadata and executable registry entries, and starts Codex/OpenCode compatibility as `unsupported`. Enable compatibility only after adapter verification. This local command neither installs third-party code nor publishes a package; it is not yet a public packaging interface.
+
+The generated package depends only on the local SDK:
 
 ```json
 {
@@ -17,11 +28,11 @@ Create `capabilities/echo-text/package.json` and depend only on the local SDK:
 }
 ```
 
-The root npm workspaces discover `capabilities/*`. Use `npm install`; never import Electron, database, renderer, or coding-agent modules from a capability.
+The root npm workspaces discover `capabilities/*`. Use `npm install`; never import Electron, database, renderer, or coding-agent modules from a capability. Narrowly scoped runtime dependencies may be added to the capability workspace only after review.
 
 ## 2. Declare the reviewed surface
 
-A manifest needs a stable lowercase dotted ID, semantic version, SDK range, verified Codex/OpenCode compatibility, publisher/license, and provenance where code was ported. Permissions state the maximum reviewed network hosts and secrets. Every secret setting must correspond to a declared kebab-case secret permission. A permission or version change creates a new consent digest.
+A manifest needs a stable lowercase dotted ID, semantic version, SDK range, verified Codex/OpenCode compatibility, publisher/license, and provenance where code was ported. Permissions state the maximum reviewed network hosts and secrets. Prefer exact lowercase hostnames. The reserved `public-web` permission is only for reviewed broad HTTP/HTTPS capabilities that enforce public destination classification, DNS pinning, and redirect revalidation equivalent to URL Fetch. Every secret setting must correspond to a declared kebab-case secret permission. A permission or version change creates a new consent digest.
 
 ```ts
 const manifest = {
@@ -69,11 +80,14 @@ Tool names are lowercase snake case. Inputs are validated again in the utility h
 
 Inject `fetch` or another narrow transport dependency from a `createCapability({ fetchImpl })` factory. Test JSON and protocol variants, invalid input, cancellation, rate limits, malformed responses, and output bounds. Never put queries, results, bearer headers, API keys, endpoints, or decrypted values into logger fields or errors.
 
-Run:
+Run offline verification:
 
 ```bash
 npm test -- capabilities/echo-text packages/capability-sdk
 npm run typecheck
+npm run lint
+npm run build:capability-host
+npm run package
 ```
 
 ## 5. Register for review
@@ -84,4 +98,12 @@ Use an authenticated fake MCP client against a loopback port and verify: no acti
 
 ## 6. Optional real verification
 
-Package first with `npm run package`, set `AW_SMOKE_EXECUTABLE`, authenticate supported Codex 0.150.1+ and OpenCode 1.18.23+, then run `npm run smoke:capabilities`. The Web Search smoke is keyless by default. `EXA_API_KEY` is optional and is passed through the capability configuration vault path. Never commit environment files, credentials, logs, packaged output, or local databases.
+Package first with `npm run package`, set `AW_SMOKE_EXECUTABLE` to the packaged executable, and authenticate supported Codex 0.150.1+ and OpenCode 1.18.23+. Real compatibility checks are opt-in:
+
+```bash
+npm run smoke:capabilities
+npm run smoke:capabilities:web-search
+npm run smoke:capabilities:url-fetch
+```
+
+The Web Search scenario is keyless by default. `EXA_API_KEY` is optional and passes through the encrypted configuration path. Never commit environment files, credentials, logs, package output, databases, fetched pages, or fetched content.
