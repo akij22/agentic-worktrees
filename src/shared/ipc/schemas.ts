@@ -921,14 +921,18 @@ export type CapabilitySessionStateDto = z.infer<typeof capabilitySessionStateSch
 const capabilityIdSchema = z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/);
 export const capabilityListRequestSchema = z.object({ runId: z.string().trim().min(1).optional() }).optional().default({});
 export const capabilityGetRequestSchema = z.object({ capabilityId: capabilityIdSchema, runId: z.string().trim().min(1).optional() });
+const capabilitySettingValueSchema = z.union([
+	z.string().max(4_096),
+	z.number().finite(),
+	z.boolean(),
+]);
+const capabilitySecretValueSchema = z.union([z.string().max(4_096), z.null()]);
+const capabilityConfigurationKeySchema = z.string().regex(/^[a-z][A-Za-z0-9]{0,63}$/);
 export const capabilityConfigureRequestSchema = z.object({
 	capabilityId: capabilityIdSchema,
 	acceptedPermissionDigest: z.string().min(1),
-	settings: z.object({
-		providerMode: z.literal("auto"),
-		resultLimit: z.number().int().min(1).max(20),
-	}),
-	exaApiKey: z.string().trim().max(4_096).optional(),
+	settings: z.record(capabilityConfigurationKeySchema, capabilitySettingValueSchema),
+	secrets: z.record(capabilityConfigurationKeySchema, capabilitySecretValueSchema).default({}),
 });
 export const capabilityActivateRequestSchema = z.object({ runId: z.string().trim().min(1), capabilityId: capabilityIdSchema });
 export const capabilityDeactivateRequestSchema = capabilityActivateRequestSchema;

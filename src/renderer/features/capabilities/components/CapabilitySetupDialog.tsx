@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import type { CapabilityDetailDto } from "../../../../shared/ipc/schemas";
+import type { CapabilityConfigureRequest, CapabilityDetailDto } from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 
-export function CapabilitySetupDialog({ capability, open, onOpenChange, onConfigure }: { capability: CapabilityDetailDto; open: boolean; onOpenChange(open: boolean): void; onConfigure(request: { capabilityId: string; acceptedPermissionDigest: string; settings: { providerMode: "auto"; resultLimit: number }; exaApiKey?: string }): Promise<unknown> }) {
+export function CapabilitySetupDialog({ capability, open, onOpenChange, onConfigure }: { capability: CapabilityDetailDto; open: boolean; onOpenChange(open: boolean): void; onConfigure(request: CapabilityConfigureRequest): Promise<unknown> }) {
   const [apiKey, setApiKey] = useState(""); const [resultLimit, setResultLimit] = useState(5); const [saving, setSaving] = useState(false); const [error, setError] = useState<string>();
   useEffect(() => { if (!open) { setApiKey(""); setError(undefined); } }, [open]);
-  const save = async () => { setSaving(true); setError(undefined); try { await onConfigure({ capabilityId: capability.id, acceptedPermissionDigest: capability.permissionDigest, settings: { providerMode: "auto", resultLimit }, ...(apiKey.trim() ? { exaApiKey: apiKey.trim() } : {}) }); setApiKey(""); onOpenChange(false); } catch { setError("Could not save Web Search configuration."); } finally { setSaving(false); } };
+  const save = async () => { setSaving(true); setError(undefined); try { await onConfigure({ capabilityId: capability.id, acceptedPermissionDigest: capability.permissionDigest, settings: { providerMode: "auto", resultLimit }, secrets: apiKey.trim() ? { exaApiKey: apiKey.trim() } : {} }); setApiKey(""); onOpenChange(false); } catch { setError("Could not save Web Search configuration."); } finally { setSaving(false); } };
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogHeader><DialogTitle>Configure {capability.name}</DialogTitle><DialogDescription>Queries and requested options are sent to Exa. Anonymous search is best-effort and rate-limited.</DialogDescription></DialogHeader>
     <div className="mt-5 space-y-4 text-sm">

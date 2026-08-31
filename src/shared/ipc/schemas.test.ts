@@ -481,7 +481,24 @@ describe("workspace IPC schemas", () => {
 describe("capability IPC schemas", () => {
 	it("validates activation and keyless configuration requests", () => {
 		expect(capabilityActivateRequestSchema.parse({ runId: "run-1", capabilityId: "agentic-worktrees.web-search" })).toEqual({ runId: "run-1", capabilityId: "agentic-worktrees.web-search" });
-		expect(capabilityConfigureRequestSchema.parse({ capabilityId: "agentic-worktrees.web-search", acceptedPermissionDigest: "digest", settings: { providerMode: "auto", resultLimit: 5 } })).not.toHaveProperty("exaApiKey");
+		expect(capabilityConfigureRequestSchema.parse({
+			capabilityId: "agentic-worktrees.web-search",
+			acceptedPermissionDigest: "digest",
+			settings: { providerMode: "auto", resultLimit: 5 },
+			secrets: { exaApiKey: null },
+			bearerToken: "must-not-cross-ipc",
+		})).toEqual({
+			capabilityId: "agentic-worktrees.web-search",
+			acceptedPermissionDigest: "digest",
+			settings: { providerMode: "auto", resultLimit: 5 },
+			secrets: { exaApiKey: null },
+		});
+		expect(() => capabilityConfigureRequestSchema.parse({
+			capabilityId: "agentic-worktrees.url-fetch",
+			acceptedPermissionDigest: "digest",
+			settings: { nested: { unsafe: true } },
+			secrets: {},
+		})).toThrow();
 	});
 
 	it("strips private fields from capability details", () => {

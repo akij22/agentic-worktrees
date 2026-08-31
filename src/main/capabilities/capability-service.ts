@@ -6,6 +6,7 @@ import { getBundledCapability, listBundledCapabilities, permissionDigest, toCapa
 import type { CapabilityCredentialStore } from "./capability-credential-store";
 import type { CapabilityHostManager } from "./capability-host-manager";
 import type { CapabilityRepository, SessionCapabilityRecord } from "./capability-repository";
+import { prepareCapabilityConfiguration } from "./capability-configuration";
 
 export interface CapabilityServiceDependencies {
   repository: CapabilityRepository;
@@ -14,7 +15,6 @@ export interface CapabilityServiceDependencies {
   activator: CodingAgentCapabilityActivator;
   getAgentKind(runId: string): Promise<CodingAgentKind>;
   getAgentVersion?(runId: string): Promise<string>;
-  probe?: typeof fetch;
   logError?(event: string, code: string): void;
 }
 
@@ -51,7 +51,7 @@ export class CapabilityService {
     return listBundledCapabilities().map((capability) => {
       const installation = this.dependencies.repository.getInstallation(capability.manifest.id);
       const record = runId ? this.dependencies.repository.getSessionCapability(runId, capability.manifest.id) : undefined;
-      const secretConfigured = this.dependencies.repository.getSettings(capability.manifest.id).some((setting) => setting.key === "exaApiKey" && Boolean(setting.secretRef));
+      const secretConfigured = this.dependencies.repository.getSettings(capability.manifest.id).some((setting) => capability.manifest.settings[setting.key]?.type === "secret" && Boolean(setting.secretRef));
       const baseState = !installation ? "available" : installation.configured && installation.permissionDigest === permissionDigest(capability.manifest) && installation.version === capability.manifest.version ? "ready" : "needs_setup";
       return toCapabilitySummaryDto(capability, recordState(record, baseState), secretConfigured);
     });
@@ -61,7 +61,7 @@ export class CapabilityService {
     const capability = getBundledCapability(capabilityId);
     const installation = this.dependencies.repository.getInstallation(capabilityId);
     const record = runId ? this.dependencies.repository.getSessionCapability(runId, capabilityId) : undefined;
-    const secretConfigured = this.dependencies.repository.getSettings(capabilityId).some((setting) => setting.key === "exaApiKey" && Boolean(setting.secretRef));
+    const secretConfigured = this.dependencies.repository.getSettings(capabilityId).some((setting) => capability.manifest.settings[setting.key]?.type === "secret" && Boolean(setting.secretRef));
     const baseState = !installation ? "available" : installation.configured && installation.permissionDigest === permissionDigest(capability.manifest) && installation.version === capability.manifest.version ? "ready" : "needs_setup";
     return toCapabilityDetailDto(capability, recordState(record, baseState), secretConfigured);
   }
@@ -71,40 +71,34 @@ export class CapabilityService {
     const digest = permissionDigest(capability.manifest);
     if (input.acceptedPermissionDigest !== digest) throw new CapabilityError("permission_denied", "Capability permissions changed. Review and accept them again.");
     const existing = this.dependencies.repository.getSettings(input.capabilityId);
-    const oldSecret = existing.find((setting) => setting.key === "exaApiKey")?.secretRef;
-    const newSecret = input.exaApiKey === undefined
-      ? oldSecret
-      : input.exaApiKey
-        ? await this.dependencies.credentials.setSecret(input.capabilityId, "exaApiKey", input.exaApiKey)
-        : undefined;
+    const prepared = prepareCapabilityConfiguration(capability.manifest, input, existing);
+    const newlyStored: string[] = [];
+    const obsolete: string[] = [];
+    const settings = [...prepared.values];
     try {
+      for (const change of prepared.secrets) {
+        let secretRef = change.existingRef;
+        if (typeof change.value === "string") {
+          secretRef = await this.dependencies.credentials.setSecret(input.capabilityId, change.key, change.value);
+          newlyStored.push(secretRef);
+        } else if (change.value === null) secretRef = undefined;
+        if (secretRef) settings.push({ key: change.key, secretRef });
+        if (change.existingRef && change.existingRef !== secretRef) obsolete.push(change.existingRef);
+      }
       this.dependencies.repository.saveConfiguration(
         { capabilityId: input.capabilityId, version: capability.manifest.version, permissionDigest: digest, configured: true },
-        [
-          { key: "providerMode", value: input.settings.providerMode },
-          { key: "resultLimit", value: input.settings.resultLimit },
-          ...(newSecret ? [{ key: "exaApiKey", secretRef: newSecret }] : []),
-        ],
+        settings,
       );
     } catch (error) {
-      if (newSecret && newSecret !== oldSecret) {
-        await this.dependencies.credentials.removeSecret(newSecret).catch(() => this.dependencies.logError?.("capability.configuration.secret.compensation.failed", "internal_error"));
+      for (const reference of newlyStored.reverse()) {
+        await this.dependencies.credentials.removeSecret(reference).catch(() => this.dependencies.logError?.("capability.configuration.secret.compensation.failed", "internal_error"));
       }
       throw error;
     }
-    if (oldSecret && newSecret !== oldSecret) {
-      await this.dependencies.credentials.removeSecret(oldSecret).catch(() => this.dependencies.logError?.("capability.configuration.old_secret.cleanup.failed", "internal_error"));
+    for (const reference of obsolete) {
+      await this.dependencies.credentials.removeSecret(reference).catch(() => this.dependencies.logError?.("capability.configuration.old_secret.cleanup.failed", "internal_error"));
     }
-    let warningCode: "upstream_unavailable" | undefined;
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5_000);
-      try {
-        const response = await (this.dependencies.probe ?? fetch)("https://mcp.exa.ai/mcp", { method: "HEAD", signal: controller.signal });
-        if (!response.ok) warningCode = "upstream_unavailable";
-      } finally { clearTimeout(timer); }
-    } catch { warningCode = "upstream_unavailable"; }
-    return { ...this.getCapability(input.capabilityId), ...(warningCode ? { warningCode } : {}) };
+    return this.getCapability(input.capabilityId);
   }
 
   async activateCapability(runId: string, capabilityId: string): Promise<CapabilitySessionStateDto> {
