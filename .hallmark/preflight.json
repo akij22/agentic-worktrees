@@ -1,0 +1,9 @@
+{
+  "scannedAt": "2026-08-30",
+  "fontStack": ["Instrument Sans Variable", "Geist Mono Variable"],
+  "palette": "dark cool-blue CSS custom properties",
+  "motion": "motion-cut",
+  "spacing": "4px base scale",
+  "framework": "Electron + React 19 + Tailwind CSS 4",
+  "preserve": ["font stack", "palette", "spacing scale", "existing AppShell"]
+}

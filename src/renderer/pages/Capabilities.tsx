@@ -1,23 +1,93 @@
-import { Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Blocks } from "lucide-react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Badge } from "../components/ui/badge";
-import { Input } from "../components/ui/input";
-import { Select } from "../components/ui/select";
 import { CapabilityDetail } from "../features/capabilities/components/CapabilityDetail";
+import { CapabilityRegistry } from "../features/capabilities/components/CapabilityRegistry";
 import { CapabilitySetupDialog } from "../features/capabilities/components/CapabilitySetupDialog";
 import { useCapabilities } from "../features/capabilities/hooks/useCapabilities";
 
 export const Capabilities = () => {
-  const location = useLocation(); const runId = (location.state as { runId?: string } | null)?.runId;
-  const library = useCapabilities(runId); const [query, setQuery] = useState(""); const [category, setCategory] = useState("all"); const [compatibility, setCompatibility] = useState("all"); const [state, setState] = useState("all"); const [setupOpen, setSetupOpen] = useState(false); const [actionError, setActionError] = useState<string>();
-  const filtered = useMemo(() => library.capabilities.filter((capability) => (`${capability.name} ${capability.description}`.toLowerCase().includes(query.toLowerCase()) && (category === "all" || capability.category === category) && (compatibility === "all" || capability.compatibility[compatibility as "codex" | "opencode"] === "supported") && (state === "all" || capability.state === state))), [library.capabilities, category, compatibility, query, state]);
-  useEffect(() => { if (!library.detail && filtered[0]) void library.select(filtered[0].id); }, [filtered, library.detail, library.select]);
+  const location = useLocation();
+  const runId = (location.state as { runId?: string } | null)?.runId;
+  const library = useCapabilities(runId);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [actionError, setActionError] = useState<string>();
   const selected = library.detail;
-  return <div className="grid h-full min-h-[32rem] overflow-hidden rounded-xl border border-border/70 bg-card/25 lg:grid-cols-[20rem_minmax(0,1fr)]">
-    <aside className="flex min-h-0 flex-col border-b border-border/70 lg:border-b-0 lg:border-r"><div className="border-b border-border/70 p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">Curated library</p><p className="mt-1 text-xs text-muted-foreground">Reviewed local tools for coding-agent chats.</p><div className="relative mt-4"><Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Search capabilities" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" className="pl-8" /></div><div className="mt-2 grid grid-cols-3 gap-1.5"><Select aria-label="Filter capability category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option>{[...new Set(library.capabilities.map((item) => item.category))].map((value) => <option key={value} value={value}>{value}</option>)}</Select><Select aria-label="Filter capability compatibility" value={compatibility} onChange={(event) => setCompatibility(event.target.value)}><option value="all">All agents</option><option value="codex">Codex</option><option value="opencode">OpenCode</option></Select><Select aria-label="Filter capability state" value={state} onChange={(event) => setState(event.target.value)}><option value="all">All states</option><option value="available">Available</option><option value="needs_setup">Needs setup</option><option value="ready">Ready</option><option value="unavailable">Unavailable</option></Select></div></div>
-      <div className="min-h-0 flex-1 overflow-auto p-2">{library.loading ? <p className="p-3 text-xs text-muted-foreground">Loading library…</p> : filtered.map((capability) => <button key={capability.id} type="button" onClick={() => void library.select(capability.id)} className={`mb-1 w-full rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${library.detail?.id === capability.id ? "border-primary/35 bg-primary/[0.07]" : "border-transparent hover:bg-muted/60"}`}><div className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">{capability.name}</span><Badge variant="outline" className="text-[9px] uppercase">{capability.state.replaceAll("_", " ")}</Badge></div><p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{capability.description}</p></button>)}</div>{library.error ? <p role="alert" className="border-t border-border p-3 text-xs text-destructive">{library.error}</p> : null}</aside>
-    <main className="min-h-0">{selected ? <><CapabilityDetail capability={selected} runId={runId} onConfigure={() => setSetupOpen(true)} onActivate={() => { setActionError(undefined); void library.activate(selected.id).catch(() => setActionError("Could not add this capability to the chat.")); }} onDeactivate={() => { if (!window.confirm(`Remove ${selected.name} from this chat?`)) return; setActionError(undefined); void library.deactivate(selected.id).catch(() => setActionError("Could not remove this capability from the chat.")); }} />{actionError ? <p role="alert" className="border-t border-border p-3 text-xs text-destructive">{actionError}</p> : null}</> : <div className="grid h-full place-items-center text-sm text-muted-foreground">Select a capability</div>}</main>
-    {library.detail ? <CapabilitySetupDialog capability={library.detail} open={setupOpen} onOpenChange={setSetupOpen} onConfigure={library.configure} /> : null}
-  </div>;
+
+  const activateSelected = () => {
+    if (!selected) return;
+    setActionError(undefined);
+    void library
+      .activate(selected.id)
+      .catch(() =>
+        setActionError("Could not add this capability to the chat."),
+      );
+  };
+  const deactivateSelected = () => {
+    if (!selected || !window.confirm(`Remove ${selected.name} from this chat?`))
+      return;
+    setActionError(undefined);
+    void library
+      .deactivate(selected.id)
+      .catch(() =>
+        setActionError("Could not remove this capability from the chat."),
+      );
+  };
+
+  return (
+    <section className="grid h-full min-h-[34rem] min-w-0 overflow-auto border-y border-border bg-[var(--color-paper)] lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,2fr)] lg:grid-rows-[auto_auto_minmax(0,1fr)] lg:overflow-hidden">
+      <CapabilityRegistry
+        capabilities={library.capabilities}
+        error={library.error}
+        loading={library.loading}
+        runId={runId}
+        selectedId={selected?.id}
+        onSelect={(capabilityId) => void library.select(capabilityId)}
+      />
+
+      <main className="min-h-0 min-w-0 bg-[var(--color-paper)] lg:col-start-2 lg:row-start-3">
+        {selected ? (
+          <>
+            <CapabilityDetail
+              capability={selected}
+              runId={runId}
+              onConfigure={() => setSetupOpen(true)}
+              onActivate={activateSelected}
+              onDeactivate={deactivateSelected}
+            />
+            {actionError ? (
+              <p
+                role="alert"
+                className="border-t border-border p-3 text-xs text-destructive-foreground"
+              >
+                {actionError}
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <div className="grid h-full min-h-72 place-items-center px-6 text-center">
+            <div>
+              <Blocks
+                aria-hidden="true"
+                className="mx-auto size-6 text-muted-foreground"
+              />
+              <p className="mt-3 text-sm font-semibold">Select a capability.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Permissions and compatibility will appear here.
+              </p>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {selected ? (
+        <CapabilitySetupDialog
+          capability={selected}
+          open={setupOpen}
+          onOpenChange={setSetupOpen}
+          onConfigure={library.configure}
+        />
+      ) : null}
+    </section>
+  );
 };

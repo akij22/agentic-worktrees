@@ -1,3 +1,4 @@
+@import "../tokens.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -230,6 +231,11 @@
 }
 
 @layer base {
+  html,
+  body {
+    overflow-x: clip;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
