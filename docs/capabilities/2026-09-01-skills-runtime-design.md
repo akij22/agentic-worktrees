@@ -222,7 +222,7 @@ The runtime follows Agent Skills naming constraints:
 - no consecutive hyphens;
 - directory name must equal the skill ID.
 
-The description is required, bounded to 1,024 characters, and used for model-facing discovery.
+The description is required, bounded to 1,024 characters, and used for model-facing discovery. Local imports do not require proprietary version frontmatter: after canonical hashing, Agentic Worktrees derives `0.0.0-local.<first-12-digest-hex>` as the installation version. Future bundled or signed marketplace metadata may provide an external semantic version without changing `SKILL.md`.
 
 ### 7.2 Optional standard metadata
 
@@ -266,26 +266,29 @@ Limits must be constants with focused tests. The implementation plan will choose
 
 ## 8. Managed storage
 
-Skills are copied into an application-owned root:
+Skills are copied into application-owned package storage and projected into a stable provider root:
 
 ```text
-<electron-user-data>/skills/<skill-id>/<version>/
+<electron-user-data>/skills/
+├── packages/<skill-id>/<version>/   # canonical validated package
+└── active/<skill-id>/               # active provider projection containing SKILL.md
 ```
 
-The renderer never receives or supplies this path.
+The versioned package store supports digest verification and rollback. Providers receive only the `active` root, so the directory immediately containing `SKILL.md` remains `<skill-id>` and OpenCode derives the expected stable ID. The active projection is a real copied directory, never a symlink. The renderer never receives or supplies either path.
 
 Installation uses:
 
 1. a temporary staging directory under the same managed root;
 2. validation and canonical digest computation;
 3. rejection of unsupported entries;
-4. atomic rename into the final version directory;
-5. a database transaction recording installation metadata;
-6. provider catalog synchronization.
+4. atomic rename into the versioned package directory;
+5. atomic replacement of the active provider projection;
+6. a database transaction recording installation metadata;
+7. provider catalog synchronization.
 
-A failed operation removes staging data and leaves the previously installed version unchanged.
+A failed operation removes staging data and restores the previous active projection and installation record.
 
-Bundled skills and local imports use the same validated materialization path. Provider adapters receive only a trusted root chosen by the main process.
+Bundled skills and local imports use the same validated materialization path. The OpenCode projection may add the standard extension metadata `metadata.opencode/autoinvoke: false` when `disable-model-invocation: true`; this preserves explicit invocation while hiding the skill from automatic discovery. Provider adapters receive only a trusted root chosen by the main process.
 
 ## 9. Shared contracts
 
