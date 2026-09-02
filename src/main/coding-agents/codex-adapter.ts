@@ -1,4 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   CodexAppServerClient,
@@ -31,6 +32,8 @@ import type {
   CodingAgentPermission,
   CodingAgentSessionUsage,
   CodingAgentSessionOptions,
+  CodingAgentSkillCatalog,
+  CodingAgentTurnInput,
 } from "./types";
 
 const execFile = promisify(execFileCallback);
@@ -115,6 +118,7 @@ export class CodexAdapter implements CodingAgentAdapter {
   private executablePath: string | null = null;
   private startupDirectory: string | null = null;
   private reconfiguringCapabilities = false;
+  private skillCatalog: CodingAgentSkillCatalog | null = null;
 
   constructor(
     private readonly client: CodexClient = new CodexAppServerClient(),
@@ -138,6 +142,7 @@ export class CodexAdapter implements CodingAgentAdapter {
     this.executablePath = executablePath;
     this.startupDirectory = cwd;
     this.version = version;
+    if (this.skillCatalog) await this.applySkillCatalog(this.skillCatalog);
     return version;
   }
 
@@ -225,15 +230,39 @@ export class CodexAdapter implements CodingAgentAdapter {
     return messageId ? projected.turn : projected.session;
   }
 
+  async configureSkills(catalog: CodingAgentSkillCatalog | null): Promise<void> {
+    this.skillCatalog = catalog;
+    if (!this.client.getStatus().running) return;
+    if (catalog) await this.applySkillCatalog(catalog);
+    else await this.client.request<unknown>("skills/extraRoots/set", { extraRoots: [] });
+  }
+
+  async verifySkills(directory: string, expectedIds: readonly string[]): Promise<void> {
+    const response = await this.client.request<unknown>("skills/list", { cwds: [directory], forceReload: true });
+    const data = response && typeof response === "object" && "data" in response ? (response as { data: unknown }).data : undefined;
+    if (!Array.isArray(data)) throw new Error("Codex returned an invalid skill catalog.");
+    const groups = data.filter((group): group is Record<string, unknown> => Boolean(group && typeof group === "object"));
+    if (groups.some((group) => Array.isArray(group.errors) && group.errors.length > 0)) throw new Error("Codex reported skill discovery errors.");
+    const entries = groups.flatMap((group) => Array.isArray(group.skills) ? group.skills : []);
+    const enabled = entries.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object" && (entry as { enabled?: unknown }).enabled === true));
+    const ids = enabled.map((entry) => entry.name).filter((name): name is string => typeof name === "string");
+    const root = this.skillCatalog?.activeRoot;
+    const pathsValid = root !== undefined && enabled.every((entry) => {
+      const name=entry.name,path=entry.path;
+      return typeof name === "string" && typeof path === "string" && resolve(path) === resolve(join(root, name, "SKILL.md"));
+    });
+    if (!pathsValid || enabled.length !== ids.length || new Set(ids).size !== ids.length || [...ids].sort().join("\0") !== [...expectedIds].sort().join("\0")) throw new Error("Codex skill catalog verification failed.");
+  }
+
+  private async applySkillCatalog(catalog: CodingAgentSkillCatalog): Promise<void> {
+    await this.client.request<unknown>("skills/extraRoots/set", { extraRoots: [catalog.activeRoot] });
+    await this.verifySkills(this.startupDirectory ?? catalog.activeRoot, catalog.expectedIds);
+  }
+
   async sendPrompt(
     directory: string,
     sessionId: string,
-    input: {
-      content: string;
-      providerId: string;
-      modelId: string;
-      reasoningVariant?: string;
-    },
+    input: CodingAgentTurnInput,
   ): Promise<void> {
     if (this.reconfiguringCapabilities) {
       throw new Error("Codex capability reload is in progress.");
@@ -244,7 +273,12 @@ export class CodexAdapter implements CodingAgentAdapter {
     this.directoryByThread.set(sessionId, directory);
     const result = await this.client.request<unknown>("turn/start", {
       threadId: sessionId,
-      input: [{ type: "text", text: input.content, text_elements: [] }],
+      input: input.explicitSkill !== undefined
+        ? [
+            { type: "skill", name: input.explicitSkill.name, path: input.explicitSkill.path },
+            ...(input.explicitSkill.arguments ? [{ type: "text", text: input.explicitSkill.arguments, text_elements: [] }] : []),
+          ]
+        : [{ type: "text", text: input.content, text_elements: [] }],
       cwd: directory,
       model: input.modelId,
       ...(input.reasoningVariant ? { effort: input.reasoningVariant } : {}),

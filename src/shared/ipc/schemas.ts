@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Repository, Worktree } from "../db/schema";
+import { codingAgentTurnRequestSchema, skillDetailSchema, skillIdSchema, skillSummarySchema } from "../skills/schemas";
 
 export const githubAuthStateSchema = z.enum([
 	"loading",
@@ -416,6 +417,9 @@ export const codingAgentDiffSchema = z.object({
 
 export type CodingAgentDiffDto = z.infer<typeof codingAgentDiffSchema>;
 
+export const skillInvocationSnapshotSchema=z.object({id:z.string(),skillId:skillIdSchema,name:z.string(),version:z.string(),mode:z.enum(["explicit","automatic"]),status:z.enum(["requested","loaded","failed"]),errorCode:z.string().optional(),requestedAt:z.string(),loadedAt:z.string().optional(),failedAt:z.string().optional()});
+export type SkillInvocationSnapshotDto=z.infer<typeof skillInvocationSnapshotSchema>;
+
 export const codingAgentSessionSnapshotSchema = z.object({
 	session: codingAgentSessionSchema,
 	context: codingAgentWorktreeContextSchema,
@@ -428,6 +432,7 @@ export const codingAgentSessionSnapshotSchema = z.object({
 		errorCode: z.string().optional(), activatedAt: z.string().optional(), deactivatedAt: z.string().optional(),
 	})).default([]),
 	capabilityReloading: z.boolean().default(false),
+	skillInvocations:z.array(skillInvocationSnapshotSchema).optional(),
 });
 
 export type CodingAgentSessionSnapshotDto = z.infer<
@@ -506,11 +511,7 @@ export const codingAgentAccountUsageRequestSchema = z.object({
 	runId: z.string().min(1),
 });
 
-export const codingAgentSessionSendRequestSchema = z.object({
-	runId: z.string().min(1),
-	content: z.string().trim().min(1).max(100_000),
-	reasoningVariant: z.string().trim().min(1).max(80).optional(),
-});
+export const codingAgentSessionSendRequestSchema = codingAgentTurnRequestSchema;
 
 export const codingAgentSessionAbortRequestSchema = z.object({
 	runId: z.string().min(1),
@@ -888,6 +889,23 @@ const capabilitySettingDetailSchema = z.object({
 	min: z.number().optional(),
 	max: z.number().optional(),
 });
+
+export const skillListResponseSchema = skillSummarySchema.array();
+export const skillGetRequestSchema = z.object({ skillId: skillIdSchema }).strict();
+export const skillInstallRequestSchema = z.object({}).strict();
+export const skillRemoveRequestSchema = z.object({ skillId: skillIdSchema }).strict();
+export const skillChangedEventSchema = z.object({
+	skillId: skillIdSchema,
+	kind: z.enum(["installed", "removed", "changed"]),
+	timestamp: z.string().datetime(),
+});
+export type SkillChangedEventDto = z.infer<typeof skillChangedEventSchema>;
+export const marketplaceItemSchema = z.union([
+	z.object({ kind: z.literal("capability"), capability: capabilitySummarySchema }),
+	z.object({ kind: z.literal("skill"), skill: skillSummarySchema }),
+]);
+export type MarketplaceItemDto = z.infer<typeof marketplaceItemSchema>;
+export { skillDetailSchema, skillSummarySchema };
 
 export const capabilityDetailSchema = capabilitySummarySchema.extend({
 	sdkVersion: z.string(),

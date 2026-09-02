@@ -1,0 +1,2 @@
+import { X } from "lucide-react";import type { SkillSummaryDto } from "../../../../shared/skills/schemas";
+export function SkillInvocationChip({skill,onRemove}:{skill:SkillSummaryDto;onRemove():void}){return <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-semibold"><span>Skill: {skill.name}</span><button type="button" aria-label={`Remove ${skill.name} skill`} onClick={onRemove} className="rounded-sm p-0.5 hover:bg-primary/15"><X className="size-3"/></button></span>}

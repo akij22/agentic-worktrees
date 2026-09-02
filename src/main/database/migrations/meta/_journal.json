@@ -57,6 +57,13 @@
       "when": 1787850612687,
       "tag": "0007_confused_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788285763003,
+      "tag": "0008_wooden_next_avengers",
+      "breakpoints": true
     }
   ]
 }

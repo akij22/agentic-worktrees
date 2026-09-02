@@ -24,6 +24,10 @@ import {
 	workspaceFileSearchResponseSchema,
 	workspacePullRequestRequestSchema,
 	workspaceTerminalResizeRequestSchema,
+	codingAgentSessionSendRequestSchema,
+	skillInstallRequestSchema,
+	skillRemoveRequestSchema,
+	marketplaceItemSchema,
 } from "./schemas";
 
 describe("GitHub authentication IPC schemas", () => {
@@ -505,4 +509,11 @@ describe("capability IPC schemas", () => {
 		const parsed = capabilityDetailSchema.parse({ id: "agentic-worktrees.web-search", name: "Web Search", version: "0.1.0", description: "Search", category: "web-browser", compatibility: { codex: "supported", opencode: "supported" }, state: "ready", secretConfigured: false, sdkVersion: "^0.1.0", author: { name: "Agentic Worktrees" }, license: "MIT", permissions: { network: [], secrets: [] }, settings: [], reviewStatus: "bundled-reviewed", providedTools: ["web_search"], permissionDigest: "digest", bearerToken: "private" });
 		expect(parsed).not.toHaveProperty("bearerToken");
 	});
+});
+
+describe("skill IPC schemas",()=>{
+ it("accepts exactly one send variant",()=>{expect(codingAgentSessionSendRequestSchema.parse({runId:"r",skillInvocation:{skillId:"review",version:"1"}})).toHaveProperty("skillInvocation");expect(()=>codingAgentSessionSendRequestSchema.parse({runId:"r",content:"x",skillInvocation:{skillId:"review",version:"1"}})).toThrow();});
+ it("strictly rejects renderer install paths",()=>expect(()=>skillInstallRequestSchema.parse({path:"/secret"})).toThrow());
+ it("accepts only a valid removal ID",()=>{expect(skillRemoveRequestSchema.parse({skillId:"security-review"})).toEqual({skillId:"security-review"});expect(()=>skillRemoveRequestSchema.parse({skillId:"BAD"})).toThrow();});
+ it("keeps marketplace item discriminants",()=>expect(marketplaceItemSchema.parse({kind:"skill",skill:{id:"review",name:"review",description:"Review",version:"1",source:"local",compatibility:{codex:"supported",opencode:"supported"},installationState:"installed",automaticInvocation:true}}).kind).toBe("skill"));
 });

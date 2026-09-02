@@ -1,14 +1,14 @@
-import type { CodingAgentCapabilityConnection } from "./types";
+import type { CodingAgentCapabilityConnection, CodingAgentSkillCatalog } from "./types";
 
 export function normalizeOpenCodeIdentifier(value: string): string {
   const normalized = value.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").replace(/_+/g, "_");
   return normalized || "session";
 }
 
-export function buildOpenCodeRuntimeConfig(connections: readonly CodingAgentCapabilityConnection[]) {
+export function buildOpenCodeRuntimeConfig(connections: readonly CodingAgentCapabilityConnection[], skillCatalog?: CodingAgentSkillCatalog | null) {
   const mcp: Record<string, unknown> = {};
   const agent: Record<string, unknown> = {
-    build: { permission: { bash: "ask" } },
+    build: { permission: { bash: "ask", ...(skillCatalog ? { skill: "allow" } : {}) } },
   };
   for (const connection of connections) {
     const profileId = normalizeOpenCodeIdentifier(connection.profileId);
@@ -22,10 +22,11 @@ export function buildOpenCodeRuntimeConfig(connections: readonly CodingAgentCapa
       mode: "primary",
       permission: {
         bash: "ask",
+        ...(skillCatalog ? { skill: "allow" } : {}),
         "aw_*": "deny",
         [`${serverName}_*`]: "allow",
       },
     };
   }
-  return { ...(Object.keys(mcp).length ? { mcp } : {}), agent };
+  return { ...(Object.keys(mcp).length ? { mcp } : {}), ...(skillCatalog ? { skills: [skillCatalog.activeRoot] } : {}), agent };
 }

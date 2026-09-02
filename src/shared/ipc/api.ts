@@ -34,7 +34,9 @@ import type {
 	WorkspaceGitStatusDto,
 	WorkspacePullRequestResultDto,
 	WorkspaceTerminalEventDto,
+	SkillChangedEventDto,
 } from "./schemas";
+import type { SkillDetailDto, SkillSummaryDto } from "../skills/schemas";
 
 export interface Api {
 	github: {
@@ -183,6 +185,13 @@ export interface Api {
 			listener: (event: ConflictResolutionSessionEventDto) => void,
 		) => () => void;
 	};
+	skills: {
+		list: () => Promise<SkillSummaryDto[]>;
+		get: (request: { skillId: string }) => Promise<SkillDetailDto>;
+		install: () => Promise<SkillDetailDto | null>;
+		remove: (request: { skillId: string }) => Promise<void>;
+		onChanged: (listener: (event: SkillChangedEventDto) => void) => () => void;
+	};
 	capabilities: {
 		list: (request?: { runId?: string }) => Promise<CapabilitySummaryDto[]>;
 		get: (request: { capabilityId: string; runId?: string }) => Promise<CapabilityDetailDto>;
@@ -221,11 +230,10 @@ export interface Api {
 		getAccountUsage: (request: {
 			runId: string;
 		}) => Promise<CodingAgentAccountUsageDto>;
-		sendMessage: (request: {
-			runId: string;
-			content: string;
-			reasoningVariant?: string;
-		}) => Promise<void>;
+		sendMessage: (request:
+			| { runId: string; content: string; reasoningVariant?: string }
+			| { runId: string; skillInvocation: { skillId: string; version: string; arguments?: string }; reasoningVariant?: string }
+		) => Promise<void>;
 		compactSession: (request: { runId: string }) => Promise<void>;
 		abortSession: (request: { runId: string }) => Promise<void>;
 		respondPermission: (request: {

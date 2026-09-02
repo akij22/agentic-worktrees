@@ -301,3 +301,10 @@ describe("OpenCode capability reconfiguration", () => {
     await reload;
   });
 });
+
+describe("OpenCode native skills",()=>{
+ it("uses session.command for explicit invocation",async()=>{const adapter=new OpenCodeAdapter();const command=vi.fn(async()=>({data:{}})),promptAsync=vi.fn();(adapter as unknown as {client:unknown}).client={session:{command,promptAsync}};await adapter.sendPrompt("/repo","session-1",{providerId:"provider",modelId:"model",explicitSkill:{id:"review",name:"review",path:"/managed/review/SKILL.md",arguments:"Review auth"}});expect(command).toHaveBeenCalledWith({path:{id:"session-1"},query:{directory:"/repo"},body:{command:"review",arguments:"Review auth",agent:"build",model:"provider/model"},throwOnError:true});expect(promptAsync).not.toHaveBeenCalled();});
+ it("verifies exact native discovery",async()=>{const adapter=new OpenCodeAdapter();(adapter as unknown as {skillCatalog:unknown}).skillCatalog={activeRoot:"/managed/active",expectedIds:["review"]};(adapter as unknown as {v2Client:unknown}).v2Client={v2:{skill:{list:vi.fn(async()=>({data:{data:[{name:"review",location:"/managed/active/review/SKILL.md"}]}}))}}};await expect(adapter.verifySkills("/repo",["review"])).resolves.toBeUndefined();await expect(adapter.verifySkills("/repo",["missing"])).rejects.toThrow(/verification/);});
+ it("rejects discovery from an unmanaged location",async()=>{const adapter=new OpenCodeAdapter();(adapter as unknown as {skillCatalog:unknown}).skillCatalog={activeRoot:"/managed/active",expectedIds:["review"]};(adapter as unknown as {v2Client:unknown}).v2Client={v2:{skill:{list:vi.fn(async()=>({data:{data:[{name:"review",location:"/other/review/SKILL.md"}]}}))}}};await expect(adapter.verifySkills("/repo",["review"])).rejects.toThrow(/verification/);});
+
+});

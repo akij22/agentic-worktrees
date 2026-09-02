@@ -107,6 +107,18 @@ import {
 } from "../coding-agents/coding-agent-service";
 import type { CapabilityService } from "../capabilities/capability-service";
 import { createCapabilityHandlers } from "./capability-handlers";
+import type { SkillService } from "../skills/skill-service";
+import { createSkillHandlers } from "./skill-handlers";
+
+let skillService: SkillService | null = null;
+export const configureSkillIpc = (service:SkillService|null):void => { skillService=service; };
+const requireSkillService=():SkillService=>{ if(!skillService)throw new Error("Skill service is unavailable."); return skillService; };
+const skillHandlers=()=>createSkillHandlers(requireSkillService(),{chooseDirectory:async()=>{
+	const focused=BrowserWindow.getFocusedWindow();
+	const options={properties:["openDirectory"]} as OpenDialogOptions;
+	const result=focused?await dialog.showOpenDialog(focused,options):await dialog.showOpenDialog(options);
+	return result.canceled?null:(result.filePaths[0]??null);
+}});
 
 let capabilityService: CapabilityService | null = null;
 export const configureCapabilityIpc = (service: CapabilityService | null): void => { capabilityService = service; };
@@ -511,11 +523,11 @@ const handleCodingAgentSessionSend = async (
 	rawRequest: unknown,
 ) => {
 	const request = codingAgentSessionSendRequestSchema.parse(rawRequest);
-	await sendAgentMessage(
-		request.runId,
-		request.content,
-		request.reasoningVariant,
-	);
+	if (request.skillInvocation !== undefined) {
+		await requireSkillService().invokeSkill({...request.skillInvocation,runId:request.runId,...(request.reasoningVariant?{reasoningVariant:request.reasoningVariant}:{})});
+	} else {
+		await sendAgentMessage(request.runId,{content:request.content},request.reasoningVariant);
+	}
 };
 
 const handleCodingAgentSessionAbort = async (
@@ -638,6 +650,10 @@ const handleIntelligenceIntegrationOpen = async (
 };
 
 export const registerIpcHandlers = (): void => {
+	ipcMain.handle(IPC_CHANNELS.SKILL_LIST,requireAuthenticated(()=>skillHandlers().list()));
+	ipcMain.handle(IPC_CHANNELS.SKILL_GET,requireAuthenticated((_event,raw)=>skillHandlers().get(raw)));
+	ipcMain.handle(IPC_CHANNELS.SKILL_INSTALL,requireAuthenticated((_event,raw)=>skillHandlers().install(raw)));
+	ipcMain.handle(IPC_CHANNELS.SKILL_REMOVE,requireAuthenticated((_event,raw)=>skillHandlers().remove(raw)));
 	ipcMain.handle(IPC_CHANNELS.CAPABILITY_LIST, requireAuthenticated(handleCapabilityList));
 	ipcMain.handle(IPC_CHANNELS.CAPABILITY_GET, requireAuthenticated(handleCapabilityGet));
 	ipcMain.handle(IPC_CHANNELS.CAPABILITY_CONFIGURE, requireAuthenticated(handleCapabilityConfigure));
@@ -879,6 +895,9 @@ export const registerIpcHandlers = (): void => {
 				publicStatus,
 			);
 		}
+	});
+	skillService?.subscribeToSkillEvents((event)=>{
+		for(const window of BrowserWindow.getAllWindows())window.webContents.send(IPC_CHANNELS.SKILL_CHANGED,event);
 	});
 	capabilityService?.subscribeToCapabilityEvents((event) => {
 		const publicEvent = capabilityChangedEventSchema.parse(event);
