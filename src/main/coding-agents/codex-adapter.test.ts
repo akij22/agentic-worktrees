@@ -730,3 +730,13 @@ describe("Codex capability MCP integration", () => {
     expect(client.stopCount).toBe(0);
   });
 });
+
+describe("Codex native skills",()=>{
+  it("registers and verifies the managed root",async()=>{const {adapter,client}=createAdapter();client.running=true;client.reply("skills/extraRoots/set",{});client.reply("skills/list",{data:[{skills:[{name:"security-review",enabled:true,path:"/managed/active/security-review/SKILL.md"}]}]});await adapter.configureSkills({activeRoot:"/managed/active",expectedIds:["security-review"]});expect(client.requestFor("skills/extraRoots/set").params).toEqual({extraRoots:["/managed/active"]});});
+  it("rejects duplicate or missing discovered skills",async()=>{const {adapter,client}=createAdapter();client.reply("skills/list",{data:[{skills:[{name:"review",enabled:true,path:"/managed/active/review/SKILL.md"},{name:"review",enabled:true,path:"/managed/active/review/SKILL.md"}]}]});await expect(adapter.verifySkills("/repo",["review"])).rejects.toThrow(/verification/);});
+  it("sends a native skill input with arguments",async()=>{const {adapter,client}=createAdapter();client.reply("turn/start",{turn:{id:"turn-1"}});await adapter.sendPrompt("/repo","thread-1",{providerId:"openai",modelId:"gpt",explicitSkill:{id:"review",name:"review",path:"/managed/review/SKILL.md",arguments:"Review auth"}});expect(client.requestFor("turn/start").params).toMatchObject({input:[{type:"skill",name:"review",path:"/managed/review/SKILL.md"},{type:"text",text:"Review auth",text_elements:[]}]});});
+  it("omits empty argument text",async()=>{const {adapter,client}=createAdapter();client.reply("turn/start",{turn:{id:"turn-1"}});await adapter.sendPrompt("/repo","thread-1",{providerId:"openai",modelId:"gpt",explicitSkill:{id:"review",name:"review",path:"/managed/review/SKILL.md"}});expect((client.requestFor("turn/start").params as {input:unknown[]}).input).toHaveLength(1);});
+  it("clears extra roots when skills are disabled",async()=>{const {adapter,client}=createAdapter();client.running=true;client.reply("skills/extraRoots/set",{});await adapter.configureSkills(null);expect(client.requestFor("skills/extraRoots/set").params).toEqual({extraRoots:[]});});
+  it("rejects a matching ID from an unmanaged path",async()=>{const {adapter,client}=createAdapter();client.running=true;client.reply("skills/extraRoots/set",{});client.reply("skills/list",{data:[{skills:[{name:"review",enabled:true,path:"/other/review/SKILL.md"}]}]});await expect(adapter.configureSkills({activeRoot:"/managed/active",expectedIds:["review"]})).rejects.toThrow(/verification/);});
+
+});

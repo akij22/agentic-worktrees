@@ -23,7 +23,9 @@ import {
 	workspacePullRequestResultSchema,
 	workspaceTerminalCreateResponseSchema,
 	workspaceTerminalEventSchema,
+	skillChangedEventSchema,
 } from "./shared/ipc/schemas";
+import { skillDetailSchema, skillSummarySchema } from "./shared/skills/schemas";
 
 const api: Api = {
 	github: {
@@ -221,6 +223,17 @@ const api: Api = {
 					IPC_CHANNELS.INTELLIGENCE_RESOLUTION_CHANGED,
 					handler,
 				);
+		},
+	},
+	skills: {
+		list: async () => skillSummarySchema.array().parse(await ipcRenderer.invoke(IPC_CHANNELS.SKILL_LIST)),
+		get: async (request) => skillDetailSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.SKILL_GET, request)),
+		install: async () => { const value=await ipcRenderer.invoke(IPC_CHANNELS.SKILL_INSTALL, {}); return value===null?null:skillDetailSchema.parse(value); },
+		remove: (request) => ipcRenderer.invoke(IPC_CHANNELS.SKILL_REMOVE, request),
+		onChanged: (listener) => {
+			const handler=(_event:Electron.IpcRendererEvent,payload:unknown)=>listener(skillChangedEventSchema.parse(payload));
+			ipcRenderer.on(IPC_CHANNELS.SKILL_CHANGED,handler);
+			return ()=>ipcRenderer.removeListener(IPC_CHANNELS.SKILL_CHANGED,handler);
 		},
 	},
 	capabilities: {

@@ -60,6 +60,7 @@ const mocks = vi.hoisted(() => {
         ) => Promise<CodingAgentDiff[]>
       >(async () => []),
       sendPrompt: vi.fn(async () => undefined),
+      configureSkills: vi.fn(async () => undefined),
       compact: vi.fn(async () => undefined),
       getUsage: vi.fn<() => Promise<CodingAgentSessionUsage>>(async () => ({
         contextTokens: 50_000,
@@ -155,6 +156,7 @@ import {
   autoDiscoverAgent,
   compactAgentSession,
   configureCodingAgentCapabilityBridge,
+  configureCodingAgentSkillCatalog,
   createAgentSession,
   getAgentInstallationStatus,
   getAgentSessionSnapshot,
@@ -872,4 +874,9 @@ describe("coding-agent service routing", () => {
     expect(mocks.openCode.adapter.stop).toHaveBeenCalledOnce();
     expect(mocks.codex.adapter.stop).toHaveBeenCalledOnce();
   });
+});
+
+describe("coding-agent skill bridge",()=>{
+ it("configures both adapters process-wide",async()=>{await configureCodingAgentSkillCatalog({activeRoot:"/managed/active",expectedIds:["review"]});expect(mocks.codex.adapter.configureSkills).toHaveBeenCalled();expect(mocks.openCode.adapter.configureSkills).toHaveBeenCalled();});
+ it("delivers a structured explicit turn",async()=>{seedSession("codex-run","codex","codex-thread");await sendAgentMessage("codex-run",{explicitSkill:{id:"review",name:"review",path:"/managed/review/SKILL.md",arguments:"Review auth"}});expect(mocks.codex.adapter.sendPrompt).toHaveBeenCalledWith(expect.any(String),expect.any(String),expect.objectContaining({explicitSkill:expect.objectContaining({id:"review"})}));});
 });

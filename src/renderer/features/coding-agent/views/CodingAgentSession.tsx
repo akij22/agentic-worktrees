@@ -26,6 +26,7 @@ import { getSessionWorkspaceColumns } from "../lib/dual-chat-layout";
 import { getLinkedDiffFile } from "../lib/file-links";
 import type { SlashCommandId } from "../lib/slash-commands";
 import { ActiveCapabilities } from "../../capabilities/components/ActiveCapabilities";
+import type { SkillSummaryDto } from "../../../../shared/skills/schemas";
 
 type EditorError = {
   source: "discovery" | "open";
@@ -82,6 +83,8 @@ export const CodingAgentSession = ({
 }) => {
   const sessionState = useCodingAgentSession(runId);
   const [draft, setDraft] = useState("");
+  const [selectedSkill,setSelectedSkill]=useState<SkillSummaryDto>();
+  useEffect(()=>{setSelectedSkill(undefined);setDraft("");},[runId]);
   const splitRef = useRef<HTMLDivElement>(null);
   const [diffPanelWidth, setDiffPanelWidth] = useState(368);
   const [isResizing, setIsResizing] = useState(false);
@@ -228,10 +231,10 @@ export const CodingAgentSession = ({
   );
   const reasoningVariants = selectedModel?.reasoningVariants ?? [];
   const send = () => {
-    const content = draft.trim();
-    if (!content) return;
-    setDraft("");
-    void sessionState.send(content);
+    const content=draft.trim();
+    if(!content&&!selectedSkill)return;
+    const turn=selectedSkill?{skillInvocation:{skillId:selectedSkill.id,version:selectedSkill.version,...(content?{arguments:content}:{})}}:content;
+    void sessionState.send(turn).then((sent)=>{if(sent){setDraft("");setSelectedSkill(undefined);}});
   };
   const showStatus = async () => {
     setStatusPopup({ loading: true });
@@ -381,6 +384,7 @@ export const CodingAgentSession = ({
           <SessionMessages
             agentName={session.agentName}
             capabilities={sessionState.capabilities}
+            skillInvocations={sessionState.snapshot?.skillInvocations}
             messages={messages}
             busy={agentRunning}
             activity={
@@ -439,6 +443,10 @@ export const CodingAgentSession = ({
               busy={agentRunning || sessionState.compacting}
               locked={composerLocked || sessionState.compacting || sessionState.capabilityReloading}
               capabilityLibrary={sessionState.capabilityLibrary}
+              skills={sessionState.skillLibrary}
+              selectedSkill={selectedSkill}
+              onSkillSelect={setSelectedSkill}
+              onSkillClear={()=>setSelectedSkill(undefined)}
               capabilityReloading={sessionState.capabilityReloading}
               onActivateCapability={sessionState.activateCapability}
               onDeactivateCapability={sessionState.deactivateCapability}

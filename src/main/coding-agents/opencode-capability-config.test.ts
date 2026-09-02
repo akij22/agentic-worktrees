@@ -12,3 +12,5 @@ describe("OpenCode capability runtime config", () => {
     expect(normalizeOpenCodeIdentifier(connection.profileId)).not.toContain("token");
   });
 });
+
+describe("OpenCode skill configuration",()=>{it("adds trusted roots and skill permission without weakening MCP deny",()=>{expect(buildOpenCodeRuntimeConfig([{serverName:"aw_run_1",url:"http://localhost",authorizationHeader:"Bearer x",profileId:"aw_run_1"}],{activeRoot:"/managed/active",expectedIds:["review"]})).toMatchObject({skills:["/managed/active"],agent:{aw_run_1:{permission:{bash:"ask",skill:"allow","aw_*":"deny","aw_run_1_*":"allow"}}}});});});

@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
     initDatabase: vi.fn(),
     registerIpcHandlers: vi.fn(),
     configureCapabilityIpc: vi.fn(),
+    configureSkillIpc: vi.fn(),
     reconcileCapabilities: vi.fn(() => Promise.resolve()),
     stopCapabilities: vi.fn(() => Promise.resolve()),
     stopTerminals: vi.fn(),
@@ -69,6 +70,7 @@ vi.mock('./main/database', () => ({
 vi.mock('./main/ipc', () => ({
   registerIpcHandlers: mocks.registerIpcHandlers,
   configureCapabilityIpc: mocks.configureCapabilityIpc,
+  configureSkillIpc: mocks.configureSkillIpc,
 }));
 
 vi.mock('./main/github/auth-service', () => ({
@@ -80,6 +82,9 @@ vi.mock('./main/github/auth-service', () => ({
 vi.mock('./main/coding-agents/coding-agent-service', () => ({
   applyCodingAgentCapabilities: vi.fn(),
   configureCodingAgentCapabilityBridge: vi.fn(),
+  configureCodingAgentSkillCatalog: vi.fn(() => Promise.resolve()),
+  configureCodingAgentSkillInvocationSource: vi.fn(),
+  sendAgentMessage: vi.fn(),
   getCodingAgentCapabilitySession: vi.fn(() => ({ agentKind: 'codex', idle: true })),
   autoDiscoverAgent: mocks.autoDiscoverAgent,
   getAgentInstallationStatus: vi.fn(() => ({
@@ -96,6 +101,9 @@ vi.mock('./main/capabilities/capability-credential-store', () => ({ createElectr
 vi.mock('./main/capabilities/capability-host-manager', () => ({ createElectronCapabilityHostManager: vi.fn(() => ({ ensureHost: vi.fn(), stopHost: vi.fn() })) }));
 vi.mock('./main/capabilities/capability-service', () => ({ CapabilityService: class { reconcileCapabilities = mocks.reconcileCapabilities; stopCapabilities = mocks.stopCapabilities; resolveSecret = vi.fn(); } }));
 vi.mock('./main/capabilities/catalog', () => ({ getBundledCapability: vi.fn() }));
+vi.mock('./main/skills/skill-repository',()=>({SkillRepository:class{listInstallations=vi.fn(()=>[]);listRunInvocations=vi.fn(()=>[]);}}));
+vi.mock('./main/skills/skill-installer',()=>({createSkillStorageLayout:vi.fn(()=>({root:'/tmp/skills',packagesRoot:'/tmp/skills/packages',activeRoot:'/tmp/skills/active',stagingRoot:'/tmp/skills/.staging'}))}));
+vi.mock('./main/skills/skill-service',()=>({SkillService:class{reconcileSkills=vi.fn(()=>Promise.resolve());listRunInvocations=vi.fn(()=>[]);getSkill=vi.fn();}}));
 vi.mock('./main/workspace/workspace-terminal-service', () => ({ workspaceTerminalService: { disposeAll: mocks.stopTerminals } }));
 
 const flushPromises = async (): Promise<void> => {

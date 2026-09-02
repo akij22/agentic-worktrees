@@ -273,6 +273,48 @@ export const sessionCapabilities = sqliteTable(
 	}),
 );
 
+export const skillInstallations = sqliteTable(
+	"skill_installations",
+	{
+		skillId: text("skill_id").primaryKey(),
+		version: text("version").notNull(),
+		sourceKind: text("source_kind").notNull(),
+		sourceRef: text("source_ref").notNull(),
+		contentDigest: text("content_digest").notNull(),
+		name: text("name").notNull(),
+		description: text("description").notNull(),
+		license: text("license"),
+		codexCompatibility: text("codex_compatibility").notNull(),
+		opencodeCompatibility: text("opencode_compatibility").notNull(),
+		automaticInvocation: integer("automatic_invocation", { mode: "boolean" }).notNull(),
+		state: text("state").notNull(),
+		errorCode: text("error_code"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => ({ stateIdx: index("skill_installations_state_idx").on(table.state) }),
+);
+
+export const skillInvocations = sqliteTable(
+	"skill_invocations",
+	{
+		id: text("id").primaryKey(),
+		runId: text("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+		skillId: text("skill_id").notNull(),
+		version: text("version").notNull(),
+		mode: text("mode").notNull(),
+		status: text("status").notNull(),
+		errorCode: text("error_code"),
+		requestedAt: integer("requested_at", { mode: "timestamp_ms" }).notNull(),
+		loadedAt: integer("loaded_at", { mode: "timestamp_ms" }),
+		failedAt: integer("failed_at", { mode: "timestamp_ms" }),
+	},
+	(table) => ({
+		runIdIdx: index("skill_invocations_run_id_idx").on(table.runId),
+		skillIdIdx: index("skill_invocations_skill_id_idx").on(table.skillId),
+	}),
+);
+
 export const intelligenceSnapshots = sqliteTable(
 	"intelligence_snapshots",
 	{

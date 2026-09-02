@@ -44,8 +44,8 @@ const navItems: NavItem[] = [
     placement: "main",
   },
   {
-    to: "/capabilities",
-    label: "Capabilities",
+    to: "/marketplace",
+    label: "Marketplace",
     end: false,
     icon: Blocks,
     placement: "main",
@@ -113,8 +113,8 @@ export const AppShell = () => {
     location.pathname,
   );
   const isDashboard = isDashboardWorkspace(location.pathname);
-  const isCapabilitiesWorkspace = location.pathname.startsWith("/capabilities");
-  const isFullBleedWorkspace = isCodingAgentSession || isCapabilitiesWorkspace;
+  const isMarketplaceWorkspace = location.pathname.startsWith("/marketplace") || location.pathname.startsWith("/capabilities");
+  const isFullBleedWorkspace = isCodingAgentSession || isMarketplaceWorkspace;
   const isDashboardSidebarCollapsed = isDashboardSidebarCompact(
     dashboardSidebarWidth,
   );

@@ -14,6 +14,10 @@ import {
 import { findActiveFileMention, insertFileMention } from "../lib/file-mentions";
 import { useFileMentionSuggestions } from "../hooks/useFileMentionSuggestions";
 import { CapabilityPicker } from "../../capabilities/components/CapabilityPicker";
+import type { SkillSummaryDto } from "../../../../shared/skills/schemas";
+import { findActiveSkillCommand } from "../lib/skill-commands";
+import { isSkillSelectable, SkillCommandMenu } from "../../skills/components/SkillCommandMenu";
+import { SkillInvocationChip } from "../../skills/components/SkillInvocationChip";
 
 type Props = {
   session: CodingAgentSessionDto;
@@ -42,6 +46,10 @@ type Props = {
   capabilityReloading?: boolean;
   onActivateCapability?: (id: string) => Promise<unknown>;
   onDeactivateCapability?: (id: string) => Promise<unknown>;
+  skills?: SkillSummaryDto[];
+  selectedSkill?: SkillSummaryDto;
+  onSkillSelect?: (skill: SkillSummaryDto) => void;
+  onSkillClear?: () => void;
 };
 
 export const SessionComposer = ({
@@ -67,6 +75,7 @@ export const SessionComposer = ({
   capabilityReloading = false,
   onActivateCapability,
   onDeactivateCapability,
+  skills = [], selectedSkill, onSkillSelect, onSkillClear,
 }: Props) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCaretRef = useRef<number | undefined>(undefined);
@@ -75,7 +84,9 @@ export const SessionComposer = ({
   const [dismissedMentionKey, setDismissedMentionKey] = useState<string>();
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [reasoningPickerOpen, setReasoningPickerOpen] = useState(false);
-  const slashCommands = filterSlashCommands(draft);
+  const activeSkillCommand = selectedSkill ? undefined : findActiveSkillCommand(draft);
+  const matchingSkills = activeSkillCommand ? skills.filter(skill=>`${skill.id} ${skill.name}`.toLowerCase().includes(activeSkillCommand.query.toLowerCase())) : [];
+  const slashCommands = activeSkillCommand ? [] : filterSlashCommands(draft);
   const detectedMention =
     slashCommands.length === 0
       ? findActiveFileMention(draft, caret)
@@ -92,13 +103,14 @@ export const SessionComposer = ({
     mention: activeMention,
   });
   const filePaletteOpen = Boolean(activeMention);
-  const selectableCount =
-    slashCommands.length > 0
-      ? slashCommands.length
-      : fileSuggestions.paths.length;
+  const selectableSkillIndexes = activeSkillCommand
+    ? matchingSkills.map((skill,index)=>isSkillSelectable(skill,session.agentKind)?index:-1).filter((index)=>index>=0)
+    : [];
+  const selectableCount = activeSkillCommand ? selectableSkillIndexes.length : slashCommands.length > 0 ? slashCommands.length : fileSuggestions.paths.length;
+  const selectSkill=(skill:SkillSummaryDto)=>{if(!isSkillSelectable(skill,session.agentKind))return;onSkillSelect?.(skill);onDraftChange(activeSkillCommand?.arguments??"");};
 
   useEffect(
-    () => setSelectedSuggestionIndex(0),
+    () => setSelectedSuggestionIndex(activeSkillCommand ? (selectableSkillIndexes[0] ?? -1) : 0),
     [draft, fileSuggestions.paths.join("\0")],
   );
   useEffect(() => {
@@ -126,19 +138,21 @@ export const SessionComposer = ({
     onDraftChange(next.draft);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (slashCommands.length > 0 || filePaletteOpen) {
+    if (activeSkillCommand || slashCommands.length > 0 || filePaletteOpen) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         if (selectableCount === 0) return;
         event.preventDefault();
         const direction = event.key === "ArrowDown" ? 1 : -1;
-        setSelectedSuggestionIndex(
-          (current) =>
-            (current + direction + selectableCount) % selectableCount,
-        );
+        setSelectedSuggestionIndex((current) => {
+          if(activeSkillCommand){const position=selectableSkillIndexes.indexOf(current);return selectableSkillIndexes[(Math.max(position,0)+direction+selectableSkillIndexes.length)%selectableSkillIndexes.length]??-1;}
+          return (current + direction + selectableCount) % selectableCount;
+        });
         return;
       }
       if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
         event.preventDefault();
+        const selectedSkillOption=matchingSkills[selectedSuggestionIndex];
+        if(activeSkillCommand&&selectedSkillOption&&isSkillSelectable(selectedSkillOption,session.agentKind)){selectSkill(selectedSkillOption);return;}
         const selectedCommand = slashCommands[selectedSuggestionIndex];
         if (selectedCommand) executeSlashCommand(selectedCommand.id);
         const selectedPath = fileSuggestions.paths[selectedSuggestionIndex];
@@ -191,6 +205,7 @@ export const SessionComposer = ({
   };
   return (
     <div className="relative bg-background px-4 pb-4 pt-2">
+      {activeSkillCommand ? <SkillCommandMenu skills={matchingSkills} selectedIndex={selectedSuggestionIndex} agentKind={session.agentKind} onHover={setSelectedSuggestionIndex} onSelect={selectSkill}/> : null}
       {slashCommands.length > 0 ? (
         <div
           role="listbox"
@@ -273,6 +288,7 @@ export const SessionComposer = ({
         </div>
       ) : null}
       <div className="rounded-xl border border-white/[0.085] bg-[#090a0c] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_22px_52px_-34px_rgba(0,0,0,0.95)] transition-[border-color,box-shadow] focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-ring/20">
+        {selectedSkill ? <div className="px-2 pb-2"><SkillInvocationChip skill={selectedSkill} onRemove={()=>onSkillClear?.()}/></div> : null}
         <textarea
           ref={textareaRef}
           value={draft}
@@ -368,7 +384,7 @@ export const SessionComposer = ({
               type="button"
               size="sm"
               onClick={submit}
-              disabled={!draft.trim() || locked}
+              disabled={(!draft.trim() && !selectedSkill) || locked}
             >
               Send ↗
             </Button>

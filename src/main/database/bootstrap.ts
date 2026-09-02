@@ -514,6 +514,22 @@ const bootstrapStatements = [
     CREATE INDEX IF NOT EXISTS session_capabilities_status_idx
     ON session_capabilities (status)
   `,
+	`CREATE TABLE IF NOT EXISTS skill_installations (
+      skill_id TEXT PRIMARY KEY NOT NULL, version TEXT NOT NULL, source_kind TEXT NOT NULL,
+      source_ref TEXT NOT NULL, content_digest TEXT NOT NULL, name TEXT NOT NULL,
+      description TEXT NOT NULL, license TEXT, codex_compatibility TEXT NOT NULL,
+      opencode_compatibility TEXT NOT NULL, automatic_invocation INTEGER NOT NULL,
+      state TEXT NOT NULL, error_code TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    )`,
+	`CREATE INDEX IF NOT EXISTS skill_installations_state_idx ON skill_installations (state)`,
+	`CREATE TABLE IF NOT EXISTS skill_invocations (
+      id TEXT PRIMARY KEY NOT NULL, run_id TEXT NOT NULL, skill_id TEXT NOT NULL,
+      version TEXT NOT NULL, mode TEXT NOT NULL, status TEXT NOT NULL, error_code TEXT,
+      requested_at INTEGER NOT NULL, loaded_at INTEGER, failed_at INTEGER,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+    )`,
+	`CREATE INDEX IF NOT EXISTS skill_invocations_run_id_idx ON skill_invocations (run_id)`,
+	`CREATE INDEX IF NOT EXISTS skill_invocations_skill_id_idx ON skill_invocations (skill_id)`,
 ] as const;
 
 export const bootstrapSchemaSql = bootstrapStatements.join(";\n");

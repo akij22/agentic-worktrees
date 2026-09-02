@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { join, resolve } from "node:path";
 import { CapabilityError } from "@agentic-worktrees/capability-sdk";
 import {
   createOpencodeClient,
@@ -20,6 +21,8 @@ import type {
   CodingAgentModel,
   CodingAgentSessionUsage,
   CodingAgentToolCall,
+  CodingAgentSkillCatalog,
+  CodingAgentTurnInput,
 } from "./types";
 import { readOpenCodeSessionId, reserveLocalPort } from "./opencode-utils";
 import { buildOpenCodeRuntimeConfig, normalizeOpenCodeIdentifier } from "./opencode-capability-config";
@@ -337,6 +340,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   private executablePath: string | null = null;
   private startupDirectory: string | null = null;
   private reconfiguringCapabilities = false;
+  private skillCatalog: CodingAgentSkillCatalog | null = null;
 
   constructor(
     private readonly capabilityReloadTimeoutMs = 10_000,
@@ -372,7 +376,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           // This is loaded by OpenCode as its highest-priority runtime config.
           // The build agent is the one selected in sendPrompt(), so its shell
           // commands must wait for the renderer's explicit decision.
-          OPENCODE_CONFIG_CONTENT: JSON.stringify(buildOpenCodeRuntimeConfig([...this.capabilityConnections.values()])),
+          OPENCODE_CONFIG_CONTENT: JSON.stringify(buildOpenCodeRuntimeConfig([...this.capabilityConnections.values()], this.skillCatalog)),
         },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
@@ -580,18 +584,42 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     return (result.data as unknown[]).map(normalizeDiff);
   }
 
+  async configureSkills(catalog: CodingAgentSkillCatalog | null): Promise<void> {
+    const changed=JSON.stringify(this.skillCatalog)!==JSON.stringify(catalog);
+    this.skillCatalog = catalog;
+    if (!changed || !this.getStatus().running) return;
+    const executablePath=this.executablePath,directory=this.startupDirectory;
+    if(!executablePath||!directory)throw new Error("OpenCode is not configured for skill synchronization.");
+    await this.stop();
+    await this.start(executablePath,directory);
+    if(catalog)await this.verifySkills(directory,catalog.expectedIds);
+  }
+
+  async verifySkills(directory: string, expectedIds: readonly string[]): Promise<void> {
+    if (!this.v2Client) throw new Error("OpenCode skill discovery is unavailable.");
+    const result = await this.v2Client.v2.skill.list({ location: { directory } });
+    if (!result.data) throw new Error("OpenCode returned an invalid skill catalog.");
+    const skills = result.data.data;
+    const ids = skills.map((skill) => skill.name);
+    const root = this.skillCatalog?.activeRoot;
+    const pathsValid = root !== undefined && skills.every((skill) => resolve(skill.location) === resolve(join(root, skill.name, "SKILL.md")));
+    if (!pathsValid || new Set(ids).size !== ids.length || [...ids].sort().join("\0") !== [...expectedIds].sort().join("\0")) throw new Error("OpenCode skill catalog verification failed.");
+  }
+
   async sendPrompt(
     directory: string,
     sessionId: string,
-    input: {
-      content: string;
-      providerId: string;
-      modelId: string;
-      reasoningVariant?: string;
-      capabilityProfileId?: string;
-    },
+    input: CodingAgentTurnInput,
   ): Promise<void> {
     if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "Capabilities are being applied. Try again when reload completes.");
+    if (input.explicitSkill !== undefined) {
+      await this.requireClient().session.command({
+        path: { id: sessionId }, query: { directory },
+        body: { command: input.explicitSkill.id, arguments: input.explicitSkill.arguments ?? "", agent: input.capabilityProfileId || "build", model: `${input.providerId}/${input.modelId}` },
+        throwOnError: true,
+      });
+      return;
+    }
     await this.requireClient().session.promptAsync({
       path: { id: sessionId },
       query: { directory },

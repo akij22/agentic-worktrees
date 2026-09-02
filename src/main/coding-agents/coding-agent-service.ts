@@ -40,6 +40,8 @@ import type {
   CodingAgentRunStatus,
   CodingAgentSessionUsage,
   CodingAgentToolCall,
+  CodingAgentSkillCatalog,
+  ResolvedCodingAgentSkill,
 } from "./types";
 
 const execFileAsync = promisify(execFile);
@@ -93,6 +95,7 @@ export interface AgentSessionSnapshot {
   turnDiff: CodingAgentDiff[];
   capabilities: AgentSessionCapabilitySnapshot[];
   capabilityReloading: boolean;
+  skillInvocations: Array<{id:string;skillId:string;name:string;version:string;mode:"explicit"|"automatic";status:"requested"|"loaded"|"failed";errorCode?:string;requestedAt:string;loadedAt?:string;failedAt?:string}>;
 }
 
 export interface CodingAgentCapabilityBridge {
@@ -103,6 +106,8 @@ export interface CodingAgentCapabilityBridge {
   isReloading(runId: string): boolean;
 }
 
+let skillInvocationSource:((runId:string)=>AgentSessionSnapshot["skillInvocations"])|null=null;
+export const configureCodingAgentSkillInvocationSource=(source:typeof skillInvocationSource):void=>{skillInvocationSource=source;};
 let capabilityBridge: CodingAgentCapabilityBridge | null = null;
 const capabilityPreparedRuns = new Set<string>();
 export const configureCodingAgentCapabilityBridge = (bridge: CodingAgentCapabilityBridge | null): void => { capabilityBridge = bridge; capabilityPreparedRuns.clear(); };
@@ -147,6 +152,18 @@ const harnesses: Record<CodingAgentKind, CodingAgentHarness> = {
 };
 
 const harnessKinds = Object.keys(harnesses) as CodingAgentKind[];
+let skillCatalog: CodingAgentSkillCatalog | null = null;
+let skillCatalogSyncing = false;
+export const configureCodingAgentSkillCatalog = async (catalog: CodingAgentSkillCatalog | null): Promise<void> => {
+  skillCatalog = catalog;
+  skillCatalogSyncing = true;
+  try {
+    await Promise.all(harnessKinds.map(async (kind) => {
+      const adapter = harnesses[kind].adapter;
+      await adapter.configureSkills?.(catalog);
+    }));
+  } finally { skillCatalogSyncing = false; }
+};
 const startupPromises = new Map<CodingAgentKind, Promise<void>>();
 const listeners = new Set<(event: AgentUiEvent) => void>();
 const reasoningByRun = new Map<string, Map<string, string>>();
@@ -546,6 +563,7 @@ const ensureStarted = async (harness: CodingAgentHarness): Promise<void> => {
     // process/client pair is created for that burst.
     const currentRuntime = harness.adapter.getStatus();
     if (currentRuntime.running && currentRuntime.version) return;
+    await harness.adapter.configureSkills?.(skillCatalog);
     const version = await harness.adapter.start(
       installation.executablePath,
       app.getPath("userData"),
@@ -1063,18 +1081,23 @@ export const getAgentSessionSnapshot = async (
     turnDiff,
     capabilities: capabilityBridge?.listSessionCapabilities(runId) ?? [],
     capabilityReloading: capabilityBridge?.isReloading(runId) ?? false,
+    skillInvocations:skillInvocationSource?.(runId)??[],
   };
 };
 
+export type CodingAgentMessageTurn = { content: string } | { explicitSkill: ResolvedCodingAgentSkill };
 export const sendAgentMessage = async (
   runId: string,
-  content: string,
+  turn: string | CodingAgentMessageTurn,
   reasoningVariant?: string,
 ): Promise<void> => {
+  const normalizedTurn: CodingAgentMessageTurn = typeof turn === "string" ? { content: turn } : turn;
+  const visibleContent = "content" in normalizedTurn ? normalizedTurn.content : (normalizedTurn.explicitSkill.arguments ?? `/skill:${normalizedTurn.explicitSkill.id}`);
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
   if (capabilityBridge?.isReloading(runId)) throw new Error("Capabilities are being applied. Try again when reload completes.");
+  if (skillCatalogSyncing) throw new Error("Skills are being synchronized. Try again when synchronization completes.");
   await ensureStarted(harness);
   if (reasoningVariant) {
     const selectedModel = (
@@ -1093,7 +1116,7 @@ export const sendAgentMessage = async (
   if (!row.run.prompt) {
     getDatabase()
       .update(runs)
-      .set({ prompt: content, updatedAt: new Date() })
+      .set({ prompt: visibleContent, updatedAt: new Date() })
       .where(eq(runs.id, runId))
       .run();
   }
@@ -1104,7 +1127,7 @@ export const sendAgentMessage = async (
       context.worktree.path,
       row.agent.externalSessionId,
       {
-        content,
+        ...(normalizedTurn as CodingAgentMessageTurn),
         providerId: row.agent.providerId,
         modelId: row.agent.modelId,
         reasoningVariant,

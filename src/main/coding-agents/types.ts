@@ -72,6 +72,28 @@ export interface CodingAgentCapabilityConnection {
   profileId: string;
 }
 
+export interface CodingAgentSkillCatalog {
+  activeRoot: string;
+  expectedIds: string[];
+}
+
+export interface ResolvedCodingAgentSkill {
+  id: string;
+  name: string;
+  path: string;
+  arguments?: string;
+}
+
+export type CodingAgentTurnInput = {
+  providerId: string;
+  modelId: string;
+  reasoningVariant?: string;
+  capabilityProfileId?: string;
+} & (
+  | { content: string; explicitSkill?: never }
+  | { content?: never; explicitSkill: ResolvedCodingAgentSkill }
+);
+
 export interface CodingAgentSessionOptions {
   modelId: string;
   capabilities?: CodingAgentCapabilityConnection;
@@ -134,19 +156,15 @@ export interface CodingAgentAdapter {
   sendPrompt(
     directory: string,
     sessionId: string,
-    input: {
-      content: string;
-      providerId: string;
-      modelId: string;
-      reasoningVariant?: string;
-      capabilityProfileId?: string;
-    },
+    input: CodingAgentTurnInput,
   ): Promise<void>;
   compact(
     directory: string,
     sessionId: string,
     input: { providerId: string; modelId: string; capabilityProfileId?: string },
   ): Promise<void>;
+  configureSkills?(catalog: CodingAgentSkillCatalog | null): Promise<void>;
+  verifySkills?(directory: string, expectedIds: readonly string[]): Promise<void>;
   refreshCapabilities?(
     directory: string,
     sessionId: string,
