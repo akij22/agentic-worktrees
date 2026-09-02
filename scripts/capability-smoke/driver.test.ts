@@ -1,0 +1,1 @@
+import{describe,expect,it}from"vitest";import{smokeSessionIsIdle}from"./driver.mjs";describe("smoke driver",()=>{it("recognizes terminal states",()=>{expect(smokeSessionIsIdle("idle")).toBe(true);expect(smokeSessionIsIdle("busy")).toBe(false);expect(()=>smokeSessionIsIdle("error")).toThrow();expect(()=>smokeSessionIsIdle("unavailable")).toThrow();});});

@@ -241,3 +241,70 @@ describe("OpenCode event streaming", () => {
     }
   });
 });
+
+
+describe("OpenCode capability reconfiguration", () => {
+  const connection = { serverName: "aw_run_1", profileId: "aw_run_1", url: "http://127.0.0.1:1/mcp", authorizationHeader: "Bearer token" };
+  it("waits boundedly for every supplied session before restarting the shared process", async () => {
+    const adapter = new OpenCodeAdapter(5);
+    Object.assign(adapter as unknown as Record<string, unknown>, { executablePath: "/bin/opencode", startupDirectory: "/repo" });
+    const getSession = vi.spyOn(adapter, "getSession").mockImplementation(async (_directory, sessionId) => ({ id: sessionId, status: sessionId === "busy" ? "busy" : "idle" }));
+    const stop = vi.spyOn(adapter, "stop").mockResolvedValue();
+    vi.spyOn(adapter, "start").mockResolvedValue("1.18.23");
+    await expect(adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: "/one", sessionId: "idle" }, { directory: "/two", sessionId: "busy" }] })).rejects.toMatchObject({ code: "agent_reload_failed" });
+    expect(getSession).toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+  });
+
+  it("verifies the exact profile, connected MCP server, and normalized tools", async () => {
+    const adapter = new OpenCodeAdapter(10_000, 5);
+    Object.assign(adapter as unknown as Record<string, unknown>, {
+      client: {
+        mcp: { status: vi.fn().mockResolvedValue({ data: { aw_run_1: { status: "connected" } } }) },
+        tool: { ids: vi.fn().mockResolvedValue({ data: ["aw_run_1_web_search"] }) },
+        config: { get: vi.fn().mockResolvedValue({ data: { agent: { aw_run_1: { mode: "primary" } } } }) },
+      },
+    });
+    await expect(adapter.verifyCapabilities([connection], { aw_run_1: ["web_search"] }, "/repo")).resolves.toBeUndefined();
+    await expect(adapter.verifyCapabilities([connection], { aw_run_1: ["other_tool"] }, "/repo")).rejects.toMatchObject({ code: "agent_reload_failed" });
+    await expect(adapter.verifyCapabilities([], {}, "/repo", [connection])).rejects.toMatchObject({ code: "agent_reload_failed" });
+  });
+
+  it("restarts the previous configuration and resumes validated sessions after failure", async () => {
+    const adapter = new OpenCodeAdapter();
+    Object.assign(adapter as unknown as Record<string, unknown>, { executablePath: "/bin/opencode", startupDirectory: "/repo" });
+    const getSession = vi.spyOn(adapter, "getSession").mockResolvedValue({ id: "session", status: "idle" });
+    const stop = vi.spyOn(adapter, "stop").mockResolvedValue();
+    const start = vi.spyOn(adapter, "start").mockRejectedValueOnce(new Error("health failed")).mockResolvedValueOnce("1.18.23");
+    await expect(adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: "/repo", sessionId: "session" }] })).rejects.toMatchObject({ code: "agent_reload_failed" });
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(getSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects prompts for every chat while reconfiguration is in flight", async () => {
+    const adapter = new OpenCodeAdapter();
+    Object.assign(adapter as unknown as Record<string, unknown>, { executablePath: "/bin/opencode", startupDirectory: "/repo" });
+    let release!: () => void;
+    let checks = 0;
+    vi.spyOn(adapter, "getSession").mockImplementation(() => {
+      checks += 1;
+      if (checks > 1) return Promise.resolve({ id: "session", status: "idle" });
+      return new Promise((resolve) => { release = () => resolve({ id: "session", status: "idle" }); });
+    });
+    vi.spyOn(adapter, "stop").mockResolvedValue();
+    vi.spyOn(adapter, "start").mockResolvedValue("1.18.23");
+    const reload = adapter.reconfigureCapabilities({ connections: [connection], sessions: [{ directory: "/repo", sessionId: "session" }] });
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    await expect(adapter.sendPrompt("/repo", "other", { content: "race", providerId: "p", modelId: "m" })).rejects.toMatchObject({ code: "agent_reload_failed" });
+    release();
+    await reload;
+  });
+});
+
+describe("OpenCode native skills",()=>{
+ it("uses session.command for explicit invocation",async()=>{const adapter=new OpenCodeAdapter();const command=vi.fn(async()=>({data:{}})),promptAsync=vi.fn();(adapter as unknown as {client:unknown}).client={session:{command,promptAsync}};await adapter.sendPrompt("/repo","session-1",{providerId:"provider",modelId:"model",explicitSkill:{id:"review",name:"review",path:"/managed/review/SKILL.md",arguments:"Review auth"}});expect(command).toHaveBeenCalledWith({path:{id:"session-1"},query:{directory:"/repo"},body:{command:"review",arguments:"Review auth",agent:"build",model:"provider/model"},throwOnError:true});expect(promptAsync).not.toHaveBeenCalled();});
+ it("verifies exact native discovery",async()=>{const adapter=new OpenCodeAdapter();(adapter as unknown as {skillCatalog:unknown}).skillCatalog={activeRoot:"/managed/active",expectedIds:["review"]};(adapter as unknown as {v2Client:unknown}).v2Client={v2:{skill:{list:vi.fn(async()=>({data:{data:[{name:"review",location:"/managed/active/review/SKILL.md"}]}}))}}};await expect(adapter.verifySkills("/repo",["review"])).resolves.toBeUndefined();await expect(adapter.verifySkills("/repo",["missing"])).rejects.toThrow(/verification/);});
+ it("rejects discovery from an unmanaged location",async()=>{const adapter=new OpenCodeAdapter();(adapter as unknown as {skillCatalog:unknown}).skillCatalog={activeRoot:"/managed/active",expectedIds:["review"]};(adapter as unknown as {v2Client:unknown}).v2Client={v2:{skill:{list:vi.fn(async()=>({data:{data:[{name:"review",location:"/other/review/SKILL.md"}]}}))}}};await expect(adapter.verifySkills("/repo",["review"])).rejects.toThrow(/verification/);});
+
+});

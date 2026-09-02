@@ -1,0 +1,2 @@
+import { describe, expect, it, vi } from "vitest"; import { runCapabilityCreateCli } from "./cli";
+describe("capability create CLI",()=>{it("rejects incomplete or extra arguments",async()=>{for(const argv of [["url-fetch"],["url-fetch","--tool"],["url-fetch","--tool","fetch_url","extra"]]){const error=vi.fn(); expect(await runCapabilityCreateCli(argv,{log:vi.fn(),error})).toBe(1); expect(error).toHaveBeenCalledWith(expect.stringContaining("Usage"));}});});

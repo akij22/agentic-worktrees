@@ -1,0 +1,13 @@
+import * as fs from "node:fs/promises"; import path from "node:path"; import { randomUUID } from "node:crypto";
+import { deriveCapabilityNames } from "./naming"; import { renderCapabilityPackage } from "./templates"; import { createRepositoryRegistrationPatches } from "./repository-registration"; import type { CapabilityFileSystem, CreateCapabilityDependencies, CreateCapabilityOptions, CreateCapabilityResult } from "./types";
+const native: CapabilityFileSystem = { readFile: (p)=>fs.readFile(p,"utf8"), writeFile: (p,c)=>fs.writeFile(p,c), mkdir: (p,o)=>fs.mkdir(p,o).then(()=>undefined), rename: fs.rename, rm: fs.rm, lstat: fs.lstat };
+function inside(root:string,target:string){const relative=path.relative(root,target); if(relative.startsWith("..")||path.isAbsolute(relative)) throw new Error("Capability path escapes repository root.");}
+export async function createCapability(options:CreateCapabilityOptions, dependencies:Partial<CreateCapabilityDependencies>={}):Promise<CreateCapabilityResult>{
+ const filesystem=dependencies.filesystem??native, names=deriveCapabilityNames(options.slug,options.toolName), root=path.resolve(options.rootDirectory), target=path.resolve(root,"capabilities",names.slug), temp=path.resolve(root,"capabilities",`.tmp-${names.slug}-${(dependencies.temporarySuffix??randomUUID)()}`); inside(root,target); inside(root,temp);
+ try { await filesystem.lstat(target); throw new Error("Capability package already exists."); } catch(error){if(!(error instanceof Error)||!("code" in error)||error.code!=="ENOENT") throw error;}
+ const rendered=renderCapabilityPackage(names); const patches=await createRepositoryRegistrationPatches(root,names,(p)=>filesystem.readFile(p)); const originals=new Map<string,string>(); for(const relative of patches.keys()) originals.set(relative,await filesystem.readFile(path.join(root,relative)));
+ let renamed=false; const written:string[]=[];
+ try { await filesystem.mkdir(temp,{recursive:true}); for(const [relative,content] of rendered){const destination=path.join(temp,relative); inside(temp,destination); await filesystem.mkdir(path.dirname(destination),{recursive:true}); await filesystem.writeFile(destination,content); written.push(`capabilities/${names.slug}/${relative}`);} await filesystem.rename(temp,target); renamed=true; for(const [relative,content] of patches) await filesystem.writeFile(path.join(root,relative),content); }
+ catch(error){for(const [relative,content] of [...originals].reverse()) await filesystem.writeFile(path.join(root,relative),content).catch(()=>undefined); await filesystem.rm(renamed?target:temp,{recursive:true,force:true}); throw error;}
+ return {created:Object.freeze(written),modified:Object.freeze([...patches.keys()])};
+}

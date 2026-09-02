@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { join, resolve } from "node:path";
+import { CapabilityError } from "@agentic-worktrees/capability-sdk";
 import {
   createOpencodeClient,
   type GlobalEvent,
@@ -11,28 +13,24 @@ import { createOpencodeClient as createOpencodeClientV2 } from "@opencode-ai/sdk
 import type {
   CodingAgentAccountUsage,
   CodingAgentAdapter,
+  CodingAgentCapabilityConnection,
+  CodingAgentSessionOptions,
   CodingAgentDiff,
   CodingAgentEvent,
   CodingAgentMessage,
   CodingAgentModel,
   CodingAgentSessionUsage,
   CodingAgentToolCall,
+  CodingAgentSkillCatalog,
+  CodingAgentTurnInput,
 } from "./types";
 import { readOpenCodeSessionId, reserveLocalPort } from "./opencode-utils";
+import { buildOpenCodeRuntimeConfig, normalizeOpenCodeIdentifier } from "./opencode-capability-config";
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
 const EVENT_RECONNECT_MS = 250;
 const INTERNAL_DONE_MESSAGE = "*Done. I'll confirm to the user.*";
-const OPENCODE_COMMAND_APPROVAL_CONFIG = JSON.stringify({
-  agent: {
-    build: {
-      permission: {
-        bash: "ask",
-      },
-    },
-  },
-});
 const REASONING_VARIANT_IDS = new Set([
   "none",
   "minimal",
@@ -330,8 +328,6 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   private process: ChildProcess | null = null;
   private client: ReturnType<typeof createOpencodeClient> | null = null;
   private v2Client: ReturnType<typeof createOpencodeClientV2> | null = null;
-  private baseUrl: string | null = null;
-  private password: string | null = null;
   private version: string | null = null;
   private error: string | null = null;
   private eventAbortController: AbortController | null = null;
@@ -340,6 +336,16 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     OpenCodePermissionReplyProtocol
   >();
   private readonly listeners = new Set<(event: CodingAgentEvent) => void>();
+  private readonly capabilityConnections = new Map<string, CodingAgentCapabilityConnection>();
+  private executablePath: string | null = null;
+  private startupDirectory: string | null = null;
+  private reconfiguringCapabilities = false;
+  private skillCatalog: CodingAgentSkillCatalog | null = null;
+
+  constructor(
+    private readonly capabilityReloadTimeoutMs = 10_000,
+    private readonly capabilityVerificationTimeoutMs = 10_000,
+  ) {}
 
   getStatus() {
     return {
@@ -350,6 +356,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   }
 
   async start(executablePath: string, cwd: string): Promise<string> {
+    this.executablePath = executablePath;
+    this.startupDirectory = cwd;
     if (this.process && this.process.exitCode === null && this.version) {
       return this.version;
     }
@@ -368,7 +376,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           // This is loaded by OpenCode as its highest-priority runtime config.
           // The build agent is the one selected in sendPrompt(), so its shell
           // commands must wait for the renderer's explicit decision.
-          OPENCODE_CONFIG_CONTENT: OPENCODE_COMMAND_APPROVAL_CONFIG,
+          OPENCODE_CONFIG_CONTENT: JSON.stringify(buildOpenCodeRuntimeConfig([...this.capabilityConnections.values()], this.skillCatalog)),
         },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
@@ -376,18 +384,17 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     );
 
     this.process = child;
-    this.password = password;
-    this.baseUrl = baseUrl;
     this.error = null;
 
+    let diagnosticOutputReported = false;
     child.stderr?.on("data", (chunk: Buffer) => {
-      const line = chunk.toString("utf8").trim();
-      if (line) console.info(`[opencode] ${line}`);
+      if (chunk.length > 0 && !diagnosticOutputReported) {
+        diagnosticOutputReported = true;
+        console.info("[opencode] Diagnostic output received and redacted.");
+      }
     });
-    child.stdout?.on("data", (chunk: Buffer) => {
-      const line = chunk.toString("utf8").trim();
-      if (line) console.info(`[opencode] ${line}`);
-    });
+    // Drain stdout without copying provider prompts, tool inputs, or results into app logs.
+    child.stdout?.on("data", () => undefined);
     child.once("error", (error) => {
       this.error = error.message;
     });
@@ -480,8 +487,6 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     this.process = null;
     this.client = null;
     this.v2Client = null;
-    this.baseUrl = null;
-    this.password = null;
     this.permissionReplyProtocols.clear();
     if (!child || child.exitCode !== null) return;
 
@@ -524,7 +529,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       );
   }
 
-  async createSession(directory: string, title: string) {
+  async createSession(directory: string, title: string, options?: CodingAgentSessionOptions) {
+    if (options?.capabilities) this.capabilityConnections.set(options.capabilities.profileId, options.capabilities);
     const result = await this.requireClient().session.create({
       body: { title },
       query: { directory },
@@ -533,7 +539,8 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     return { id: result.data.id };
   }
 
-  async getSession(directory: string, sessionId: string) {
+  async getSession(directory: string, sessionId: string, options?: { capabilities?: CodingAgentCapabilityConnection }) {
+    if (options?.capabilities) this.capabilityConnections.set(options.capabilities.profileId, options.capabilities);
     const client = this.requireClient();
     const [sessionResult, statusesResult] = await Promise.all([
       client.session.get({
@@ -577,21 +584,47 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     return (result.data as unknown[]).map(normalizeDiff);
   }
 
+  async configureSkills(catalog: CodingAgentSkillCatalog | null): Promise<void> {
+    const changed=JSON.stringify(this.skillCatalog)!==JSON.stringify(catalog);
+    this.skillCatalog = catalog;
+    if (!changed || !this.getStatus().running) return;
+    const executablePath=this.executablePath,directory=this.startupDirectory;
+    if(!executablePath||!directory)throw new Error("OpenCode is not configured for skill synchronization.");
+    await this.stop();
+    await this.start(executablePath,directory);
+    if(catalog)await this.verifySkills(directory,catalog.expectedIds);
+  }
+
+  async verifySkills(directory: string, expectedIds: readonly string[]): Promise<void> {
+    if (!this.v2Client) throw new Error("OpenCode skill discovery is unavailable.");
+    const result = await this.v2Client.v2.skill.list({ location: { directory } });
+    if (!result.data) throw new Error("OpenCode returned an invalid skill catalog.");
+    const skills = result.data.data;
+    const ids = skills.map((skill) => skill.name);
+    const root = this.skillCatalog?.activeRoot;
+    const pathsValid = root !== undefined && skills.every((skill) => resolve(skill.location) === resolve(join(root, skill.name, "SKILL.md")));
+    if (!pathsValid || new Set(ids).size !== ids.length || [...ids].sort().join("\0") !== [...expectedIds].sort().join("\0")) throw new Error("OpenCode skill catalog verification failed.");
+  }
+
   async sendPrompt(
     directory: string,
     sessionId: string,
-    input: {
-      content: string;
-      providerId: string;
-      modelId: string;
-      reasoningVariant?: string;
-    },
+    input: CodingAgentTurnInput,
   ): Promise<void> {
+    if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "Capabilities are being applied. Try again when reload completes.");
+    if (input.explicitSkill !== undefined) {
+      await this.requireClient().session.command({
+        path: { id: sessionId }, query: { directory },
+        body: { command: input.explicitSkill.id, arguments: input.explicitSkill.arguments ?? "", agent: input.capabilityProfileId || "build", model: `${input.providerId}/${input.modelId}` },
+        throwOnError: true,
+      });
+      return;
+    }
     await this.requireClient().session.promptAsync({
       path: { id: sessionId },
       query: { directory },
       body: {
-        agent: "build",
+        agent: input.capabilityProfileId || "build",
         model: {
           providerID: input.providerId,
           modelID: input.modelId,
@@ -605,10 +638,104 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     });
   }
 
+  async reconfigureCapabilities(input: {
+    connections: CodingAgentCapabilityConnection[];
+    sessions: Array<{ directory: string; sessionId: string }>;
+    expectedToolNamesByProfile?: Record<string, string[]>;
+    absentConnections?: CodingAgentCapabilityConnection[];
+  }): Promise<void> {
+    if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "OpenCode capability reload is already in progress.");
+    this.reconfiguringCapabilities = true;
+    try {
+      const idleDeadline = Date.now() + this.capabilityReloadTimeoutMs;
+      let sessionsIdle = false;
+      while (!sessionsIdle) {
+        const snapshots = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+        const valid = snapshots.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId);
+        if (!valid) throw new CapabilityError("agent_reload_failed", "OpenCode returned an unexpected session during capability reload.");
+        sessionsIdle = snapshots.every((snapshot) => snapshot.status === "idle");
+        if (!sessionsIdle && Date.now() >= idleDeadline) throw new CapabilityError("agent_reload_failed", "OpenCode capability reload timed out waiting for idle sessions.");
+        if (!sessionsIdle) await delay(Math.min(100, this.capabilityReloadTimeoutMs));
+      }
+      const previous = [...this.capabilityConnections.values()];
+      const executablePath = this.executablePath;
+      const directory = this.startupDirectory;
+      if (!executablePath || !directory) throw new CapabilityError("agent_reload_failed", "OpenCode is not configured for capability reload.");
+      try {
+        this.capabilityConnections.clear();
+        for (const connection of input.connections) this.capabilityConnections.set(connection.profileId, connection);
+        await this.stop();
+        await this.start(executablePath, directory);
+        const resumed = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+        if (!resumed.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId)) {
+          throw new CapabilityError("agent_reload_failed", "OpenCode resumed an unexpected session.");
+        }
+        if (input.expectedToolNamesByProfile) {
+          await this.verifyCapabilities(input.connections, input.expectedToolNamesByProfile, input.sessions[0]?.directory ?? directory, input.absentConnections);
+        }
+      } catch {
+        this.capabilityConnections.clear();
+        for (const connection of previous) this.capabilityConnections.set(connection.profileId, connection);
+        await this.stop();
+        try {
+          await this.start(executablePath, directory);
+          const restored = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
+          if (!restored.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId)) throw new Error("Unexpected rollback session.");
+        } catch {
+          throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and its previous sessions could not be restored.");
+        }
+        throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and was rolled back.");
+      }
+    } finally {
+      this.reconfiguringCapabilities = false;
+    }
+  }
+
+  async verifyCapabilities(
+    connections: readonly CodingAgentCapabilityConnection[],
+    expectedToolNamesByProfile: Readonly<Record<string, readonly string[]>>,
+    directory: string,
+    absentConnections: readonly CodingAgentCapabilityConnection[] = [],
+  ): Promise<void> {
+    const deadline = Date.now() + this.capabilityVerificationTimeoutMs;
+    let verified = false;
+    while (!verified) {
+      const client = this.requireClient();
+      try {
+        const [mcp, tools, config] = await Promise.all([
+          client.mcp.status({ query: { directory }, throwOnError: true }),
+          client.tool.ids({ query: { directory }, throwOnError: true }),
+          client.config.get({ query: { directory }, throwOnError: true }),
+        ]);
+        const presentConnectionsVerified = connections.every((connection) => {
+          const serverName = normalizeOpenCodeIdentifier(connection.serverName);
+          const profileId = normalizeOpenCodeIdentifier(connection.profileId);
+          const status = mcp.data[serverName];
+          if (status?.status !== "connected" || !config.data.agent?.[profileId]) return false;
+          const expected = (expectedToolNamesByProfile[connection.profileId] ?? []).map((tool) => `${serverName}_${tool}`).sort();
+          if (!(connection.profileId in expectedToolNamesByProfile)) return true;
+          const actual = tools.data.filter((tool) => tool.startsWith(`${serverName}_`)).sort();
+          return actual.join("\0") === expected.join("\0");
+        });
+        const absentConnectionsVerified = absentConnections.every((connection) => {
+          const serverName = normalizeOpenCodeIdentifier(connection.serverName);
+          const profileId = normalizeOpenCodeIdentifier(connection.profileId);
+          return !mcp.data[serverName] && !config.data.agent?.[profileId] && !tools.data.some((tool) => tool.startsWith(`${serverName}_`));
+        });
+        verified = presentConnectionsVerified && absentConnectionsVerified;
+        if (verified) return;
+      } catch {
+        // OpenCode may still be loading MCP tools after its health endpoint is ready.
+      }
+      if (Date.now() >= deadline) throw new CapabilityError("agent_reload_failed", "OpenCode capability tools could not be verified.");
+      await delay(Math.min(100, this.capabilityVerificationTimeoutMs));
+    }
+  }
+
   async compact(
     directory: string,
     sessionId: string,
-    input: { providerId: string; modelId: string },
+    input: { providerId: string; modelId: string; capabilityProfileId?: string },
   ): Promise<void> {
     await this.requireClient().session.summarize({
       path: { id: sessionId },

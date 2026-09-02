@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "./shared/ipc/channels";
 import type { Api } from "./shared/ipc/api";
 import {
+	capabilityChangedEventSchema,
+	capabilityDetailSchema,
+	capabilitySessionStateSchema,
+	capabilitySummarySchema,
+	codingAgentSessionSnapshotSchema,
 	githubAuthStatusSchema,
 	githubDeviceChallengeSchema,
 	githubListBranchesResponseSchema,
@@ -18,7 +23,9 @@ import {
 	workspacePullRequestResultSchema,
 	workspaceTerminalCreateResponseSchema,
 	workspaceTerminalEventSchema,
+	skillChangedEventSchema,
 } from "./shared/ipc/schemas";
+import { skillDetailSchema, skillSummarySchema } from "./shared/skills/schemas";
 
 const api: Api = {
 	github: {
@@ -218,6 +225,29 @@ const api: Api = {
 				);
 		},
 	},
+	skills: {
+		list: async () => skillSummarySchema.array().parse(await ipcRenderer.invoke(IPC_CHANNELS.SKILL_LIST)),
+		get: async (request) => skillDetailSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.SKILL_GET, request)),
+		install: async () => { const value=await ipcRenderer.invoke(IPC_CHANNELS.SKILL_INSTALL, {}); return value===null?null:skillDetailSchema.parse(value); },
+		remove: (request) => ipcRenderer.invoke(IPC_CHANNELS.SKILL_REMOVE, request),
+		onChanged: (listener) => {
+			const handler=(_event:Electron.IpcRendererEvent,payload:unknown)=>listener(skillChangedEventSchema.parse(payload));
+			ipcRenderer.on(IPC_CHANNELS.SKILL_CHANGED,handler);
+			return ()=>ipcRenderer.removeListener(IPC_CHANNELS.SKILL_CHANGED,handler);
+		},
+	},
+	capabilities: {
+		list: async (request) => capabilitySummarySchema.array().parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_LIST, request ?? {})),
+		get: async (request) => capabilityDetailSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_GET, request)),
+		configure: async (request) => capabilityDetailSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_CONFIGURE, request)),
+		activate: async (request) => capabilitySessionStateSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_ACTIVATE, request)),
+		deactivate: async (request) => capabilitySessionStateSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_DEACTIVATE, request)),
+		onChanged: (listener) => {
+			const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(capabilityChangedEventSchema.parse(payload));
+			ipcRenderer.on(IPC_CHANNELS.CAPABILITY_CHANGED, handler);
+			return () => ipcRenderer.removeListener(IPC_CHANNELS.CAPABILITY_CHANGED, handler);
+		},
+	},
 	codingAgent: {
 		selectExecutable: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SELECT_EXECUTABLE, request),
@@ -231,8 +261,10 @@ const api: Api = {
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_CREATE, request),
 		setSessionModel: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE, request),
-		getSession: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
+		getSession: async (request) =>
+			codingAgentSessionSnapshotSchema.parse(
+				await ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
+			),
 		markSessionViewed: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED, request),
 		getSessionUsage: (request) =>

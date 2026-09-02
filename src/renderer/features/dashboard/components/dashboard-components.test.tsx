@@ -92,6 +92,8 @@ const chatSummary: WorktreeChatSummaryState = {
         deletions: 3,
       },
     ],
+    capabilities: [],
+    capabilityReloading: false,
   },
 };
 

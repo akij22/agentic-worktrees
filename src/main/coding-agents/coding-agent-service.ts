@@ -30,6 +30,7 @@ import { findOpenCodeInSystem, parseOpenCodeVersion } from "./opencode-utils";
 import type {
   CodingAgentAccountUsage,
   CodingAgentAdapter,
+  CodingAgentCapabilityConnection,
   CodingAgentDiff,
   CodingAgentEvent,
   CodingAgentKind,
@@ -39,6 +40,8 @@ import type {
   CodingAgentRunStatus,
   CodingAgentSessionUsage,
   CodingAgentToolCall,
+  CodingAgentSkillCatalog,
+  ResolvedCodingAgentSkill,
 } from "./types";
 
 const execFileAsync = promisify(execFile);
@@ -74,13 +77,48 @@ export interface AgentSessionSummary {
   updatedAt: Date;
 }
 
+export interface AgentSessionCapabilitySnapshot {
+  id: string;
+  name: string;
+  version: string;
+  state: string;
+  errorCode?: string;
+  activatedAt?: string;
+  deactivatedAt?: string;
+}
+
 export interface AgentSessionSnapshot {
   session: AgentSessionSummary;
   context: AgentWorktreeContext;
   messages: CodingAgentMessage[];
   diff: CodingAgentDiff[];
   turnDiff: CodingAgentDiff[];
+  capabilities: AgentSessionCapabilitySnapshot[];
+  capabilityReloading: boolean;
+  skillInvocations: Array<{id:string;skillId:string;name:string;version:string;mode:"explicit"|"automatic";status:"requested"|"loaded"|"failed";errorCode?:string;requestedAt:string;loadedAt?:string;failedAt?:string}>;
 }
+
+export interface CodingAgentCapabilityBridge {
+  prepareSession(runId: string, agentKind: CodingAgentKind): Promise<CodingAgentCapabilityConnection>;
+  listConnections(agentKind: CodingAgentKind): CodingAgentCapabilityConnection[];
+  stopSession(runId: string): void;
+  listSessionCapabilities(runId: string): AgentSessionCapabilitySnapshot[];
+  isReloading(runId: string): boolean;
+}
+
+let skillInvocationSource:((runId:string)=>AgentSessionSnapshot["skillInvocations"])|null=null;
+export const configureCodingAgentSkillInvocationSource=(source:typeof skillInvocationSource):void=>{skillInvocationSource=source;};
+let capabilityBridge: CodingAgentCapabilityBridge | null = null;
+const capabilityPreparedRuns = new Set<string>();
+export const configureCodingAgentCapabilityBridge = (bridge: CodingAgentCapabilityBridge | null): void => { capabilityBridge = bridge; capabilityPreparedRuns.clear(); };
+const capabilityProfileId = (runId: string): string => `aw_${runId.toLowerCase().replace(/[^a-z0-9_]+/g, "_")}`;
+const capabilityConnectionStates = new Set(["active", "pending_activation", "pending_deactivation", "reloading"]);
+const sessionNeedsCapabilityConnection = (runId: string): boolean =>
+  capabilityBridge?.listSessionCapabilities(runId).some(({ state }) => capabilityConnectionStates.has(state)) ?? false;
+const configuredCapabilityProfileId = (runId: string): string | undefined => {
+  const expected = capabilityProfileId(runId);
+  return capabilityBridge?.listConnections("opencode").some(({ profileId }) => profileId === expected) ? expected : undefined;
+};
 
 export interface AgentUiEvent {
   runId: string | null;
@@ -114,6 +152,18 @@ const harnesses: Record<CodingAgentKind, CodingAgentHarness> = {
 };
 
 const harnessKinds = Object.keys(harnesses) as CodingAgentKind[];
+let skillCatalog: CodingAgentSkillCatalog | null = null;
+let skillCatalogSyncing = false;
+export const configureCodingAgentSkillCatalog = async (catalog: CodingAgentSkillCatalog | null): Promise<void> => {
+  skillCatalog = catalog;
+  skillCatalogSyncing = true;
+  try {
+    await Promise.all(harnessKinds.map(async (kind) => {
+      const adapter = harnesses[kind].adapter;
+      await adapter.configureSkills?.(catalog);
+    }));
+  } finally { skillCatalogSyncing = false; }
+};
 const startupPromises = new Map<CodingAgentKind, Promise<void>>();
 const listeners = new Set<(event: AgentUiEvent) => void>();
 const reasoningByRun = new Map<string, Map<string, string>>();
@@ -301,6 +351,26 @@ const getSessionRecord = (runId: string) => {
   if (!row) throw new Error(`Coding-agent session not found: ${runId}`);
   return row;
 };
+
+const listCapabilityReloadSessions = (
+  kind: CodingAgentKind,
+  affectedRunId?: string,
+  includeAll = false,
+) => getDatabase()
+  .select({ runId: codingAgentSessions.runId, externalSessionId: codingAgentSessions.externalSessionId, worktreeId: runs.worktreeId })
+  .from(codingAgentSessions)
+  .innerJoin(runs, eq(runs.id, codingAgentSessions.runId))
+  .innerJoin(codingAgentInstallations, eq(codingAgentInstallations.id, codingAgentSessions.installationId))
+  .where(eq(codingAgentInstallations.kind, kind))
+  .all()
+  .filter((session) => includeAll || session.runId === affectedRunId || capabilityPreparedRuns.has(session.runId))
+  .flatMap((session) => {
+    try {
+      return [{ runId: session.runId, directory: getContext(session.worktreeId).worktree.path, sessionId: session.externalSessionId }];
+    } catch {
+      return [];
+    }
+  });
 
 const toSummary = (
   row: ReturnType<typeof getSessionRecord>,
@@ -493,6 +563,7 @@ const ensureStarted = async (harness: CodingAgentHarness): Promise<void> => {
     // process/client pair is created for that burst.
     const currentRuntime = harness.adapter.getStatus();
     if (currentRuntime.running && currentRuntime.version) return;
+    await harness.adapter.configureSkills?.(skillCatalog);
     const version = await harness.adapter.start(
       installation.executablePath,
       app.getPath("userData"),
@@ -725,7 +796,22 @@ export const createAgentSession = async (input: {
     throw new Error(`${harness.name} is not configured.`);
   }
   getHarnessForInstallation(installation);
-  await ensureStarted(harness);
+  const runId = nanoid();
+  const capabilityConnection = capabilityBridge && sessionNeedsCapabilityConnection(runId)
+    ? await capabilityBridge.prepareSession(runId, input.agentKind)
+    : undefined;
+  try {
+    await ensureStarted(harness);
+    if (capabilityConnection && input.agentKind === "opencode" && harness.adapter.reconfigureCapabilities) {
+      const existingSessions = listCapabilityReloadSessions("opencode");
+      await harness.adapter.reconfigureCapabilities({ connections: capabilityBridge?.listConnections("opencode") ?? [capabilityConnection], sessions: existingSessions.map(({ directory, sessionId }) => ({ directory, sessionId })) });
+    }
+    if (capabilityConnection) capabilityPreparedRuns.add(runId);
+    else capabilityPreparedRuns.delete(runId);
+  } catch (error) {
+    capabilityBridge?.stopSession(runId);
+    throw error;
+  }
   const availableModels = await harness.adapter.listModels(
     context.worktree.path,
   );
@@ -735,13 +821,19 @@ export const createAgentSession = async (input: {
     throw new Error(`No ${harness.name} models are available.`);
   }
 
-  const external = await harness.adapter.createSession(
-    context.worktree.path,
-    input.title,
-    { modelId: defaultModel.modelId },
-  );
+  let external: { id: string };
+  try {
+    external = await harness.adapter.createSession(
+      context.worktree.path,
+      input.title,
+      { modelId: defaultModel.modelId, ...(capabilityConnection ? { capabilities: capabilityConnection } : {}) },
+    );
+  } catch (error) {
+    capabilityBridge?.stopSession(runId);
+    capabilityPreparedRuns.delete(runId);
+    throw error;
+  }
   const now = new Date();
-  const runId = nanoid();
   getDatabase().transaction((tx) => {
     tx.insert(runs)
       .values({
@@ -774,6 +866,64 @@ export const createAgentSession = async (input: {
       .run();
   });
   return toSummary(getSessionRecord(runId));
+};
+
+export const getCodingAgentCapabilitySession = (runId: string) => {
+  const row = getSessionRecord(runId);
+  const context = getContext(row.run.worktreeId);
+  return {
+    agentKind: getHarnessForInstallation(row.installation).installationId,
+    version: row.installation.version,
+    directory: context.worktree.path,
+    sessionId: row.agent.externalSessionId,
+    idle: row.run.status === "idle",
+  };
+};
+
+export const applyCodingAgentCapabilities = async (
+  runId: string,
+  connection: CodingAgentCapabilityConnection,
+  expectedToolNames: string[],
+  allConnections: CodingAgentCapabilityConnection[] = [connection],
+): Promise<"refreshed" | "reloaded"> => {
+  const context = getCodingAgentCapabilitySession(runId);
+  const harness = harnesses[context.agentKind];
+  await ensureStarted(harness);
+  if (context.agentKind === "codex") {
+    if (!harness.adapter.reconfigureCapabilities) throw new Error("Codex capability reload is unavailable.");
+    const connectionByProfile = new Map(allConnections.map((candidate) => [candidate.profileId, candidate]));
+    const sessions = listCapabilityReloadSessions("codex", runId, true);
+    await harness.adapter.reconfigureCapabilities({
+      connections: allConnections,
+      sessions: sessions.map((session) => ({
+        directory: session.directory,
+        sessionId: session.sessionId,
+        capabilityProfileId: capabilityProfileId(session.runId),
+        ...(connectionByProfile.has(capabilityProfileId(session.runId))
+          ? { capabilities: connectionByProfile.get(capabilityProfileId(session.runId)) }
+          : {}),
+      })),
+      expectedToolNamesByProfile: { [connection.profileId]: expectedToolNames },
+      ...(expectedToolNames.length === 0 && !connectionByProfile.has(connection.profileId)
+        ? { absentConnections: [connection] }
+        : {}),
+    });
+    for (const session of sessions) {
+      if (connectionByProfile.has(capabilityProfileId(session.runId))) capabilityPreparedRuns.add(session.runId);
+      else capabilityPreparedRuns.delete(session.runId);
+    }
+    return "reloaded";
+  }
+  if (!harness.adapter.reconfigureCapabilities) throw new Error("OpenCode capability reload is unavailable.");
+  const sessions = listCapabilityReloadSessions("opencode", runId);
+  await harness.adapter.reconfigureCapabilities({
+    connections: allConnections,
+    sessions: sessions.map(({ directory, sessionId }) => ({ directory, sessionId })),
+    expectedToolNamesByProfile: { [connection.profileId]: expectedToolNames },
+    ...(expectedToolNames.length === 0 && !allConnections.some((candidate) => candidate.profileId === connection.profileId) ? { absentConnections: [connection] } : {}),
+  });
+  for (const session of sessions) capabilityPreparedRuns.add(session.runId);
+  return "reloaded";
 };
 
 export const setAgentSessionModel = async (input: {
@@ -816,10 +966,21 @@ export const reconcileAgentSession = async (runId: string): Promise<void> => {
     const context = getContext(row.run.worktreeId);
     const harness = getHarnessForInstallation(row.installation);
     await ensureStarted(harness);
-    const externalSession = await harness.adapter.getSession(
-      context.worktree.path,
-      row.agent.externalSessionId,
-    );
+    const needsCapabilityConnection = sessionNeedsCapabilityConnection(runId);
+    const capabilityConnection = capabilityBridge && needsCapabilityConnection
+      ? await capabilityBridge.prepareSession(runId, harness.installationId)
+      : undefined;
+    if (capabilityConnection && harness.installationId === "opencode" && harness.adapter.reconfigureCapabilities && !capabilityPreparedRuns.has(runId)) {
+      await harness.adapter.reconfigureCapabilities({ connections: capabilityBridge?.listConnections("opencode") ?? [capabilityConnection], sessions: [{ directory: context.worktree.path, sessionId: row.agent.externalSessionId }] });
+    }
+    if (capabilityConnection) capabilityPreparedRuns.add(runId);
+    else {
+      capabilityPreparedRuns.delete(runId);
+      capabilityBridge?.stopSession(runId);
+    }
+    const externalSession = capabilityConnection
+      ? await harness.adapter.getSession(context.worktree.path, row.agent.externalSessionId, { capabilities: capabilityConnection })
+      : await harness.adapter.getSession(context.worktree.path, row.agent.externalSessionId);
     if (externalSession.status) {
       const isStartingOrStreaming =
         row.run.status === "busy" &&
@@ -918,17 +1079,25 @@ export const getAgentSessionSnapshot = async (
     messages: storedMessages,
     diff,
     turnDiff,
+    capabilities: capabilityBridge?.listSessionCapabilities(runId) ?? [],
+    capabilityReloading: capabilityBridge?.isReloading(runId) ?? false,
+    skillInvocations:skillInvocationSource?.(runId)??[],
   };
 };
 
+export type CodingAgentMessageTurn = { content: string } | { explicitSkill: ResolvedCodingAgentSkill };
 export const sendAgentMessage = async (
   runId: string,
-  content: string,
+  turn: string | CodingAgentMessageTurn,
   reasoningVariant?: string,
 ): Promise<void> => {
+  const normalizedTurn: CodingAgentMessageTurn = typeof turn === "string" ? { content: turn } : turn;
+  const visibleContent = "content" in normalizedTurn ? normalizedTurn.content : (normalizedTurn.explicitSkill.arguments ?? `/skill:${normalizedTurn.explicitSkill.id}`);
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
+  if (capabilityBridge?.isReloading(runId)) throw new Error("Capabilities are being applied. Try again when reload completes.");
+  if (skillCatalogSyncing) throw new Error("Skills are being synchronized. Try again when synchronization completes.");
   await ensureStarted(harness);
   if (reasoningVariant) {
     const selectedModel = (
@@ -947,20 +1116,22 @@ export const sendAgentMessage = async (
   if (!row.run.prompt) {
     getDatabase()
       .update(runs)
-      .set({ prompt: content, updatedAt: new Date() })
+      .set({ prompt: visibleContent, updatedAt: new Date() })
       .where(eq(runs.id, runId))
       .run();
   }
   setRunStatus(runId, "busy", null);
+  const activeCapabilityProfileId = harness.installationId === "opencode" ? configuredCapabilityProfileId(runId) : undefined;
   try {
     await harness.adapter.sendPrompt(
       context.worktree.path,
       row.agent.externalSessionId,
       {
-        content,
+        ...(normalizedTurn as CodingAgentMessageTurn),
         providerId: row.agent.providerId,
         modelId: row.agent.modelId,
         reasoningVariant,
+        ...(activeCapabilityProfileId ? { capabilityProfileId: activeCapabilityProfileId } : {}),
       },
     );
     // Adapters may return before the harness finishes processing. Reconcile
@@ -982,6 +1153,7 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
   const harness = getHarnessForInstallation(row.installation);
   await ensureStarted(harness);
   setRunStatus(runId, "busy", null);
+  const activeCapabilityProfileId = harness.installationId === "opencode" ? configuredCapabilityProfileId(runId) : undefined;
   try {
     await harness.adapter.compact(
       context.worktree.path,
@@ -989,6 +1161,7 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
       {
         providerId: row.agent.providerId,
         modelId: row.agent.modelId,
+        ...(activeCapabilityProfileId ? { capabilityProfileId: activeCapabilityProfileId } : {}),
       },
     );
     // OpenCode resolves only after compaction completes. Codex acknowledges
@@ -1136,6 +1309,7 @@ harnessKinds.forEach((kind) => {
 
 export const stopCodingAgents = async (): Promise<void> => {
   reconcileScheduler.clear();
+  capabilityPreparedRuns.clear();
   await Promise.all(harnessKinds.map((kind) => harnesses[kind].adapter.stop()));
 };
 

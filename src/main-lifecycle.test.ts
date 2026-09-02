@@ -24,6 +24,11 @@ const mocks = vi.hoisted(() => {
     stopCodingAgents: vi.fn(() => Promise.resolve()),
     initDatabase: vi.fn(),
     registerIpcHandlers: vi.fn(),
+    configureCapabilityIpc: vi.fn(),
+    configureSkillIpc: vi.fn(),
+    reconcileCapabilities: vi.fn(() => Promise.resolve()),
+    stopCapabilities: vi.fn(() => Promise.resolve()),
+    stopTerminals: vi.fn(),
   };
 });
 
@@ -52,6 +57,7 @@ vi.mock('electron', () => {
         mocks.listeners.set(event, listener);
       }),
       quit: vi.fn(),
+      getPath: vi.fn(() => '/tmp/agentic-worktrees-test'),
     },
     BrowserWindow,
   };
@@ -63,6 +69,8 @@ vi.mock('./main/database', () => ({
 
 vi.mock('./main/ipc', () => ({
   registerIpcHandlers: mocks.registerIpcHandlers,
+  configureCapabilityIpc: mocks.configureCapabilityIpc,
+  configureSkillIpc: mocks.configureSkillIpc,
 }));
 
 vi.mock('./main/github/auth-service', () => ({
@@ -72,6 +80,12 @@ vi.mock('./main/github/auth-service', () => ({
 }));
 
 vi.mock('./main/coding-agents/coding-agent-service', () => ({
+  applyCodingAgentCapabilities: vi.fn(),
+  configureCodingAgentCapabilityBridge: vi.fn(),
+  configureCodingAgentSkillCatalog: vi.fn(() => Promise.resolve()),
+  configureCodingAgentSkillInvocationSource: vi.fn(),
+  sendAgentMessage: vi.fn(),
+  getCodingAgentCapabilitySession: vi.fn(() => ({ agentKind: 'codex', idle: true })),
   autoDiscoverAgent: mocks.autoDiscoverAgent,
   getAgentInstallationStatus: vi.fn(() => ({
     installations: [
@@ -81,6 +95,16 @@ vi.mock('./main/coding-agents/coding-agent-service', () => ({
   })),
   stopCodingAgents: mocks.stopCodingAgents,
 }));
+
+vi.mock('./main/capabilities/capability-repository', () => ({ CapabilityRepository: class { listSessionCapabilities = vi.fn(() => []); getSettings = vi.fn(() => []); } }));
+vi.mock('./main/capabilities/capability-credential-store', () => ({ createElectronCapabilityCredentialStore: vi.fn(() => ({})) }));
+vi.mock('./main/capabilities/capability-host-manager', () => ({ createElectronCapabilityHostManager: vi.fn(() => ({ ensureHost: vi.fn(), stopHost: vi.fn() })) }));
+vi.mock('./main/capabilities/capability-service', () => ({ CapabilityService: class { reconcileCapabilities = mocks.reconcileCapabilities; stopCapabilities = mocks.stopCapabilities; resolveSecret = vi.fn(); } }));
+vi.mock('./main/capabilities/catalog', () => ({ getBundledCapability: vi.fn() }));
+vi.mock('./main/skills/skill-repository',()=>({SkillRepository:class{listInstallations=vi.fn(()=>[]);listRunInvocations=vi.fn(()=>[]);}}));
+vi.mock('./main/skills/skill-installer',()=>({createSkillStorageLayout:vi.fn(()=>({root:'/tmp/skills',packagesRoot:'/tmp/skills/packages',activeRoot:'/tmp/skills/active',stagingRoot:'/tmp/skills/.staging'}))}));
+vi.mock('./main/skills/skill-service',()=>({SkillService:class{reconcileSkills=vi.fn(()=>Promise.resolve());listRunInvocations=vi.fn(()=>[]);getSkill=vi.fn();}}));
+vi.mock('./main/workspace/workspace-terminal-service', () => ({ workspaceTerminalService: { disposeAll: mocks.stopTerminals } }));
 
 const flushPromises = async (): Promise<void> => {
   await Promise.resolve();
@@ -116,13 +140,15 @@ it('does not register activation or create windows until auth bootstrap settles'
   expect(mocks.windows).toHaveLength(1);
 });
 
-it('stops all coding-agent harnesses before quitting', async () => {
+it('stops terminals, capability hosts, and coding-agent harnesses before quitting', async () => {
   const preventDefault = vi.fn();
 
   mocks.listeners.get('before-quit')?.({ preventDefault });
   await flushPromises();
 
   expect(preventDefault).toHaveBeenCalledOnce();
+  expect(mocks.stopTerminals).toHaveBeenCalledOnce();
+  expect(mocks.stopCapabilities).toHaveBeenCalledOnce();
   expect(mocks.stopCodingAgents).toHaveBeenCalledOnce();
 });
 
