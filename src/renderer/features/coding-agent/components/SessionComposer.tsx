@@ -1,4 +1,5 @@
-import { GitBranch, Layers3 } from "lucide-react";
+import "./SessionComposer.css";
+import { ArrowUp, GitBranch, Layers3 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type {
   CapabilitySummaryDto,
@@ -204,7 +205,7 @@ export const SessionComposer = ({
     onSend();
   };
   return (
-    <div className="relative bg-background px-4 pb-4 pt-2">
+    <div className="session-composer relative bg-background px-4 pb-4 pt-2">
       {activeSkillCommand ? <SkillCommandMenu skills={matchingSkills} selectedIndex={selectedSuggestionIndex} agentKind={session.agentKind} onHover={setSelectedSuggestionIndex} onSelect={selectSkill}/> : null}
       {slashCommands.length > 0 ? (
         <div
@@ -287,7 +288,7 @@ export const SessionComposer = ({
           </p>
         </div>
       ) : null}
-      <div className="rounded-xl border border-white/[0.085] bg-[#090a0c] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_22px_52px_-34px_rgba(0,0,0,0.95)] transition-[border-color,box-shadow] focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-ring/20">
+      <div className="session-composer__surface">
         {selectedSkill ? <div className="px-2 pb-2"><SkillInvocationChip skill={selectedSkill} onRemove={()=>onSkillClear?.()}/></div> : null}
         <textarea
           ref={textareaRef}
@@ -302,12 +303,15 @@ export const SessionComposer = ({
           onKeyUp={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           placeholder={`Describe the change you want ${session.agentName} to make…`}
+          aria-label="Message to agent"
           rows={3}
           disabled={locked}
-          className="block w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 outline-none placeholder:text-placeholder disabled:opacity-60"
+          className="session-composer__input block w-full resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-placeholder disabled:opacity-60"
         />
-        <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/[0.07] px-1 pt-2.5">
-          <div className="flex min-w-0 items-center gap-2">
+        <div className="session-composer__toolbar">
+          <div className="session-composer__settings" role="group" aria-label="Message configuration">
+            <div className="session-composer__setting">
+              <span className="session-composer__label">Model</span>
             <PickerMenu
               ariaLabel="AI model"
               open={modelPickerOpen}
@@ -338,12 +342,12 @@ export const SessionComposer = ({
               searchPlaceholder="Search models…"
               emptyLabel="No matching models"
               disabled={loadingModels || changingModel || models.length === 0}
-              triggerClassName="max-w-52"
+              triggerClassName="session-composer__picker max-w-52"
             />
-            {capabilityLibrary.length > 0 && onActivateCapability && onDeactivateCapability ? (
-              <CapabilityPicker runId={session.id} agentKind={session.agentKind} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
-            ) : null}
+            </div>
             {reasoningVariants.length > 0 ? (
+              <div className="session-composer__setting">
+                <span className="session-composer__label">Reasoning</span>
               <PickerMenu
                 ariaLabel="Reasoning level"
                 open={reasoningPickerOpen}
@@ -355,18 +359,24 @@ export const SessionComposer = ({
                   reasoningVariant
                     ? reasoningVariant.charAt(0).toUpperCase() +
                       reasoningVariant.slice(1)
-                    : "Reasoning · default"
+                    : "Default"
                 }
                 disabled={locked}
-                triggerClassName="max-w-40"
+                triggerClassName="session-composer__picker max-w-40"
               />
+              </div>
             ) : null}
-            <span className="hidden text-xs text-muted-foreground 2xl:inline">
-              Enter to send · Shift + Enter for newline
-            </span>
+            {capabilityLibrary.length > 0 && onActivateCapability && onDeactivateCapability ? (
+              <div className="session-composer__setting">
+                <span className="session-composer__label">Capabilities</span>
+                <CapabilityPicker runId={session.id} agentKind={session.agentKind} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
+              </div>
+            ) : null}
           </div>
+          <div className="session-composer__actions">
           {busy ? (
             <Button
+              className="session-composer__send"
               type="button"
               size="icon"
               variant="destructive"
@@ -382,15 +392,20 @@ export const SessionComposer = ({
           ) : (
             <Button
               type="button"
-              size="sm"
+              size="icon"
+              className="session-composer__send"
+              aria-label="Send message"
+              title="Send message (Enter)"
               onClick={submit}
               disabled={(!draft.trim() && !selectedSkill) || locked}
             >
-              Send ↗
+              <ArrowUp className="size-4" aria-hidden="true" />
             </Button>
           )}
+          </div>
         </div>
-        <div className="mt-2 flex min-w-0 items-center justify-between gap-4 px-1 text-[11px]">
+      </div>
+        <div className="session-composer__metadata">
           <div
             className="flex min-w-0 items-center gap-2 text-muted-foreground"
             title={branchName}
@@ -435,7 +450,7 @@ export const SessionComposer = ({
             </span>
           </div>
         </div>
-      </div>
+        <p className="session-composer__hint">Enter to send · Shift + Enter for newline</p>
     </div>
   );
 };

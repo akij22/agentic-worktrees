@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 
 export interface DropdownMenuItem<T extends string> {
@@ -25,18 +26,63 @@ export const DropdownMenu = <T extends string>({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuId = useId();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const trigger = triggerRef.current?.getBoundingClientRect();
+      const menu = menuRef.current?.getBoundingClientRect();
+      if (!trigger || !menu) return;
+      setPosition({
+        left: Math.max(
+          8,
+          Math.min(
+            trigger.right - menu.width,
+            window.innerWidth - menu.width - 8,
+          ),
+        ),
+        top: Math.max(
+          8,
+          Math.min(trigger.bottom + 6, window.innerHeight - menu.height - 8),
+        ),
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, items.length]);
 
   useEffect(() => {
     if (!open) return;
-    menuItemRefs.current[0]?.focus();
+    menuItemRefs.current[0]?.focus({ preventScroll: true });
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       setOpen(false);
       triggerRef.current?.focus();
     };
+    const closeOutside = (event: Event) => {
+      if (
+        event.target instanceof Node &&
+        !menuRef.current?.contains(event.target) &&
+        !triggerRef.current?.contains(event.target)
+      )
+        setOpen(false);
+    };
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("focusin", closeOutside);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("focusin", closeOutside);
+    };
   }, [open]);
 
   if (items.length === 0) return null;
@@ -55,67 +101,72 @@ export const DropdownMenu = <T extends string>({
         {label}
         <ChevronDown aria-hidden="true" className="size-3.5 stroke-[1.8]" />
       </button>
-      {open && (
-        <div
-          id={menuId}
-          role="menu"
-          aria-label={label}
-          className="absolute right-0 z-10 mt-1.5 min-w-48 rounded-lg border border-white/[0.075] bg-popover/95 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl"
-        >
-          {items.map((item, index) => (
-            <button
-              key={item.id}
-              ref={(element) => {
-                menuItemRefs.current[index] = element;
-              }}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onSelect(item.id);
-              }}
-              onKeyDown={(event) => {
-                const focusItem = (nextIndex: number) =>
-                  menuItemRefs.current[nextIndex]?.focus();
-                if (event.key === "ArrowDown") {
-                  event.preventDefault();
-                  focusItem((index + 1) % items.length);
-                }
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  focusItem((index - 1 + items.length) % items.length);
-                }
-                if (event.key === "Home") {
-                  event.preventDefault();
-                  focusItem(0);
-                }
-                if (event.key === "End") {
-                  event.preventDefault();
-                  focusItem(items.length - 1);
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={position}
+            id={menuId}
+            role="menu"
+            aria-label={label}
+            className="fixed z-50 max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] min-w-48 overflow-y-auto rounded-lg border border-white/[0.075] bg-popover/95 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl"
+          >
+            {items.map((item, index) => (
+              <button
+                key={item.id}
+                ref={(element) => {
+                  menuItemRefs.current[index] = element;
+                }}
+                type="button"
+                role="menuitem"
+                onClick={() => {
                   setOpen(false);
-                  triggerRef.current?.focus();
-                }
-              }}
-              className="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
-            >
-              {item.iconSrc && (
-                <span
-                  aria-hidden="true"
-                  className="mr-2 h-4 w-4 shrink-0 bg-current [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain]"
-                  style={{
-                    maskImage: `url(${item.iconSrc})`,
-                    WebkitMaskImage: `url(${item.iconSrc})`,
-                  }}
-                />
-              )}
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+                  triggerRef.current?.focus({ preventScroll: true });
+                  onSelect(item.id);
+                }}
+                onKeyDown={(event) => {
+                  const focusItem = (nextIndex: number) =>
+                    menuItemRefs.current[nextIndex]?.focus();
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    focusItem((index + 1) % items.length);
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    focusItem((index - 1 + items.length) % items.length);
+                  }
+                  if (event.key === "Home") {
+                    event.preventDefault();
+                    focusItem(0);
+                  }
+                  if (event.key === "End") {
+                    event.preventDefault();
+                    focusItem(items.length - 1);
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setOpen(false);
+                    triggerRef.current?.focus();
+                  }
+                }}
+                className="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+              >
+                {item.iconSrc && (
+                  <span
+                    aria-hidden="true"
+                    className="mr-2 h-4 w-4 shrink-0 bg-current [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain]"
+                    style={{
+                      maskImage: `url(${item.iconSrc})`,
+                      WebkitMaskImage: `url(${item.iconSrc})`,
+                    }}
+                  />
+                )}
+                {item.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

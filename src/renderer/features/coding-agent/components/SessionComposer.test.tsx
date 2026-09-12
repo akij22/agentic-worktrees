@@ -65,9 +65,15 @@ const renderComposer = (agentKind: CodingAgentSessionDto["agentKind"]) =>
 const InteractiveComposer = ({
   initialDraft,
   onSend = () => undefined,
+  onStop = () => undefined,
+  busy = false,
+  locked = false,
 }: {
   initialDraft: string;
   onSend?: () => void;
+  onStop?: () => void;
+  busy?: boolean;
+  locked?: boolean;
 }) => {
   const [draft, setDraft] = useState(initialDraft);
   return (
@@ -80,13 +86,13 @@ const InteractiveComposer = ({
       reasoningVariants={[]}
       loadingModels={false}
       changingModel={false}
-      busy={false}
-      locked={false}
+      busy={busy}
+      locked={locked}
       onDraftChange={setDraft}
       onModelChange={() => undefined}
       onReasoningChange={() => undefined}
       onSend={onSend}
-      onStop={() => undefined}
+      onStop={onStop}
       onSlashCommand={() => undefined}
     />
   );
@@ -113,6 +119,37 @@ describe("SessionComposer slash commands", () => {
     expect(markup).toContain("feat/composer-status");
     expect(markup).toContain('aria-label="Context used: 25%"');
     expect(markup).toContain("25% context");
+  });
+});
+
+describe("SessionComposer layout and actions", () => {
+  it("labels configuration separately from context metadata", () => {
+    render(<InteractiveComposer initialDraft="" />);
+    const configuration = screen.getByRole("group", { name: "Message configuration" });
+    expect(within(configuration).getByRole("button", { name: "AI model" })).toBeTruthy();
+    expect(within(configuration).queryByLabelText("Context usage unavailable")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Message to agent" })).toBeTruthy();
+    expect(screen.getByText("Enter to send · Shift + Enter for newline")).toBeTruthy();
+  });
+
+  it("sends a draft using the labelled icon action", () => {
+    const send = vi.fn();
+    render(<InteractiveComposer initialDraft="Review this change" onSend={send} />);
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it.each([["", false], ["Review", true]])("disables sending for empty or locked drafts", (initialDraft, locked) => {
+    render(<InteractiveComposer initialDraft={initialDraft as string} locked={locked as boolean} />);
+    expect((screen.getByRole("button", { name: "Send message" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("preserves the stop action while running", () => {
+    const stop = vi.fn();
+    render(<InteractiveComposer initialDraft="" busy onStop={stop} />);
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Stop Codex" }));
+    expect(stop).toHaveBeenCalledOnce();
   });
 });
 

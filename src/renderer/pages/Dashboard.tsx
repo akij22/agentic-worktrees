@@ -20,7 +20,6 @@ import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import {
 	RepositorySidebar,
-	type BranchChatStatus,
 	type RepositoryBranchListState,
 } from "../features/dashboard/components/RepositorySidebar";
 import { RepositoryWorkspace } from "../features/dashboard/components/RepositoryWorkspace";
@@ -50,7 +49,7 @@ type AddRepositoryState =
 			remoteCandidates: RemoteRepositoryDto[];
 			selectedRemoteIds: number[];
 			error?: string;
-	};
+	  };
 
 type CreateBaseBranchState =
 	| { status: "idle" }
@@ -70,7 +69,7 @@ type DialogState =
 			submitting: boolean;
 			error?: string;
 			createBaseBranch: CreateBaseBranchState;
-	};
+	  };
 
 export const initialOpenDialog = (
 	repo: Repository,
@@ -250,22 +249,6 @@ export const Dashboard = () => {
 			return sessions;
 		}, {});
 	}, [codingAgentSessions, createdWorktrees]);
-	const branchChatStatuses = useMemo(() => {
-		return Object.values(createdWorktrees).reduce<
-			Record<string, Record<string, BranchChatStatus | undefined>>
-		>((statuses, worktrees) => {
-			worktrees.forEach((worktree) => {
-				const session = sessionsByWorktreeId[worktree.id];
-				if (!session) return;
-				statuses[worktree.repositoryId] ??= {};
-				statuses[worktree.repositoryId][worktree.branchName] = {
-					status: session.status,
-					errorMessage: session.errorMessage,
-				};
-			});
-			return statuses;
-		}, {});
-	}, [createdWorktrees, sessionsByWorktreeId]);
 	const worktreeChatSummary = useWorktreeChatSummary(
 		selectedWorktree,
 		selectedRepositoryWorktrees,
@@ -286,9 +269,7 @@ export const Dashboard = () => {
 
 	const importLocalRepository = useCallback(async () => {
 		setAddRepository((prev) =>
-			prev.status === "open"
-				? { ...prev, mode: "local", error: undefined }
-				: prev,
+			prev.status === "open" ? { ...prev, mode: "local", error: undefined } : prev,
 		);
 
 		try {
@@ -411,13 +392,9 @@ export const Dashboard = () => {
 									...prev,
 									branches,
 									branchesState: "loaded",
-									baseBranch: branches.some(
-										(branch) => branch.name === prev.baseBranch,
-									)
+									baseBranch: branches.some((branch) => branch.name === prev.baseBranch)
 										? prev.baseBranch
-										: branches.some(
-													(branch) => branch.name === repo.defaultBranch,
-												)
+										: branches.some((branch) => branch.name === repo.defaultBranch)
 											? (repo.defaultBranch ?? "")
 											: (branches[0]?.name ?? ""),
 								}
@@ -429,8 +406,7 @@ export const Dashboard = () => {
 							? {
 									...prev,
 									branchesState: "error",
-									branchesError:
-										error instanceof Error ? error.message : String(error),
+									branchesError: error instanceof Error ? error.message : String(error),
 								}
 							: prev,
 					);
@@ -540,9 +516,7 @@ export const Dashboard = () => {
 				const branchList = current[repo.id];
 				if (
 					branchList?.status !== "ready" ||
-					branchList.branches.some(
-						(branch) => branch.name === worktree.branchName,
-					)
+					branchList.branches.some((branch) => branch.name === worktree.branchName)
 				) {
 					return current;
 				}
@@ -583,12 +557,8 @@ export const Dashboard = () => {
 				<RepositorySidebar
 					repositories={visibleRepositories}
 					selectedRepositoryId={selectedRepositoryId}
-					branchLists={repositoryBranchLists}
-					branchChatStatuses={branchChatStatuses}
 					query={repositoryQuery}
-					loading={
-						loadState.status === "idle" || loadState.status === "loading"
-					}
+					loading={loadState.status === "idle" || loadState.status === "loading"}
 					onAdd={openAddRepositoryDialog}
 					onBranchesRequested={loadRepositoryBranches}
 					onRefresh={() => void loadRepos(false)}
@@ -602,9 +572,7 @@ export const Dashboard = () => {
 							<h2 className="text-base font-semibold text-destructive">
 								Failed to load repositories
 							</h2>
-							<p className="mt-2 text-sm text-muted-foreground">
-								{loadState.message}
-							</p>
+							<p className="mt-2 text-sm text-muted-foreground">{loadState.message}</p>
 							<Button
 								type="button"
 								variant="outline"
@@ -621,8 +589,8 @@ export const Dashboard = () => {
 						<div className="surface-panel max-w-md px-8 py-10 text-center">
 							<h2 className="text-base font-semibold">No repositories</h2>
 							<p className="mt-2 text-sm text-muted-foreground">
-								Add a local repository or select repositories from the connected
-								GitHub account.
+								Add a local repository or select repositories from the connected GitHub
+								account.
 							</p>
 							<Button
 								type="button"
@@ -665,8 +633,8 @@ export const Dashboard = () => {
 					<DialogHeader>
 						<DialogTitle>Create worktree — {dialog.repo.fullName}</DialogTitle>
 						<DialogDescription>
-							Select a base branch and provide a name for the new worktree
-							branch. The repository will be cloned locally on first use.
+							Select a base branch and provide a name for the new worktree branch. The
+							repository will be cloned locally on first use.
 						</DialogDescription>
 					</DialogHeader>
 
@@ -743,8 +711,7 @@ export const Dashboard = () => {
 											disabled={dialog.createBaseBranch.creating}
 											onChange={(e) =>
 												setDialog((prev) =>
-													prev.status === "open" &&
-													prev.createBaseBranch.status === "open"
+													prev.status === "open" && prev.createBaseBranch.status === "open"
 														? {
 																...prev,
 																createBaseBranch: {
@@ -779,9 +746,7 @@ export const Dashboard = () => {
 											}
 											onClick={() => void handleCreateBaseBranch()}
 										>
-											{dialog.createBaseBranch.creating
-												? "Creating…"
-												: "Create"}
+											{dialog.createBaseBranch.creating ? "Creating…" : "Create"}
 										</Button>
 										<Button
 											type="button"
@@ -870,15 +835,12 @@ export const Dashboard = () => {
 			)}
 
 			{addRepository.status === "open" && (
-				<Dialog
-					open
-					onOpenChange={(open) => !open && closeAddRepositoryDialog()}
-				>
+				<Dialog open onOpenChange={(open) => !open && closeAddRepositoryDialog()}>
 					<DialogHeader>
 						<DialogTitle>Add repository</DialogTitle>
 						<DialogDescription>
-							Choose a local repository or select one or more repositories from
-							the connected GitHub account.
+							Choose a local repository or select one or more repositories from the
+							connected GitHub account.
 						</DialogDescription>
 					</DialogHeader>
 
@@ -891,8 +853,8 @@ export const Dashboard = () => {
 						>
 							<div className="text-sm font-semibold">Local path</div>
 							<div className="mt-1 text-sm text-muted-foreground">
-								Select a folder on this computer. The app checks for a valid
-								`.git` repository before adding it.
+								Select a folder on this computer. The app checks for a valid `.git`
+								repository before adding it.
 							</div>
 						</button>
 
@@ -907,9 +869,7 @@ export const Dashboard = () => {
 							<div className="rounded-xl border border-white/[0.04] bg-muted/25 p-3">
 								<div className="mb-2 flex items-center justify-between gap-3">
 									<div>
-										<div className="text-sm font-semibold">
-											Select repositories
-										</div>
+										<div className="text-sm font-semibold">Select repositories</div>
 										<div className="text-xs text-muted-foreground">
 											{addRepository.remoteCandidates.length} available ·{" "}
 											{addRepository.selectedRemoteIds.length} selected
@@ -925,8 +885,7 @@ export const Dashboard = () => {
 													? {
 															...prev,
 															selectedRemoteIds:
-																prev.selectedRemoteIds.length ===
-																prev.remoteCandidates.length
+																prev.selectedRemoteIds.length === prev.remoteCandidates.length
 																	? []
 																	: prev.remoteCandidates.map(
 																			(repository) => repository.githubRepoId,
@@ -967,9 +926,7 @@ export const Dashboard = () => {
 													<input
 														type="checkbox"
 														checked={selected}
-														onChange={() =>
-															toggleRemoteRepository(repository.githubRepoId)
-														}
+														onChange={() => toggleRemoteRepository(repository.githubRepoId)}
 														disabled={addRepository.mode === "remote-importing"}
 														className="mt-1 size-4 accent-primary"
 													/>
@@ -978,8 +935,8 @@ export const Dashboard = () => {
 															{repository.fullName}
 														</span>
 														<span className="block truncate text-xs text-muted-foreground">
-															{repository.isPrivate ? "Private" : "Public"} ·
-															default: {repository.defaultBranch ?? "—"}
+															{repository.isPrivate ? "Private" : "Public"} · default:{" "}
+															{repository.defaultBranch ?? "—"}
 														</span>
 													</span>
 												</label>
@@ -1012,8 +969,8 @@ export const Dashboard = () => {
 						>
 							<div className="text-sm font-semibold">GitHub remote</div>
 							<div className="mt-1 text-sm text-muted-foreground">
-								Browse the repositories available from the connected GitHub
-								profile and choose which ones to add.
+								Browse the repositories available from the connected GitHub profile and
+								choose which ones to add.
 							</div>
 						</button>
 

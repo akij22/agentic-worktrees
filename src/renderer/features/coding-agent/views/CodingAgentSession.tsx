@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Badge } from "../../../components/ui/badge";
+import { CodingAgentSessionHeader } from "../components/CodingAgentSessionHeader";
 import { DropdownMenu } from "../../../components/ui/dropdown-menu";
 import { Skeleton } from "../../../components/ui/skeleton";
 import type {
@@ -25,7 +25,6 @@ import { useCodingAgentSession } from "../hooks/useCodingAgentSession";
 import { getSessionWorkspaceColumns } from "../lib/dual-chat-layout";
 import { getLinkedDiffFile } from "../lib/file-links";
 import type { SlashCommandId } from "../lib/slash-commands";
-import { ActiveCapabilities } from "../../capabilities/components/ActiveCapabilities";
 import type { SkillSummaryDto } from "../../../../shared/skills/schemas";
 
 type EditorError = {
@@ -83,8 +82,11 @@ export const CodingAgentSession = ({
 }) => {
   const sessionState = useCodingAgentSession(runId);
   const [draft, setDraft] = useState("");
-  const [selectedSkill,setSelectedSkill]=useState<SkillSummaryDto>();
-  useEffect(()=>{setSelectedSkill(undefined);setDraft("");},[runId]);
+  const [selectedSkill, setSelectedSkill] = useState<SkillSummaryDto>();
+  useEffect(() => {
+    setSelectedSkill(undefined);
+    setDraft("");
+  }, [runId]);
   const splitRef = useRef<HTMLDivElement>(null);
   const [diffPanelWidth, setDiffPanelWidth] = useState(368);
   const [isResizing, setIsResizing] = useState(false);
@@ -231,10 +233,23 @@ export const CodingAgentSession = ({
   );
   const reasoningVariants = selectedModel?.reasoningVariants ?? [];
   const send = () => {
-    const content=draft.trim();
-    if(!content&&!selectedSkill)return;
-    const turn=selectedSkill?{skillInvocation:{skillId:selectedSkill.id,version:selectedSkill.version,...(content?{arguments:content}:{})}}:content;
-    void sessionState.send(turn).then((sent)=>{if(sent){setDraft("");setSelectedSkill(undefined);}});
+    const content = draft.trim();
+    if (!content && !selectedSkill) return;
+    const turn = selectedSkill
+      ? {
+          skillInvocation: {
+            skillId: selectedSkill.id,
+            version: selectedSkill.version,
+            ...(content ? { arguments: content } : {}),
+          },
+        }
+      : content;
+    void sessionState.send(turn).then((sent) => {
+      if (sent) {
+        setDraft("");
+        setSelectedSkill(undefined);
+      }
+    });
   };
   const showStatus = async () => {
     setStatusPopup({ loading: true });
@@ -300,65 +315,32 @@ export const CodingAgentSession = ({
   };
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <section className="flex min-h-16 shrink-0 items-center border-b border-border/60 bg-background/95 px-6 py-2 backdrop-blur-xl">
-        <div className="flex min-w-0 flex-1 items-center gap-6">
-          {headerTitle ? (
-            <h1 className="shrink-0 text-base font-semibold tracking-[-0.018em]">
-              {headerTitle}
-            </h1>
-          ) : null}
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex min-w-0 items-center gap-3">
-              <h2
-                className="min-w-0 truncate font-mono text-base font-semibold"
-                title={context.worktree.name}
-              >
-                {context.worktree.name}
-              </h2>
-              <span
-                className="min-w-0 shrink-[2] truncate font-mono text-sm text-muted-foreground"
-                title={context.worktree.branchName}
-              >
-                {context.worktree.branchName}
-              </span>
-              <Badge
-                variant="outline"
-                className="min-w-0 max-w-full shrink-[3] truncate font-mono text-[11px]"
-                title={context.repository.fullName}
-              >
-                {context.repository.fullName}
-              </Badge>
-              <ActiveCapabilities capabilities={sessionState.capabilities} onRemove={(id) => void sessionState.deactivateCapability(id)} />
-              <DropdownMenu
-                label="Open in editor"
-                className="ml-auto shrink-0"
-                items={editors.map((editor) => ({
-                  id: editor.id,
-                  label: editor.name,
-                  iconSrc: editorIconSources[editor.id],
-                }))}
-                onSelect={(editorId) => {
-                  const editor = editors.find(
-                    (candidate) => candidate.id === editorId,
-                  );
-                  if (editor) void openInEditor(editor);
-                }}
-              />
-            </div>
-            {editorError ? (
-              <p
-                className="mt-1 truncate text-xs text-destructive"
-                role="alert"
-              >
-                {editorError.message}
-              </p>
-            ) : null}
-          </div>
-          {headerActions ? (
-            <div className="shrink-0">{headerActions}</div>
-          ) : null}
-        </div>
-      </section>
+      <CodingAgentSessionHeader
+        key={runId}
+        context={context}
+        title={headerTitle}
+        layoutActions={headerActions}
+        editorError={editorError?.message}
+        capabilities={sessionState.capabilities}
+        onRemoveCapability={sessionState.deactivateCapability}
+        editorAction={
+          <DropdownMenu
+            label="Open in editor"
+            className="shrink-0"
+            items={editors.map((editor) => ({
+              id: editor.id,
+              label: editor.name,
+              iconSrc: editorIconSources[editor.id],
+            }))}
+            onSelect={(editorId) => {
+              const editor = editors.find(
+                (candidate) => candidate.id === editorId,
+              );
+              if (editor) void openInEditor(editor);
+            }}
+          />
+        }
+      />
       <div
         ref={splitRef}
         style={
@@ -409,7 +391,15 @@ export const CodingAgentSession = ({
             ) : null}
           </SessionMessages>
           <div className="relative shrink-0">
-            {sessionState.capabilityReloading ? <div className="px-5 py-2 font-mono text-[11px] text-primary">Applying {sessionState.capabilities.find((capability) => capability.state === "reloading")?.name ?? "capabilities"}…</div> : null}
+            {sessionState.capabilityReloading ? (
+              <div className="px-5 py-2 font-mono text-[11px] text-primary">
+                Applying{" "}
+                {sessionState.capabilities.find(
+                  (capability) => capability.state === "reloading",
+                )?.name ?? "capabilities"}
+                …
+              </div>
+            ) : null}
             {accountUsagePopup ? (
               <AccountUsagePopup
                 session={session}
@@ -441,12 +431,16 @@ export const CodingAgentSession = ({
               loadingModels={sessionState.loadingModels}
               changingModel={sessionState.changingModel}
               busy={agentRunning || sessionState.compacting}
-              locked={composerLocked || sessionState.compacting || sessionState.capabilityReloading}
+              locked={
+                composerLocked ||
+                sessionState.compacting ||
+                sessionState.capabilityReloading
+              }
               capabilityLibrary={sessionState.capabilityLibrary}
               skills={sessionState.skillLibrary}
               selectedSkill={selectedSkill}
               onSkillSelect={setSelectedSkill}
-              onSkillClear={()=>setSelectedSkill(undefined)}
+              onSkillClear={() => setSelectedSkill(undefined)}
               capabilityReloading={sessionState.capabilityReloading}
               onActivateCapability={sessionState.activateCapability}
               onDeactivateCapability={sessionState.deactivateCapability}
