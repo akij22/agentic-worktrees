@@ -1,0 +1,177 @@
+{
+  "kind": "local-runtime-capacity-benchmark",
+  "machine": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "arch": "arm64",
+    "logicalCpus": 10,
+    "cpuModel": "Apple M5",
+    "totalMemoryGb": 16,
+    "node": "v24.3.0"
+  },
+  "versions": {
+    "codex": "codex-cli 0.154.0",
+    "opencode": "1.18.30"
+  },
+  "policyUnderTest": {
+    "totalCapacity": 2,
+    "perProviderCapacity": 2,
+    "idleMs": 300000,
+    "perRuntimeTurnConcurrency": 1
+  },
+  "launches": [
+    {
+      "provider": "codex",
+      "phase": "cold",
+      "readyMs": 184.2,
+      "verificationMs": 10.1,
+      "readyRssMb": 105.1,
+      "idleRssMb": 128.1,
+      "baselineCount": 6,
+      "shutdownMs": 7.7,
+      "forcedShutdown": false
+    },
+    {
+      "provider": "codex",
+      "phase": "warm",
+      "readyMs": 58.6,
+      "verificationMs": 5.3,
+      "readyRssMb": 106.2,
+      "idleRssMb": 122.3,
+      "baselineCount": 6,
+      "shutdownMs": 5.5,
+      "forcedShutdown": false
+    },
+    {
+      "provider": "codex",
+      "phase": "warm",
+      "readyMs": 49.5,
+      "verificationMs": 4.2,
+      "readyRssMb": 106.6,
+      "idleRssMb": 123,
+      "baselineCount": 6,
+      "shutdownMs": 8.1,
+      "forcedShutdown": false
+    },
+    {
+      "provider": "opencode",
+      "phase": "cold",
+      "readyMs": 616.6,
+      "verificationMs": 146.6,
+      "readyRssMb": 395.3,
+      "idleRssMb": 459.5,
+      "baselineCount": 1,
+      "shutdownMs": 56.9,
+      "forcedShutdown": false
+    },
+    {
+      "provider": "opencode",
+      "phase": "warm",
+      "readyMs": 1021.2,
+      "verificationMs": 30.7,
+      "readyRssMb": 366.2,
+      "idleRssMb": 366.3,
+      "baselineCount": 1,
+      "shutdownMs": 11.7,
+      "forcedShutdown": false
+    },
+    {
+      "provider": "opencode",
+      "phase": "warm",
+      "readyMs": 440.4,
+      "verificationMs": 25.6,
+      "readyRssMb": 368.2,
+      "idleRssMb": 368.3,
+      "baselineCount": 1,
+      "shutdownMs": 7.9,
+      "forcedShutdown": false
+    }
+  ],
+  "mixedLoads": [
+    {
+      "count": 1,
+      "providers": [
+        "codex"
+      ],
+      "wallReadyMs": 93.1,
+      "aggregateReadyRssMb": 109.5
+    },
+    {
+      "count": 2,
+      "providers": [
+        "codex",
+        "opencode"
+      ],
+      "wallReadyMs": 1258.2,
+      "aggregateReadyRssMb": 536.8
+    },
+    {
+      "count": 4,
+      "providers": [
+        "codex",
+        "opencode",
+        "codex",
+        "opencode"
+      ],
+      "wallReadyMs": 2252.4,
+      "aggregateReadyRssMb": 1072.5
+    }
+  ],
+  "crashRestarts": [
+    {
+      "provider": "codex",
+      "restartReadyMs": 103.4,
+      "restartVerificationMs": 9.1,
+      "restartRssMb": 106.8
+    },
+    {
+      "provider": "opencode",
+      "restartReadyMs": 1680.7,
+      "restartVerificationMs": 125,
+      "restartRssMb": 364.4
+    }
+  ],
+  "forcedShutdowns": [
+    {
+      "provider": "codex",
+      "graceMs": 250,
+      "durationMs": 254.9,
+      "forced": true
+    },
+    {
+      "provider": "opencode",
+      "graceMs": 250,
+      "durationMs": 12.9,
+      "forced": false
+    }
+  ],
+  "queueSimulation": [
+    {
+      "capacity": 1,
+      "p50WaitMs": 2593,
+      "p95WaitMs": 4720,
+      "maxWaitMs": 4720
+    },
+    {
+      "capacity": 2,
+      "p50WaitMs": 1246.2,
+      "p95WaitMs": 2203.7,
+      "maxWaitMs": 2203.7
+    },
+    {
+      "capacity": 4,
+      "p50WaitMs": 194.3,
+      "p95WaitMs": 763.2,
+      "maxWaitMs": 763.2
+    }
+  ],
+  "privacy": {
+    "prompts": false,
+    "outputs": false,
+    "skillNames": false,
+    "paths": false,
+    "tokens": false,
+    "sessionIdentifiers": false
+  },
+  "turnConcurrencyQualification": "not-qualified-pending-independent-routing-and-cancellation-proof"
+}
