@@ -1,0 +1,182 @@
+{
+  "kind": "codex-atomic-skill-boundary-probe",
+  "version": "codex-cli 0.154.0",
+  "observations": {
+    "privateBaseline": {
+      "assignedCount": 1,
+      "bundledOrOtherCount": 6
+    },
+    "explicitAssigned": {
+      "completed": true
+    },
+    "automaticCatalogHidden": {
+      "completed": true
+    },
+    "ambientBeforeCatalog": {
+      "discovered": true
+    },
+    "ambientBeforeMention": {
+      "completed": true
+    },
+    "disabledKnownAmbientMention": {
+      "completed": true
+    },
+    "catalogToThreadGap": {
+      "verifiedUnassignedCount": 51,
+      "completed": true
+    },
+    "ambientAfterThreadMention": {
+      "completed": true
+    },
+    "races": [
+      {
+        "completed": true,
+        "interrupted": false
+      },
+      {
+        "completed": true,
+        "interrupted": false
+      },
+      {
+        "completed": true,
+        "interrupted": true
+      }
+    ],
+    "catalogVisibleControl": {
+      "completed": true
+    },
+    "resume": {
+      "resumed": true,
+      "completed": true
+    },
+    "context": {
+      "explicit-assigned": {
+        "assignedBodyCount": 1,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "automatic-catalog-hidden": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "ambient-before-mention": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 1,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "disabled-known-ambient": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "catalog-to-thread-gap": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 1,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "resume-ambient-mention": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 2,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "race-0": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "race-1": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "race-2": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      },
+      "catalog-visible-control": {
+        "assignedBodyCount": 0,
+        "availableSkillsBlockCount": 0,
+        "ambientBodyCounts": {
+          "ambient-before": 0,
+          "ambient-between-verify-start": 0,
+          "ambient-after-thread": 0,
+          "ambient-race-0": 0,
+          "ambient-race-1": 0,
+          "ambient-race-2": 0
+        }
+      }
+    }
+  },
+  "privacy": {
+    "prompts": false,
+    "outputs": false,
+    "credentials": false,
+    "paths": false,
+    "sessionIds": false
+  }
+}
