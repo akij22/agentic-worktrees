@@ -220,7 +220,7 @@ try {
     kind: "local-runtime-capacity-benchmark",
     machine: { platform: os.platform(), release: os.release(), arch: os.arch(), logicalCpus: os.cpus().length, cpuModel: os.cpus()[0]?.model ?? "unknown", totalMemoryGb: round(os.totalmem() / 1024 ** 3), node: process.version },
     versions,
-    policyUnderTest: { totalCapacity: 2, perProviderCapacity: 2, idleMs: 300000, perRuntimeTurnConcurrency: 1 },
+    policyUnderTest: { totalCapacity: 4, perProviderCapacity: 4, idleMs: 60000, perRuntimeTurnConcurrency: 1 },
     launches,
     mixedLoads,
     crashRestarts: restarts,

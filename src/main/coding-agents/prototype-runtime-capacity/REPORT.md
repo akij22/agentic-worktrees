@@ -2,15 +2,15 @@
 
 ## Recommendation
 
-Use these first-release constants:
+Use these approved first-release constants:
 
-- **Total Worktree Runtime capacity:** 2 on machines with at least 12 GB physical memory; 1 below 12 GB.
-- **Per-provider capacity:** equal to total capacity, with the same global ceiling.
+- **Total Worktree Runtime capacity:** 4 on every supported machine, including machines below 12 GB.
+- **Per-provider capacity:** 4, within the same global ceiling.
 - **Idle timeout:** 60 seconds for both providers; memory pressure reduces it immediately to zero.
 - **Per-runtime active turn concurrency:** 1 until independent session routing and cancellation are qualified.
 - **Graceful shutdown deadline:** retain 5 seconds, then terminate only the tracked owned process tree.
 
-These replace the provisional five-minute idle window. On the measured machine, keeping two idle OpenCode processes warm for five minutes would retain roughly 736 MB to save a typical sub-second restart. Two total slots materially reduce queue wait compared with one while avoiding the >1 GB provider footprint observed with four mixed runtimes.
+These replace the provisional five-minute idle window. The benchmark's conservative engineering recommendation was two slots, but HITL explicitly selected four slots without a low-memory reduction to maximize parallel worktrees. This accepts the measured risk that four mixed runtimes exceeded 1 GB before Electron, terminals and repositories are counted. The short idle window and immediate memory-pressure eviction are therefore mandatory safeguards.
 
 ## Artifacts and usage
 
@@ -48,8 +48,8 @@ Every runtime used a private HOME/config/data/cache/state namespace, empty Skill
 
 | Provider | Cold ready | Warm ready range | Verification range | Restart after crash |
 |---|---:|---:|---:|---:|
-| Codex | 184 ms | 50–59 ms | 4–10 ms | 103 ms + 9 ms verification |
-| OpenCode | 617 ms | 440–1,021 ms | 26–147 ms | 1,681 ms + 125 ms verification |
+| Codex | 70 ms | 44–47 ms | 4–8 ms | 40 ms + 4 ms verification |
+| OpenCode | 582 ms | 435–440 ms | 26–123 ms | 433 ms + 26 ms verification |
 
 OpenCode startup variance is significant, so no SLA should use the fastest sample. Even its slowest observed crash restart remained under two seconds on this machine.
 
@@ -57,14 +57,14 @@ OpenCode startup variance is significant, so no SLA should use the fastest sampl
 
 | Workload | Aggregate RSS |
 |---|---:|
-| One Codex runtime | 110 MB |
-| Codex + OpenCode | 537 MB |
-| Two Codex + two OpenCode | 1,073 MB |
+| One Codex runtime | 107 MB |
+| Codex + OpenCode | 512 MB |
+| Two Codex + two OpenCode | 1,022 MB |
 
 Individual idle ranges were approximately:
 
-- Codex: 122–128 MB.
-- OpenCode: 366–460 MB.
+- Codex: 118–128 MB.
+- OpenCode: 368–549 MB.
 
 The provider mix dominates memory more than CPU count. A global capacity of two bounds the observed provider overhead to roughly 0.75 GB for the worst same-provider mix inferred from two steady OpenCode runtimes, while permitting two simultaneous worktrees.
 
@@ -74,28 +74,28 @@ The deterministic queue replayed the six measured startup+verification durations
 
 | Capacity | p50 wait | p95/max wait |
 |---:|---:|---:|
-| 1 | 2.59 s | 4.72 s |
-| 2 | 1.25 s | 2.20 s |
-| 4 | 0.19 s | 0.76 s |
+| 1 | 1.82 s | 3.16 s |
+| 2 | 0.78 s | 1.49 s |
+| 4 | 0.08 s | 0.52 s |
 
-Capacity four improves synthetic queue latency but crosses 1 GB for the measured mixed workload. Capacity two is the conservative balance. Queue figures are policy comparisons, not user latency promises; actual turns can hold leases much longer than startup.
+Capacity four improves synthetic queue latency and was selected despite crossing 1 GB for the measured mixed workload. Queue figures are policy comparisons, not user latency promises; actual turns can hold leases much longer than startup.
 
 ### Shutdown and crash
 
-Normal provider shutdown completed in 8–57 ms in the final series and never required SIGKILL. A deliberately stopped Codex process exercised the forced fallback after the 250 ms test grace. OpenCode exited on SIGTERM despite the stop attempt, so its forced branch was not observed. The production five-second deadline remains deliberately much larger than normal measurements and protects provider persistence/drain behavior not modeled here.
+Normal provider shutdown completed in 4–9 ms in the final series and never required SIGKILL. A deliberately stopped Codex process exercised the forced fallback after the 250 ms test grace. OpenCode exited on SIGTERM despite the stop attempt, so its forced branch was not observed. The production five-second deadline remains deliberately much larger than normal measurements and protects provider persistence/drain behavior not modeled here.
 
 Both providers restarted in the same private namespace after SIGKILL and completed catalog verification. The benchmark does not claim provider-session resume; durable resume correctness remains a separate gate.
 
 ## Policy rationale
 
-### Why two total slots
+### Why four total slots
 
 - One slot doubles synthetic p95 startup queue wait and prevents parallel worktrees entirely.
-- Four slots reduce startup queue wait but permit >1 GB of provider processes before Electron, repositories, terminals and model tooling are counted.
-- Two slots support the primary parallel-worktree workflow while keeping a straightforward global ownership bound.
-- Per-provider and total limits remain centralized so later qualified measurements can change constants without changing lifecycle semantics.
+- Four slots reduce the measured synthetic p95 startup wait to 0.52 seconds and permit four parallel worktree/provider runtimes.
+- Four mixed runtimes consumed 1.07 GB in the sample, so the selected policy favors parallelism over the benchmark's conservative two-slot recommendation.
+- Per-provider and total limits remain centralized so later qualified measurements can lower constants without changing lifecycle semantics.
 
-For machines below 12 GB, the fallback capacity is one because this single 16 GB sample cannot establish safe headroom for two OpenCode runtimes under application load. This is a conservative admission policy, not adaptive analytics.
+There is deliberately no low-memory fallback: HITL selected four slots even below 12 GB. Memory-pressure handling must immediately evict every idle runtime and pause new startups, while preserving busy work.
 
 ### Why 60 seconds idle
 
@@ -114,4 +114,4 @@ This benchmark intentionally submits no prompts and records no model data. Proce
 - Forced OpenCode escalation was not observed and needs a deterministic owned-process fixture or a genuinely hung provider case.
 - Same-runtime turn concurrency remains unqualified by design.
 
-The fallback constants above are safe specification defaults. Packaging qualification may lower capacity or timeout for a constrained platform, but must never raise them without equivalent repeatable measurements.
+The approved constants are product defaults, not a claim that four slots are low-risk on every machine. Packaging verification must explicitly exercise memory pressure on constrained hardware; changing the four-slot policy requires a new product decision supported by equivalent repeatable measurements.

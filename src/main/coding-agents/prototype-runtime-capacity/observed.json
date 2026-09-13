@@ -14,76 +14,76 @@
     "opencode": "1.18.30"
   },
   "policyUnderTest": {
-    "totalCapacity": 2,
-    "perProviderCapacity": 2,
-    "idleMs": 300000,
+    "totalCapacity": 4,
+    "perProviderCapacity": 4,
+    "idleMs": 60000,
     "perRuntimeTurnConcurrency": 1
   },
   "launches": [
     {
       "provider": "codex",
       "phase": "cold",
-      "readyMs": 184.2,
-      "verificationMs": 10.1,
+      "readyMs": 70.2,
+      "verificationMs": 7.8,
       "readyRssMb": 105.1,
-      "idleRssMb": 128.1,
+      "idleRssMb": 127.5,
       "baselineCount": 6,
-      "shutdownMs": 7.7,
+      "shutdownMs": 5,
       "forcedShutdown": false
     },
     {
       "provider": "codex",
       "phase": "warm",
-      "readyMs": 58.6,
-      "verificationMs": 5.3,
-      "readyRssMb": 106.2,
-      "idleRssMb": 122.3,
+      "readyMs": 47,
+      "verificationMs": 3.8,
+      "readyRssMb": 107.4,
+      "idleRssMb": 117.7,
       "baselineCount": 6,
-      "shutdownMs": 5.5,
+      "shutdownMs": 4.3,
       "forcedShutdown": false
     },
     {
       "provider": "codex",
       "phase": "warm",
-      "readyMs": 49.5,
-      "verificationMs": 4.2,
+      "readyMs": 44.1,
+      "verificationMs": 3.5,
       "readyRssMb": 106.6,
-      "idleRssMb": 123,
+      "idleRssMb": 124.1,
       "baselineCount": 6,
-      "shutdownMs": 8.1,
+      "shutdownMs": 7.6,
       "forcedShutdown": false
     },
     {
       "provider": "opencode",
       "phase": "cold",
-      "readyMs": 616.6,
-      "verificationMs": 146.6,
-      "readyRssMb": 395.3,
-      "idleRssMb": 459.5,
+      "readyMs": 582.3,
+      "verificationMs": 123.1,
+      "readyRssMb": 394.5,
+      "idleRssMb": 549.3,
       "baselineCount": 1,
-      "shutdownMs": 56.9,
+      "shutdownMs": 9,
       "forcedShutdown": false
     },
     {
       "provider": "opencode",
       "phase": "warm",
-      "readyMs": 1021.2,
-      "verificationMs": 30.7,
-      "readyRssMb": 366.2,
-      "idleRssMb": 366.3,
+      "readyMs": 434.6,
+      "verificationMs": 25.9,
+      "readyRssMb": 367.9,
+      "idleRssMb": 368,
       "baselineCount": 1,
-      "shutdownMs": 11.7,
+      "shutdownMs": 5.3,
       "forcedShutdown": false
     },
     {
       "provider": "opencode",
       "phase": "warm",
-      "readyMs": 440.4,
-      "verificationMs": 25.6,
-      "readyRssMb": 368.2,
-      "idleRssMb": 368.3,
+      "readyMs": 440.3,
+      "verificationMs": 32.7,
+      "readyRssMb": 370.1,
+      "idleRssMb": 370.2,
       "baselineCount": 1,
-      "shutdownMs": 7.9,
+      "shutdownMs": 6.6,
       "forcedShutdown": false
     }
   ],
@@ -93,8 +93,8 @@
       "providers": [
         "codex"
       ],
-      "wallReadyMs": 93.1,
-      "aggregateReadyRssMb": 109.5
+      "wallReadyMs": 81.9,
+      "aggregateReadyRssMb": 106.8
     },
     {
       "count": 2,
@@ -102,8 +102,8 @@
         "codex",
         "opencode"
       ],
-      "wallReadyMs": 1258.2,
-      "aggregateReadyRssMb": 536.8
+      "wallReadyMs": 566.8,
+      "aggregateReadyRssMb": 511.8
     },
     {
       "count": 4,
@@ -113,56 +113,56 @@
         "codex",
         "opencode"
       ],
-      "wallReadyMs": 2252.4,
-      "aggregateReadyRssMb": 1072.5
+      "wallReadyMs": 578.2,
+      "aggregateReadyRssMb": 1022.3
     }
   ],
   "crashRestarts": [
     {
       "provider": "codex",
-      "restartReadyMs": 103.4,
-      "restartVerificationMs": 9.1,
-      "restartRssMb": 106.8
+      "restartReadyMs": 39.5,
+      "restartVerificationMs": 3.5,
+      "restartRssMb": 106.6
     },
     {
       "provider": "opencode",
-      "restartReadyMs": 1680.7,
-      "restartVerificationMs": 125,
-      "restartRssMb": 364.4
+      "restartReadyMs": 433.3,
+      "restartVerificationMs": 25.8,
+      "restartRssMb": 369.1
     }
   ],
   "forcedShutdowns": [
     {
       "provider": "codex",
       "graceMs": 250,
-      "durationMs": 254.9,
+      "durationMs": 252.9,
       "forced": true
     },
     {
       "provider": "opencode",
       "graceMs": 250,
-      "durationMs": 12.9,
+      "durationMs": 4.6,
       "forced": false
     }
   ],
   "queueSimulation": [
     {
       "capacity": 1,
-      "p50WaitMs": 2593,
-      "p95WaitMs": 4720,
-      "maxWaitMs": 4720
+      "p50WaitMs": 1815.3,
+      "p95WaitMs": 3157.6,
+      "maxWaitMs": 3157.6
     },
     {
       "capacity": 2,
-      "p50WaitMs": 1246.2,
-      "p95WaitMs": 2203.7,
-      "maxWaitMs": 2203.7
+      "p50WaitMs": 783.4,
+      "p95WaitMs": 1492.4,
+      "maxWaitMs": 1492.4
     },
     {
       "capacity": 4,
-      "p50WaitMs": 194.3,
-      "p95WaitMs": 763.2,
-      "maxWaitMs": 763.2
+      "p50WaitMs": 78,
+      "p95WaitMs": 523.8,
+      "maxWaitMs": 523.8
     }
   ],
   "privacy": {
