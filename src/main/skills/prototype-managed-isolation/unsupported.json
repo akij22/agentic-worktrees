@@ -1,0 +1,20 @@
+{
+  "kind": "live-synthetic-provider-probe",
+  "pins": {
+    "codex": "codex-cli 0.154.0",
+    "opencode": "1.18.30"
+  },
+  "observations": [
+    {
+      "provider": "codex",
+      "generation": "none",
+      "outcome": "unsupported-version-admission-closed"
+    },
+    {
+      "provider": "opencode",
+      "generation": "none",
+      "outcome": "unsupported-version-admission-closed"
+    }
+  ],
+  "qualification": "closed-pending-all-channel-proof"
+}

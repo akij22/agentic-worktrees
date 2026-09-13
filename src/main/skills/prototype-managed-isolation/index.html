@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Managed Skill isolation — throwaway logic lab</title>
+<style>
+:root{font:16px/1.5 Georgia,serif;color:#202a28;background:#f5f3ec}body{max-width:1100px;margin:32px auto;padding:0 24px}h1{font-size:36px;line-height:1.15;margin:8px 0}h2{font-size:22px}small,.eyebrow,button,dt{font-family:ui-monospace,monospace}.eyebrow{color:#146451;letter-spacing:.12em}section{border-top:1px solid #bac4bb;margin-top:24px;padding-top:16px}button{padding:9px 12px;margin:4px;border:1px solid #80958b;background:transparent;color:inherit;cursor:pointer;border-radius:3px}button:hover,button[aria-selected=true]{background:#146451;color:white}button:focus-visible{outline:3px solid #146451;outline-offset:3px}button:disabled{opacity:.45;cursor:default}.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}dl{display:grid;grid-template-columns:minmax(140px,1fr) 1fr;gap:8px;margin:0}dt{font-size:12px}dd{margin:0;overflow-wrap:anywhere}article{background:white;padding:20px;border:1px solid #ccd3cd}#notice{padding:14px;border-left:4px solid #146451;background:#e5ece5}#steps{padding:12px 0}.warning{font-weight:bold}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+<header><div class="eyebrow">THROWAWAY / ISSUE 69 / LOGIC LAB</div><h1>Who may load this Skill?</h1><p>Can private provider runtimes and immutable assignments enforce zero usable unassigned Resource Skills through every managed channel? Explore the admission gate, not a filesystem sandbox.</p><p class="warning">This is a conditional policy model, not provider qualification. Live verdict: both pinned providers remain closed. See REPORT.md and observed.json.</p></header>
+<section aria-labelledby="state-title"><h2 id="state-title">Current state</h2><p id="notice" role="status" aria-live="polite"></p><div class="grid" id="state"></div></section>
+<section><h2>Free play</h2><p>Actions affect worktree B; worktree A retains its own assignment. Try actions in any order.</p><div id="actions"></div></section>
+<section><h2>Guided walkthroughs</h2><div id="tabs" role="tablist" aria-label="Isolation scenarios"></div><div id="walkthrough" role="tabpanel"><h3 id="scenario-title"></h3><p id="description"></p><div id="steps"></div></div></section>
+<footer><p>No network, storage, provider calls or application imports. Opaque fixture identities only. Read-only permissions detect corruption; the same operating-system user can change them.</p></footer>
+<script id="logic">
+// Pure portable policy model. No DOM or persistence. Conditional proof is deliberately explicit.
+const Isolation = (() => {
+  const initial = () => ({ provider:'Codex 0.154.0 / OpenCode 1.18.30', supported:true, namespace:'private / minimal', baseline:'review pending', proof:false, assignedA:['R-A@1#dA'], assignedB:['R-B@1#dB'], effectiveB:['R-B@1#dB'], generation:1, applied:null, sessionGeneration:1, snapshot:'verified', commandResolution:'exact', registration:'minimal', status:'closed', live:false, cancellationCount:0, historyRetained:false, submittedCount:0, filesystemReads:0, outcome:'Nothing admitted. Live providers are not qualified.' });
+  const exact = s => s.assignedB.length === s.effectiveB.length && s.assignedB.every((v,i) => v === s.effectiveB[i]);
+  const valid = s => s.supported && s.namespace === 'private / minimal' && s.baseline === 'version-qualified' && s.proof && s.snapshot === 'verified' && s.commandResolution === 'exact' && s.registration === 'minimal' && exact(s);
+  const close = (s, why) => ({ ...s, status:s.live || s.status==='recovery required' ? 'recovery required' : 'closed', cancellationCount:s.cancellationCount + Number(s.live), live:false, outcome:why });
+  function reduce(state, action) {
+    let s = structuredClone(state);
+    switch(action) {
+      case 'reset': return initial();
+      case 'assume-proof': s.proof=true;s.baseline='version-qualified';s.outcome='Hypothetical reviewed baseline and all-channel proof supplied. NOT a live-provider result.';return s;
+      case 'verify': if(!valid(s))return close(s,'Verification failed: admission stays closed.');s.applied=s.generation;s.status='ready';s.outcome='Exact identity/version/digest catalog and commands verified for this generation.';return s;
+      case 'empty': s=close(s,'Empty assignment prepared; provider built-ins remain a separate baseline.');s.assignedB=[];s.effectiveB=[];s.generation++;return s;
+      case 'send': if(s.status!=='ready'||!valid(s)||s.applied!==s.generation||s.sessionGeneration!==s.generation)return close(s,'Turn denied: stale session, closed gate, or missing proof.');s.live=true;s.submittedCount++;s.historyRetained=true;s.outcome='Managed turn admitted under the conditional proof.';return s;
+      case 'finish': s.live=false;s.outcome='Turn completed; history still contains prior instructions.';return s;
+      case 'foreign-name': case 'foreign-path': case 'foreign-command': s.outcome='Unassigned R-A denied BEFORE provider submission. No alias, command or text fallback.';return s;
+      case 'collision': s.commandResolution='ambiguous';return close(s,'Duplicate/transformed-name or command collision: never choose provider precedence.');
+      case 'drift': s.effectiveB.push('R-X@1#dX');return close(s,'Watcher drift: cancel a possibly exposed turn; recovery required.');
+      case 'corrupt': s.snapshot='corrupt';return close(s,'Digest or permission corruption: do not publish or load.');
+      case 'rebuild': s=close(s,'Rebuilding');s.snapshot='verified';s.effectiveB=[...s.assignedB];s.commandResolution='exact';s.registration='minimal';s.status='closed';s.live=false;s.outcome='Rebuilt from verified installed content; admission still needs verification.';return s;
+      case 'update': s=close(s,'New immutable generation staged; old callbacks cannot publish it.');s.generation++;s.assignedB=['R-B@2#dB2'];s.effectiveB=[...s.assignedB];return s;
+      case 'stale': s.outcome='Old-generation callback rejected without changing the active generation.';return s;
+      case 'restart': s=close(s,'Process replaced in the SAME private namespace. Reverify before resume.');s.applied=null;return s;
+      case 'resume': if(!valid(s)||s.status!=='ready'||s.applied!==s.generation)return close(s,'Resume denied until namespace/catalog/commands/generation are verified.');if(s.sessionGeneration!==s.generation)return close(s,'Old history has a different generation; explicit reconciliation or new session required.');s.outcome='Same-generation session reattached; old instructions are not erased.';return s;
+      case 'new-session': s.sessionGeneration=s.generation;s.historyRetained=false;s.outcome='New session bound to current generation; old history not erased from storage.';return s;
+      case 'unsupported': s.supported=false;return close(s,'Unknown provider/protocol version: never inherit an older baseline.');
+      case 'baseline': s.baseline='mismatch';return close(s,'Built-in identity/content baseline changed: admission closed.');
+      case 'plugin': s.registration='unexpected';return close(s,'Unexpected config/plugin registration: admission closed before execution.');
+      case 'filesystem': s.filesystemReads++;s.outcome='A raw file read can reach the other snapshot. This is NOT managed Skill use or sandboxing.';return s;
+      default: throw Error('Unknown model action');
+    }
+  }
+  const scenarios = [
+    ['Happy path','Conditional all-channel proof is assumed, never inferred from the live experiment.',['assume-proof','verify','send','finish']],
+    ['Empty set','Zero assigned Resource Skills is compatible with a separately approved built-in baseline.',['empty','assume-proof','verify','new-session','send']],
+    ['Disjoint / explicit denial','B cannot pass A’s names, paths or commands through the application resolver.',['assume-proof','verify','foreign-name','foreign-path','foreign-command']],
+    ['Collision','Do not accept whichever duplicate or normalized command the provider selects.',['assume-proof','verify','collision','send']],
+    ['Watcher drift','A possibly affected live turn must be cancelled, not silently revalidated.',['assume-proof','verify','send','drift','send']],
+    ['Corruption','Rebuild from verified content, then verify again; no automatic fallback to corrupt content.',['assume-proof','verify','corrupt','send','rebuild','verify']],
+    ['Stale generation','Old sessions do not become current just because a new projection was published.',['assume-proof','verify','update','stale','verify','resume','new-session','verify','send']],
+    ['Restart / resume','Reuse private state, but do not reuse an admission decision.',['assume-proof','verify','send','finish','restart','resume','verify','resume']],
+    ['Unsupported version','Fail closed before catalog discovery or a turn is trusted.',['assume-proof','verify','unsupported','send']],
+    ['Builtin mismatch','Built-ins are not Resource assignments and cannot be silently learned as safe.',['assume-proof','verify','baseline','send']],
+    ['Unexpected registration','Global config and plugin registration must not enlarge the trusted channel set.',['assume-proof','verify','plugin','send']],
+    ['Filesystem non-goal','Application denial does not prevent arbitrary shell/file access by the same OS user.',['foreign-path','filesystem']]
+  ];
+  return { initial, reduce, scenarios };
+})();
+</script>
+<script>
+const labels = {'reset':'Reset','assume-proof':'Assume reviewed proof (model only)','verify':'Verify runtime','empty':'Assign no Skills','send':'Send managed turn','finish':'Finish turn','foreign-name':'Try A by name','foreign-path':'Try A by path','foreign-command':'Try A by command','collision':'Introduce collision','drift':'Mutate watched catalog','corrupt':'Corrupt snapshot','rebuild':'Rebuild verified snapshot','update':'Stage version 2','stale':'Deliver stale callback','restart':'Restart process','resume':'Resume session','new-session':'Start new session','unsupported':'Use unknown version','baseline':'Change builtin baseline','plugin':'Register unexpected plugin','filesystem':'Read other snapshot as file'};
+let state=Isolation.initial(), selected=0, step=0;
+function button(label,fn){const b=document.createElement('button');b.textContent=label;b.onclick=fn;return b;}
+function dispatch(action){state=Isolation.reduce(state,action);render();}
+function render(){document.querySelector('#notice').textContent=state.outcome;const panel=document.querySelector('#state');panel.replaceChildren();for(const [title,keys] of [['Runtime & admission',['provider','namespace','supported','baseline','proof','registration','status','live','cancellationCount','submittedCount']],['Assignments & session',['assignedA','assignedB','effectiveB','generation','applied','sessionGeneration','snapshot','commandResolution','historyRetained','filesystemReads']]]){const card=document.createElement('article'),h=document.createElement('h3'),dl=document.createElement('dl');h.textContent=title;for(const key of keys){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key.replace(/([A-Z])/g,' $1');dd.textContent=Array.isArray(state[key])?(state[key].join(', ')||'No assigned Resource Skills'):String(state[key]??'not applied');dl.append(dt,dd);}card.append(h,dl);panel.append(card);}renderSteps();}
+function select(i){selected=i;step=0;state=Isolation.initial();document.querySelectorAll('[role=tab]').forEach((b,n)=>b.setAttribute('aria-selected',String(n===i)));render();}
+function renderSteps(){const [title,description,actions]=Isolation.scenarios[selected];document.querySelector('#scenario-title').textContent=title;document.querySelector('#description').textContent=description;const host=document.querySelector('#steps');host.replaceChildren();actions.forEach((action,i)=>{const b=button(`${i<step?'✓ ':''}${i+1}. ${labels[action]}`,()=>{step++;dispatch(action);});b.disabled=i!==step;host.append(b);});host.append(button('Restart walkthrough',()=>select(selected)));}
+for(const [key,label] of Object.entries(labels))document.querySelector('#actions').append(button(label,()=>dispatch(key)));
+Isolation.scenarios.forEach(([title],i)=>{const b=button(title,()=>select(i));b.setAttribute('role','tab');b.setAttribute('aria-selected',String(i===0));b.onkeydown=e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();const n=(i+(e.key==='ArrowRight'?1:-1)+Isolation.scenarios.length)%Isolation.scenarios.length;select(n);document.querySelectorAll('[role=tab]')[n].focus();}};document.querySelector('#tabs').append(b);});
+render();
+</script></html>

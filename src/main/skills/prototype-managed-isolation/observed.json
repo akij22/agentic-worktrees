@@ -1,0 +1,486 @@
+{
+  "kind": "live-synthetic-provider-probe",
+  "pins": {
+    "codex": "codex-cli 0.154.0",
+    "opencode": "1.18.30"
+  },
+  "observations": [
+    {
+      "provider": "codex",
+      "generation": "none",
+      "outcome": "application-registration-gate",
+      "minimalAccepted": true,
+      "unexpectedPluginDenied": true,
+      "unexpectedCommandDenied": true
+    },
+    {
+      "provider": "codex",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "snapshot-verified",
+      "valid": true,
+      "updatedValid": true,
+      "disjoint": true,
+      "updatedDigestDistinct": true
+    },
+    {
+      "provider": "codex",
+      "generation": "empty",
+      "outcome": "raw-baseline-observed-not-approved",
+      "count": 6,
+      "assignedCount": 0,
+      "enabledAssignedCount": 0,
+      "otherCount": 6,
+      "otherIdentityDigests": [
+        "21e28d371e7af5f6be8c0f094d5c5c70918edbafb7e6d72eb1fc6aae6d5269db",
+        "905e05b320ad97405547527b043ddeb967d88b96093e3818d56d15ccdf5b7f9c",
+        "9b14db9e0e4545a79e54a0e16439698ca949da05478c38311b24120c25c0f34e",
+        "b73c415bbeeefc342465e3ac36ecc6eafc8925fdc74d6c1a3583e73bddfbaa7f",
+        "efa9f705ce3b41e31d2c2cd3e2da2aedc2cd15e27a7188417590615beb885826",
+        "f1faa63779e419e4d2bcc1fea181d8d0101aed1bcf6a53266e43ece2cc572abb"
+      ]
+    },
+    {
+      "provider": "codex",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "disjoint-a-catalog",
+      "count": 7,
+      "assignedCount": 1,
+      "enabledAssignedCount": 1,
+      "otherCount": 6,
+      "otherIdentityDigests": [
+        "21e28d371e7af5f6be8c0f094d5c5c70918edbafb7e6d72eb1fc6aae6d5269db",
+        "905e05b320ad97405547527b043ddeb967d88b96093e3818d56d15ccdf5b7f9c",
+        "9b14db9e0e4545a79e54a0e16439698ca949da05478c38311b24120c25c0f34e",
+        "b73c415bbeeefc342465e3ac36ecc6eafc8925fdc74d6c1a3583e73bddfbaa7f",
+        "efa9f705ce3b41e31d2c2cd3e2da2aedc2cd15e27a7188417590615beb885826",
+        "f1faa63779e419e4d2bcc1fea181d8d0101aed1bcf6a53266e43ece2cc572abb"
+      ]
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "disjoint-b-catalog",
+      "count": 7,
+      "assignedCount": 1,
+      "enabledAssignedCount": 1,
+      "otherCount": 6,
+      "otherIdentityDigests": [
+        "21e28d371e7af5f6be8c0f094d5c5c70918edbafb7e6d72eb1fc6aae6d5269db",
+        "905e05b320ad97405547527b043ddeb967d88b96093e3818d56d15ccdf5b7f9c",
+        "9b14db9e0e4545a79e54a0e16439698ca949da05478c38311b24120c25c0f34e",
+        "b73c415bbeeefc342465e3ac36ecc6eafc8925fdc74d6c1a3583e73bddfbaa7f",
+        "efa9f705ce3b41e31d2c2cd3e2da2aedc2cd15e27a7188417590615beb885826",
+        "f1faa63779e419e4d2bcc1fea181d8d0101aed1bcf6a53266e43ece2cc572abb"
+      ],
+      "unassignedObserved": false
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "native-name",
+      "submittedCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "native-path",
+      "submittedCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "command",
+      "submittedCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "alias",
+      "submittedCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "stale-generation-denial",
+      "denied": true
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "native-assigned",
+      "submitted": true,
+      "completed": true,
+      "failedTurnCount": 0,
+      "nativeRecordedCount": 1
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "automatic",
+      "submitted": true,
+      "completed": true,
+      "failedTurnCount": 0,
+      "nativeRecordedCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "raw-foreign-path",
+      "submitted": true,
+      "completed": true,
+      "failedTurnCount": 0,
+      "nativeRecordedCount": 1
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "private-rollout-context-check",
+      "channel": "native-assigned",
+      "exactAssignedDocumentCount": 1,
+      "assignedInstructionCount": 1,
+      "exactForeignDocumentCount": 0,
+      "foreignInstructionCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "private-rollout-context-check",
+      "channel": "automatic",
+      "exactAssignedDocumentCount": 0,
+      "assignedInstructionCount": 0,
+      "exactForeignDocumentCount": 0,
+      "foreignInstructionCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "private-rollout-context-check",
+      "channel": "raw-foreign-path",
+      "exactAssignedDocumentCount": 0,
+      "assignedInstructionCount": 0,
+      "exactForeignDocumentCount": 0,
+      "foreignInstructionCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "raw-foreign-path-context-observation",
+      "injectionCount": 0
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "restart-catalog",
+      "count": 7,
+      "assignedCount": 1,
+      "enabledAssignedCount": 1,
+      "otherCount": 6,
+      "otherIdentityDigests": [
+        "21e28d371e7af5f6be8c0f094d5c5c70918edbafb7e6d72eb1fc6aae6d5269db",
+        "905e05b320ad97405547527b043ddeb967d88b96093e3818d56d15ccdf5b7f9c",
+        "9b14db9e0e4545a79e54a0e16439698ca949da05478c38311b24120c25c0f34e",
+        "b73c415bbeeefc342465e3ac36ecc6eafc8925fdc74d6c1a3583e73bddfbaa7f",
+        "efa9f705ce3b41e31d2c2cd3e2da2aedc2cd15e27a7188417590615beb885826",
+        "f1faa63779e419e4d2bcc1fea181d8d0101aed1bcf6a53266e43ece2cc572abb"
+      ]
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "restart-thread-resume",
+      "resumed": true
+    },
+    {
+      "provider": "codex",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "ambient-watcher-check",
+      "count": 53,
+      "syntheticAmbientCount": 2,
+      "changedNotificationCount": 1,
+      "admission": "closed-unprovable-race"
+    },
+    {
+      "provider": "codex",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "per-path-disable-observation",
+      "syntheticAmbientEnabledCount": 0,
+      "atomicAllChannelProof": false
+    },
+    {
+      "provider": "codex",
+      "generation": "aa7cf7bdf661ed5ec5714a8f4e6ba8258489b520d4310b53c14122a5fc9b1a3b",
+      "outcome": "generation-replacement",
+      "count": 9,
+      "assignedCount": 1,
+      "enabledAssignedCount": 1,
+      "otherCount": 8,
+      "otherIdentityDigests": [
+        "21e28d371e7af5f6be8c0f094d5c5c70918edbafb7e6d72eb1fc6aae6d5269db",
+        "4d78711a7c4848208372f17d90a50e99272293d10e44a123e3c18191e2bb1baf",
+        "905e05b320ad97405547527b043ddeb967d88b96093e3818d56d15ccdf5b7f9c",
+        "9b14db9e0e4545a79e54a0e16439698ca949da05478c38311b24120c25c0f34e",
+        "aaaefaf821a8a1dea297321339be10473901af486b1de04ff206803fefffc75e",
+        "b73c415bbeeefc342465e3ac36ecc6eafc8925fdc74d6c1a3583e73bddfbaa7f",
+        "efa9f705ce3b41e31d2c2cd3e2da2aedc2cd15e27a7188417590615beb885826",
+        "f1faa63779e419e4d2bcc1fea181d8d0101aed1bcf6a53266e43ece2cc572abb"
+      ]
+    },
+    {
+      "provider": "codex",
+      "generation": "collision",
+      "outcome": "raw-duplicate-observation",
+      "duplicateNameCount": 2,
+      "transformedNameCount": 3,
+      "admission": "closed-before-launch-in-managed-mode"
+    },
+    {
+      "provider": "codex",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "permission-corruption-detected",
+      "detected": true
+    },
+    {
+      "provider": "codex",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "digest-corruption-detected",
+      "detected": true
+    },
+    {
+      "provider": "codex",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "filesystem-non-goal",
+      "crossNamespaceReadPossible": true
+    },
+    {
+      "provider": "opencode",
+      "generation": "none",
+      "outcome": "application-registration-gate",
+      "minimalAccepted": true,
+      "unexpectedPluginDenied": true,
+      "unexpectedCommandDenied": true
+    },
+    {
+      "provider": "opencode",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "snapshot-verified",
+      "valid": true,
+      "updatedValid": true,
+      "disjoint": true,
+      "updatedDigestDistinct": true
+    },
+    {
+      "provider": "opencode",
+      "generation": "empty",
+      "outcome": "raw-baseline-observed-not-approved",
+      "count": 1,
+      "assignedCount": 0,
+      "enabledAssignedCount": 0,
+      "otherCount": 1,
+      "otherIdentityDigests": [
+        "e703badfe4d566e501fc7e64f9ee619661a0e135ed8c40d1804d9af56d1b8ff6"
+      ]
+    },
+    {
+      "provider": "opencode",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "disjoint-a-catalog",
+      "count": 2,
+      "assignedCount": 1,
+      "enabledAssignedCount": 1,
+      "otherCount": 1,
+      "otherIdentityDigests": [
+        "e703badfe4d566e501fc7e64f9ee619661a0e135ed8c40d1804d9af56d1b8ff6"
+      ]
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "disjoint-b-catalog",
+      "count": 2,
+      "assignedCount": 1,
+      "enabledAssignedCount": 1,
+      "otherCount": 1,
+      "otherIdentityDigests": [
+        "e703badfe4d566e501fc7e64f9ee619661a0e135ed8c40d1804d9af56d1b8ff6"
+      ],
+      "unassignedObserved": false
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "native-name",
+      "submittedCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "native-path",
+      "submittedCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "command",
+      "submittedCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "application-pre-provider-denial",
+      "channel": "alias",
+      "submittedCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "stale-generation-denial",
+      "denied": true
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "model-availability",
+      "connectedCount": 4
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "command-assigned",
+      "submitted": true,
+      "assistantErrorCount": 1,
+      "errorCategories": [
+        "authentication"
+      ],
+      "builtinSkillLoadCount": 0,
+      "exactAssignedBuiltinLoadCount": 0,
+      "foreignBuiltinLoadCount": 0,
+      "failedSkillLoadCount": 0,
+      "denyAllSkills": false,
+      "assignedCommandInjectionCount": 1
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "automatic",
+      "submitted": true,
+      "assistantErrorCount": 1,
+      "errorCategories": [
+        "authentication"
+      ],
+      "builtinSkillLoadCount": 0,
+      "exactAssignedBuiltinLoadCount": 0,
+      "foreignBuiltinLoadCount": 0,
+      "failedSkillLoadCount": 0,
+      "denyAllSkills": false,
+      "assignedCommandInjectionCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "raw-unassigned-command",
+      "submitted": false,
+      "assistantErrorCount": 0,
+      "errorCategories": [],
+      "builtinSkillLoadCount": 0,
+      "exactAssignedBuiltinLoadCount": 0,
+      "foreignBuiltinLoadCount": 0,
+      "failedSkillLoadCount": 0,
+      "denyAllSkills": false,
+      "assignedCommandInjectionCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "raw-model-unassigned",
+      "submitted": true,
+      "assistantErrorCount": 1,
+      "errorCategories": [
+        "authentication"
+      ],
+      "builtinSkillLoadCount": 0,
+      "exactAssignedBuiltinLoadCount": 0,
+      "foreignBuiltinLoadCount": 0,
+      "failedSkillLoadCount": 0,
+      "denyAllSkills": false,
+      "assignedCommandInjectionCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "command-resolution",
+      "exactAssignedTemplateCount": 1,
+      "assignedCount": 1,
+      "unassignedCount": 0
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "restart-session-read",
+      "readable": true
+    },
+    {
+      "provider": "opencode",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "ambient-watcher-check",
+      "count": 2,
+      "syntheticAmbientCount": 0,
+      "changedNotificationCount": 0,
+      "admission": "closed-unprovable-race"
+    },
+    {
+      "provider": "opencode",
+      "generation": "aa7cf7bdf661ed5ec5714a8f4e6ba8258489b520d4310b53c14122a5fc9b1a3b",
+      "outcome": "generation-replacement",
+      "count": 3,
+      "assignedCount": 1,
+      "enabledAssignedCount": 1,
+      "otherCount": 2,
+      "otherIdentityDigests": [
+        "a419b5c093d2e9aaba1552b4c66bfbcfacd43fe8bafc12542e40adb7550e6837",
+        "e703badfe4d566e501fc7e64f9ee619661a0e135ed8c40d1804d9af56d1b8ff6"
+      ]
+    },
+    {
+      "provider": "opencode",
+      "generation": "collision",
+      "outcome": "raw-duplicate-observation",
+      "duplicateNameCount": 1,
+      "transformedNameCount": 2,
+      "admission": "closed-before-launch-in-managed-mode"
+    },
+    {
+      "provider": "opencode",
+      "generation": "collision",
+      "outcome": "config-command-shadow",
+      "configWinsCount": 1,
+      "transformedCommandCount": 0,
+      "literalColonCommandCount": 1
+    },
+    {
+      "provider": "opencode",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "permission-corruption-detected",
+      "detected": true
+    },
+    {
+      "provider": "opencode",
+      "generation": "9ff5f16d9cbe4907fc72239a36be820d7723747496c3dda9e406e93179d193bf",
+      "outcome": "digest-corruption-detected",
+      "detected": true
+    },
+    {
+      "provider": "opencode",
+      "generation": "0a6ea5c81a6afb865c7ffd55d4861f9ff930b5bfce9f4dab32c4d0c16cfb9150",
+      "outcome": "filesystem-non-goal",
+      "crossNamespaceReadPossible": true
+    }
+  ],
+  "qualification": "closed-pending-all-channel-proof"
+}
