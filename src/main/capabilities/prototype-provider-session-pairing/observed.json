@@ -1,0 +1,74 @@
+{
+  "kind": "provider-session-pairing-probe",
+  "versions": {
+    "codex": "codex-cli 0.154.0",
+    "opencode": "1.18.30"
+  },
+  "observations": {
+    "codex": {
+      "pairedReceipts": 0,
+      "distinctSessions": 0,
+      "verifiedServers": 5,
+      "observedToolItems": 5,
+      "targetToolItems": 5,
+      "targetStatuses": [
+        "failed"
+      ],
+      "targetErrorCategories": [
+        "unclassified-redacted"
+      ],
+      "switchedProfileReceiptSession": "unpaired",
+      "switchedProfileServer": "unpaired",
+      "isErrorReceiptCount": 0,
+      "thrownEntryCount": 0,
+      "thrownProviderReceiptCount": 0,
+      "status": "observed"
+    },
+    "opencode": {
+      "configuredServerCount": 2,
+      "connectedServerCount": 2,
+      "pairedReceipts": 2,
+      "distinctSessions": 2,
+      "concurrentToolPartCount": 2,
+      "concurrentAssistantErrorCount": 0,
+      "concurrentErrorCategories": [],
+      "switchedProfileReceiptSession": "B",
+      "switchedProfileServer": "aw_a_receipt_probe",
+      "switchedBlocked": false,
+      "isErrorReceiptCount": 0,
+      "reportedErrorBlocked": true,
+      "thrownEntryCount": 1,
+      "thrownProviderReceiptCount": 0,
+      "cancellationSubmitted": true,
+      "cancellationEntered": true,
+      "abortAccepted": true,
+      "cancellationHandlerOutcome": "entered",
+      "cancellationProviderReceipt": false,
+      "status": "observed"
+    },
+    "directCredentialReuse": {
+      "hostEntry": true,
+      "providerReceipt": false,
+      "sessionAttribution": "unknown"
+    },
+    "hostLedger": {
+      "entered": 7,
+      "successes": 4,
+      "reportedErrors": 1,
+      "thrown": 1,
+      "aborted": 1
+    },
+    "currentBoundary": {
+      "successfulAndReportedErrorPairing": "requires-echoed-host-receipt",
+      "thrownAndTimeoutPairing": "unavailable-current-host",
+      "cancellationRouting": "unproven-current-stateless-host"
+    }
+  },
+  "privacy": {
+    "prompts": false,
+    "outputs": false,
+    "credentials": false,
+    "paths": false,
+    "sessionIds": false
+  }
+}
