@@ -10,11 +10,12 @@ import AjvConstructor, { type ValidateFunction } from "ajv";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 // eslint-disable-next-line import/no-unresolved
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-// eslint-disable-next-line import/no-unresolved
+/* eslint-disable import/no-unresolved -- MCP SDK ESM subpaths are not resolved by the ESLint TypeScript resolver. */
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+/* eslint-enable import/no-unresolved */
 import {
   CapabilityError,
   limitCapabilityOutput,
