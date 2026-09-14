@@ -1,0 +1,35 @@
+{
+  "kind": "codex-capability-transport-diagnosis",
+  "version": "codex-cli 0.154.0",
+  "observations": {
+    "sseResponse": {
+      "toolCallRequestReceived": true,
+      "hostHandlerEntered": true,
+      "hostOutcome": "success",
+      "httpStatus": 200,
+      "responseEnded": true,
+      "responseContentType": "text/event-stream",
+      "responseContainsReceipt": true,
+      "providerItemTerminal": false,
+      "providerReceiptRetained": false
+    },
+    "jsonResponse": {
+      "toolCallRequestReceived": true,
+      "hostHandlerEntered": true,
+      "hostOutcome": "success",
+      "httpStatus": 200,
+      "responseEnded": true,
+      "responseContentType": "application/json",
+      "responseContainsReceipt": true,
+      "providerItemTerminal": false,
+      "providerReceiptRetained": false
+    }
+  },
+  "privacy": {
+    "prompts": false,
+    "outputs": false,
+    "credentials": false,
+    "paths": false,
+    "sessionIds": false
+  }
+}

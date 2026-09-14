@@ -1,0 +1,74 @@
+{
+  "kind": "capability-receipt-bridge-probe",
+  "versions": {
+    "codex": "codex-cli 0.154.0",
+    "opencode": "1.18.30"
+  },
+  "observations": {
+    "opencode": {
+      "concurrentReceipts": 2,
+      "distinctConcurrentSessions": 2,
+      "switchedReceiptCount": 1,
+      "retryDistinctReceipt": true,
+      "errorReceipts": [
+        {
+          "mode": "reported_error",
+          "receiptCount": 1,
+          "toolPartCount": 1
+        },
+        {
+          "mode": "throw",
+          "receiptCount": 1,
+          "toolPartCount": 1
+        },
+        {
+          "mode": "timeout",
+          "receiptCount": 1,
+          "toolPartCount": 1
+        }
+      ],
+      "resumedReceiptCount": 2,
+      "cancellation": {
+        "entered": true,
+        "providerAbortAccepted": true,
+        "sideChannel": "cancel_requested",
+        "hostOutcome": "cancelled",
+        "providerReceipt": false
+      }
+    },
+    "codex": {
+      "hostEntered": false,
+      "hostOutcome": "unknown",
+      "providerItemStarted": true,
+      "providerItemCompleted": false,
+      "providerReceipt": false,
+      "status": "unqualified_stalled_item"
+    },
+    "host": {
+      "entered": 9,
+      "outcomes": {
+        "success": 5,
+        "reported_error": 1,
+        "thrown": 1,
+        "timeout": 1,
+        "cancelled": 1
+      }
+    },
+    "correlation": {
+      "exactPairs": 7,
+      "unknownSession": 2,
+      "profileMismatchPairs": 1,
+      "duplicateEventsDeduplicated": 1,
+      "staleEventsRejected": 1,
+      "conflictsQuarantined": 1,
+      "directCredentialReceiptUnpaired": true
+    }
+  },
+  "privacy": {
+    "prompts": false,
+    "outputs": false,
+    "credentials": false,
+    "paths": false,
+    "sessionIds": false
+  }
+}
