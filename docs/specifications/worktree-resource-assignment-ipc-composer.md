@@ -180,6 +180,7 @@ type ResourceAssignmentItemDto = {
     | "consent_required"
     | null;
   automaticUsageReporting: "supported" | "unknown" | "not_applicable";
+  skillIsolation: "enforced" | "not_enforced" | "not_applicable";
 };
 ```
 
@@ -195,6 +196,8 @@ Projection includes all installed Resources relevant to composer assignment, not
 `setup_required`, invalid installation, missing consent, and provider unqualification set `assignable=false`. Setup is not a seventh displayed Assignment status: the row remains Installed with an explanatory action/reason until configuration/consent completes in Marketplace. Assigned provider-unavailable Resources remain visibly assigned and Unavailable; they are not silently unchecked.
 
 `automaticUsageReporting` is informational only and never predicts use. It supports copy such as “Automatic use cannot be confirmed for this provider.”
+
+For Codex Skills, `skillIsolation = not_enforced` does not make the row unavailable: app-issued `/skill:` selection remains restricted to assigned Skills, but the row and stable banner must state “Codex may access other Skills outside this worktree Assignment.” Do not say isolated, exclusive, allowlisted provider catalog, or protected. OpenCode uses `enforced` only after its production isolation fixture passes.
 
 ### Blocker
 
@@ -332,6 +335,7 @@ Each row contains:
 - exact version;
 - one textual state badge;
 - concise unavailable/setup reason when applicable;
+- for a Codex Skill, persistent `Isolation not enforced` text and the bounded explanation above;
 - setup/consent link only when required.
 
 Checkbox meaning is desired membership, not current provider state.
@@ -341,6 +345,7 @@ Checkbox meaning is desired membership, not current provider state.
 - Disable only the row whose mutation request is in flight; other valid changes may be submitted after the new revision arrives.
 - During coordinator `applying`, controls may remain available for a subsequent coalesced target, but each mutation waits for the latest revision response. Label it “Queued after current change.”
 - Assigned but provider-unavailable rows remain checked; explicit use controls are disabled for the current session.
+- Assigned Codex Skills may be Enabled with `Isolation not enforced`; only the application's explicit invocation picker is filtered. The renderer never implies that provider-native mention, ambient discovery, or automatic access is restricted.
 - `assignable=false` unassigned rows cannot be checked. Show the exact reason and `Configure in Marketplace`/`Review consent` action when available.
 - Removal preserves history and any visible past activity.
 
@@ -546,6 +551,7 @@ Names may adapt to established folder conventions, but contracts and ownership m
 - Recovery required disables send and exposes only allowed recovery actions;
 - setup-required navigation without auto-assignment;
 - provider-unavailable remains checked but cannot be explicitly invoked;
+- Codex assigned Skill remains invocable with persistent `Isolation not enforced` warning; unassigned app explicit selection remains absent/denied;
 - stale conflict replaces snapshot and does not replay toggle;
 - two windows converge under out-of-order/duplicate events;
 - selected Skill invalidation preserves arguments and announces;

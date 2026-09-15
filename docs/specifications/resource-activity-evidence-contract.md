@@ -40,7 +40,8 @@ This contract applies to assigned Capabilities and Skills only. It does not crea
 - Catalog presence, bridge completion, command name, provider prose, file reads, token use, task success, or a pending/error loader item is not Used.
 - Explicit request and context entry are separate. A missing/failed load remains Requested, not Used.
 - Automatic is displayed only when the qualified evidence path proves model-selected loading and excludes an explicit route. Otherwise mode is Unknown.
-- Filesystem access to a Skill file is outside Managed Skill isolation and never proves Skill Used.
+- Filesystem access to a Skill file is outside managed Skill channels and never proves Skill Used.
+- On Codex versions declared `isolation = not_enforced`, only app-issued explicit invocation is restricted to assigned Skills. Ambient/native/automatic access may reach unassigned Skills and is neither represented as assigned activity nor falsely reported as isolated.
 
 ### 2.3 Attribution
 
@@ -250,7 +251,7 @@ No production path is activated merely because a prototype passed. “Eligible a
 | Codex Capability 0.154.0 | exact `mcpToolCall` request | host entry cannot be joined to a terminal provider receipt | unqualified | #75 proves a pinned version; until then emit Request only and keep host Use session Unknown |
 | OpenCode explicit Skill command 1.18.30 | exact verified `source: skill` command request | correlated full body injection matching assigned digest | eligible, not active | production command snapshot/parser and exact SDK/CLI pair pass #64 matrix |
 | OpenCode builtin Skill loader 1.18.30 | trusted loader request | completed trusted ToolPart with exact metadata and full body digest | eligible, not active | production registry/parser and exact SDK/CLI pair pass #64 matrix |
-| Codex explicit Skill 0.154.0 | native Skill input | owned private-rollout context record matching full digest | eligible for explicit receipt, not active | production private-rollout parser passes #64 and Managed Skill isolation separately passes #74 |
+| Codex explicit Skill 0.154.0 | app-issued assigned native Skill input | owned private-rollout context record matching full digest | eligible with non-isolation warning, not active | production private-rollout parser passes #64; app rejects explicit invocation of unassigned Skills, but ambient/native access is not claimed isolated |
 | Codex automatic Skill 0.154.0 | no reliable request | no reliable context-entry receipt | unqualified | positive version-pinned context-entry proof required |
 
 An eligible-but-inactive path emits no Used claim. If its request parser alone is qualified, it may emit Requested with `Use not verified`; otherwise Resource-dependent admission fails unavailable. A newer or older provider version begins unavailable, not presumptively compatible.
@@ -664,7 +665,7 @@ Acceptance fixtures in §14 operationalize #59's successful Capability, pre-entr
 This specification is implementation-ready, but provider claims remain gated:
 
 1. Codex Capability session attribution requires #75 to prove terminal receipt preservation.
-2. Codex Managed Skill release requires #74 to prove an exclusive atomic Skill snapshot/true explicit-only boundary.
+2. Codex Skill Assignment ships only with `isolation = not_enforced`: app-issued explicit invocation is allowlisted, ambient/native/automatic provider access may include unassigned Skills, and the UI must disclose this limitation.
 3. OpenCode production parsers must qualify the installed SDK/CLI version pair.
 4. Production bridge implementations must reproduce #64/#73 fixtures; prototype marker strings are not a production protocol.
 

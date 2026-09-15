@@ -98,12 +98,13 @@ Version-qualified provider projection for each Resource member.
 | `generation_resource_id` | text | FK generation resource `ON DELETE CASCADE` |
 | `agent_kind` | text | supported provider kind |
 | `availability` | text | `CHECK IN ('compatible','unavailable')` |
+| `skill_isolation` | text | `CHECK IN ('enforced','not_enforced','not_applicable')` |
 | `qualification_digest` | text | non-null SHA-256 of reviewed provider/version fixture contract |
 | `expected_state_digest` | text | non-null SHA-256 of safe effective provider projection |
 
 Primary key: `(generation_resource_id, agent_kind)`.
 
-Every supported provider receives a row, including declared incompatibility. Missing provider rows make the generation invalid. The qualification digest changes when provider version or reviewed fixture changes and therefore creates a new generation.
+Every supported provider receives a row, including declared incompatibility. Capability rows use `not_applicable`. OpenCode Skill rows may use `enforced` only after isolation fixtures pass. Codex Skill rows use `not_enforced`: this permits assigned app-issued explicit invocation with mandatory UI disclosure but makes no claim about ambient/native/automatic provider access. Missing provider rows make the generation invalid. The qualification digest changes when provider version or reviewed fixture changes and therefore creates a new generation.
 
 ### `worktree_runtime_catalog_generations`
 
@@ -122,7 +123,7 @@ Immutable provider-specific effective catalog/projection identity used by runtim
 
 Unique: `(worktree_id, agent_kind, assignment_generation_id, provider_version, adapter_contract_version, projection_digest)`.
 
-This row is not the mutable provider catalog. It is the immutable lineage identity prepared from one Assignment generation for one exact provider/adapter contract. The digest covers transformed server/tool mappings, private Skill projection identities, collision decisions, provider fixture qualification, and baseline effective-state identity without storing bodies, paths, settings, or secrets. Stage/attest and activity observations reference its `id`. It remains retained while an attempt, attestation, session route, activity, or evidence-retention row references it.
+This row is not the mutable provider catalog. It is the immutable lineage identity prepared from one Assignment generation for one exact provider/adapter contract. The digest covers transformed server/tool mappings, app-managed Skill projection identities, declared Skill isolation mode, applicable collision decisions, provider fixture qualification, and baseline effective-state identity without storing bodies, paths, settings, or secrets. For `not_enforced`, it intentionally does not represent the provider's ambient catalog as complete. Stage/attest and activity observations reference its `id`. It remains retained while an attempt, attestation, session route, activity, or evidence-retention row references it.
 
 ### `worktree_assignments`
 
@@ -541,6 +542,7 @@ If Drizzle cannot generate a required partial unique index or check safely, chan
 - mixed valid/invalid Worktrees create no new authoritative aggregate for any Worktree and leave legacy authority global;
 - installed/update-available versus pending/invalid Skills;
 - provider-incompatible Skill projection;
+- OpenCode `enforced`, Codex `not_enforced`, Capability `not_applicable`, and invalid isolation enum projections;
 - no installed Skills;
 - interruption before journal, after applying journal, during data transaction, and after verified commit;
 - rerun with same fingerprint is idempotent;

@@ -42,8 +42,8 @@ Its contract is deliberately deeper than a collection of IPC handlers:
 - installation and content digest verification;
 - immutable provider projections and collision checks;
 - consent/permission digest validation;
-- provider/version Managed Skill qualification;
-- exact catalog/command/native-channel verification;
+- provider/version Skill exposure/isolation-mode qualification;
+- exact verification of app-managed catalog/command/native channels, plus explicit `not_enforced` attestation where the provider catalog cannot be exclusive;
 - Skill usage evidence.
 
 ### Worktree Runtime manager owns
@@ -246,7 +246,7 @@ A provider without a stage/activate boundary must create a replacement runtime g
 
 ### 5. Activate and verify
 
-Activate staged plans in deterministic order. No session can observe partial activation because the exclusive gate remains held. Each participant must return an exact attestation matching target generation, provider version, expected catalog/tool identities, content digests, permissions, and effective-state digest.
+Activate staged plans in deterministic order. No session can observe partial activation because the exclusive gate remains held. Each participant must return an exact attestation matching target generation, catalog generation, provider version, content digests, permissions, declared Skill isolation mode, and effective-state digest. Under `enforced`, expected catalog/tool identities must equal the exclusive managed projection. Under Codex `not_enforced`, the digest covers exact app-managed explicit inputs and Capability tools but explicitly excludes any claim that the ambient/native Skill catalog is complete or exclusive.
 
 Unexpected entries, missing entries, transformed-name collisions, stale callbacks, version changes, watcher drift, process exits, or unverifiable responses fail the attempt.
 
@@ -426,7 +426,7 @@ Errors expose stable codes, safe user messages, current revision/phase, and allo
 
 ### Real-provider qualification
 
-For every supported provider version, verify exact full-set application, no partial turn observation, rollback, restart/resume, runtime attestation, catalog/tool drift closure, targeted cancellation, and sanitized diagnostics. Provider fixtures are release gates, not optional smoke tests.
+For every supported provider version, verify exact full-set application, no partial turn observation, rollback, restart/resume, runtime attestation, declared Skill isolation mode, targeted cancellation, and sanitized diagnostics. `enforced` providers must close on catalog/tool drift; Codex `not_enforced` must verify exact app-issued assigned inputs while proving the attestation/UI never claims ambient catalog exclusivity. Provider fixtures are release gates, not optional smoke tests.
 
 ## Implementation order
 

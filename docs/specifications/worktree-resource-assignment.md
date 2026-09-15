@@ -35,7 +35,7 @@ If an overview summary appears less specific, the linked normative document cont
 - **Resource** — internal tagged union of Capability or Skill; not MCP's resource-URI primitive.
 - **Capability** — executable code hosted by the owned MCP Capability Host.
 - **Skill** — immutable provider-native instruction content.
-- **Managed Skill** — a Skill exposed through application-owned provider channels under the exact assigned allowlist.
+- **Managed Skill** — a Skill exposed by the application's assigned composer/explicit invocation path; provider catalog isolation is a separate declared property and is not enforced on Codex.
 - **Assignment** — desired and verified complete Resource set for one Worktree.
 - **Worktree Runtime** — owned provider process generation keyed by `(agentKind, worktreeId)`.
 - **Requested** — a trusted exact request; not proof of execution/load.
@@ -134,11 +134,11 @@ Renderer and preload never receive filesystem/process/database primitives, raw p
 
 Quarantine scope is `(worktreeId, provider, runtimeGeneration)`. Conflicting receipt claims, lease/profile mismatch, cancellation ambiguity, parser drift, or unverifiable effective state closes ordinary admission for that generation. The control lane drains/stops it. Recovery starts a strictly greater generation, reapplies the verified Assignment, requalifies provider contracts, and creates fresh routes. Historical facts are not reassigned.
 
-## 6. Managed Skill isolation
+## 6. Skill exposure and provider isolation
 
-Managed Skill isolation guarantees exact allowlisted access through application-owned Skill channels. It is not a filesystem sandbox and does not promise confidentiality from arbitrary shell/filesystem access.
+Skill Assignment always controls the application's composer and explicit `/skill:` invocation path. Exclusive provider catalog isolation is a separate, provider-declared property persisted as `enforced`, `not_enforced`, or `not_applicable`; the UI must never imply stronger protection.
 
-Every runtime generation requires:
+For a provider declared `enforced`, every runtime generation requires:
 
 1. a private provider namespace/configuration owned by that Worktree Runtime;
 2. an immutable projection containing exactly assigned Skill ID/version/content/policy digests;
@@ -148,7 +148,7 @@ Every runtime generation requires:
 6. exact post-activation catalog/effective-state attestation;
 7. fail-closed behavior on ambient discovery, schema drift, unverifiable baseline Skills, restart rediscovery, or mismatched generation.
 
-Deny-list enumeration, filesystem watchers, renderer filtering, additive roots, “catalog hidden” settings, timing windows, and verify-then-start sequences are insufficient.
+Filesystem isolation/confidentiality is never claimed. For an `enforced` provider, deny-list enumeration, watchers, renderer-only filtering, additive roots, hidden-catalog settings, timing windows, and verify-then-start sequences remain insufficient.
 
 ### 6.1 OpenCode
 
@@ -156,9 +156,11 @@ OpenCode 1.18.30 is conditionally enforceable only with private XDG/config/data/
 
 ### 6.2 Codex
 
-Codex 0.154.0 is unavailable for Managed Skills. `skills/extraRoots/set` is additive; baseline and ambient Skills remain discoverable; `skills.include_instructions=false` does not disable explicit mention; per-path disables are not atomically bound to `thread/start`; and restart/resume may rediscover Skills.
+Codex 0.154.0 uses `skillIsolation = not_enforced`. The application exposes only assigned Skills in its composer and sends native explicit Skill inputs only after validating exact assigned ID/version/digest. However, `skills/extraRoots/set` is additive, baseline/home/project Skills may remain discoverable, native mention can bypass hidden catalog instructions, and restart/resume may rediscover ambient Skills.
 
-Codex becomes eligible only when #74 proves, on a pinned provider version, an exclusive selected Skill snapshot/generation or semantically equivalent true explicit-only mode atomically bound to session/turn admission. OS mediation and OpenCode-only release are not accepted alternatives.
+Therefore Codex Skill Assignment is not a security boundary: unassigned Skills may still be reachable through provider-native, ambient, automatic, shell, or filesystem paths. The Resources UI persistently states “Codex may access other Skills outside this worktree Assignment.” Activity reports only exact qualified use of an assigned immutable Skill; it does not convert ambient/unassigned observations into assigned activity, and automatic Codex use remains Unknown.
+
+#74 is no longer a release prerequisite. It may remain a future enhancement for changing Codex from `not_enforced` to `enforced`, but absence of that capability does not make assigned explicit Codex Skill invocation unavailable.
 
 ## 7. Capability invocation and cancellation
 
@@ -197,14 +199,14 @@ The [activity evidence contract](./resource-activity-evidence-contract.md) is no
 | Codex Capability explicit | 0.154.0 host completed receipt-bearing SSE and JSON HTTP 200, but provider item remained nonterminal without retained receipt | Unavailable for per-session Used; #75 blocker |
 | OpenCode Skill explicit command | #64 verified exact command-source/template/context evidence | Eligible after production parser and SDK/CLI fixture parity |
 | OpenCode Skill automatic builtin | #64 verified trusted completed ToolPart/body evidence | Eligible where mode provenance is exact |
-| Codex Skill explicit receipt | #64 verified private-rollout context injection | Receipt eligible, but Managed Skill channel unavailable pending #74 |
-| Codex Skill automatic | no reliable positive context-entry evidence | Unknown/unavailable |
-| OpenCode Managed Skill isolation | conditionally enforceable private namespace | Eligible after production isolation fixtures |
-| Codex Managed Skill isolation | 0.154.0 has no atomic exclusive projection | Unavailable; #74 blocker |
+| Codex Skill explicit receipt | #64 verified assigned native input and private-rollout context injection | Eligible after production parser fixtures, with `Isolation not enforced` warning |
+| Codex Skill automatic | no reliable positive context-entry evidence and ambient catalog is non-exclusive | Unknown/unavailable for activity reporting |
+| OpenCode Skill isolation | conditionally enforceable private namespace | Eligible as `enforced` after production isolation fixtures |
+| Codex Skill isolation | 0.154.0 has no atomic exclusive projection | Supported only as `not_enforced`; not a release blocker |
 
 Every supported provider and exact CLI/SDK/parser combination starts unavailable until executable qualification succeeds. Failure, missing auth/model, schema drift, or provider outage yields Unknown/Unavailable, never an inferred pass.
 
-The unified user-facing feature must not ship OpenCode-only. Production infrastructure may be implemented behind unavailable gates, but release requires both #74 and #75 (or pinned replacements proving the same contracts) and all acceptance gates below.
+The unified user-facing feature must not ship OpenCode-only: Codex must support Worktree Assignment and assigned explicit Skill invocation with the mandatory non-isolation disclosure. Per-session Codex Capability Used remains gated by #75. #74 is optional future hardening, not a release gate.
 
 ## 10. IPC and UI contract
 
@@ -288,19 +290,30 @@ Schema changes use Drizzle generation (`npm run db:generate`); generated artifac
 - queue cancellation removes only the requesting waiter;
 - Assignment writer/control lane cannot deadlock behind ordinary runtime capacity.
 
-### 12.3 Managed Skill isolation
+### 12.3 Skill exposure and isolation mode
 
-For each qualified provider/version:
+For every provider/version:
 
-- two Worktrees with disjoint assigned Skills cannot discover/invoke each other's Skill through any managed channel;
-- unassigned explicit mention/command/native input fails before provider turn admission;
+- the application composer and explicit `/skill:` path contain only assigned exact Skill versions;
+- unassigned app-issued explicit invocation fails before provider turn admission;
+- Skill install/update/uninstall cannot silently change the pinned assigned identity;
+- provider version/parser/config drift closes qualified invocation/activity paths;
+- filesystem read of a Skill does not emit Skill Used and is not claimed isolated.
+
+For OpenCode or any provider declared `enforced`:
+
+- two Worktrees with disjoint assigned Skills cannot discover/invoke each other's Skill through managed channels;
 - automatic catalog includes exactly assigned eligible Skills;
 - baseline, project, home, ambient, extension/plugin, command, and transformed-name collisions fail closed;
-- Skill install/update/uninstall cannot mutate a live immutable projection;
-- verify-to-turn race cannot introduce an ambient Skill;
-- restart/resume cannot rediscover unassigned Skills;
-- provider version/parser/config drift closes admission;
-- filesystem read of a Skill does not emit Skill Used and is not claimed isolated.
+- verify-to-turn race and restart/resume cannot introduce or rediscover an unassigned Skill.
+
+For Codex declared `not_enforced`:
+
+- assigned explicit native invocation and its exact receipt work;
+- Resources UI and relevant session setup persistently display `Isolation not enforced` and the bounded ambient-access warning;
+- ambient/project/home/native mention and automatic access are not claimed blocked;
+- an unassigned/ambient Skill observation is never mislabeled as assigned Skill activity;
+- automatic Skill Used remains Unknown unless a future separately qualified positive boundary proves it.
 
 ### 12.4 Capability evidence and cancellation
 
@@ -374,13 +387,13 @@ Each implementation ticket uses its own branch and worktree and preserves the di
 3. Worktree Runtime manager topology, leases, capacity, process ownership, generation lineage, session routes, and quarantine.
 4. Capability Host typed receipt/outcome/cancellation bridge and activity ingestion.
 5. OpenCode isolated projection plus Capability/Skill evidence parsers at an exact qualified SDK/CLI version.
-6. Codex exclusive Skill boundary and terminal Capability receipt integration only after #74/#75 qualification.
+6. Codex assigned explicit Skill integration with `not_enforced` disclosure, plus terminal Capability receipt integration after #75 qualification.
 7. `WorktreeResourceAssignmentService`, participant ports, admission integration, attestations, rollback, recovery, and outbox.
 8. Six IPC/preload channels and full projection events.
 9. Composer Resources control and existing transcript activity wording.
 10. Transactional cutover, live cross-provider matrix, security/privacy review, and release gate.
 
-No implementation ticket may weaken a failed provider gate, introduce an OpenCode-only user release, or replace exact evidence with inference.
+No implementation ticket may hide Codex's `not_enforced` Skill status, introduce an OpenCode-only user release, or replace exact evidence with inference.
 
 ## 15. Out of scope
 
@@ -395,13 +408,13 @@ No implementation ticket may weaken a failed provider gate, introduce an OpenCod
 
 ## 16. Final approval gate
 
-Approval of this specification authorizes creation of separate implementation tickets/worktrees only. It does not waive #74/#75 or mark any provider path qualified.
+Approval of this specification authorizes creation of separate implementation tickets/worktrees only. The approved Codex Skill posture is explicitly `not_enforced`; #74 is optional hardening. Approval does not waive #75 or mark any evidence path qualified.
 
 The implementation may be called complete only when:
 
 - every normative specification acceptance criterion passes;
 - all required real-provider paths are qualified on pinned supported versions;
-- Codex and OpenCode both satisfy Managed Skill isolation and explicit Resource-use evidence;
+- OpenCode satisfies enforced Skill isolation; Codex supports assigned app-issued explicit Skills while persistently disclosing `Isolation not enforced`; both satisfy their declared isolation mode and explicit Resource-use evidence;
 - migrations, rollback, recovery, cancellation, privacy, accessibility, and multi-window behavior pass;
 - no provider failure is represented as success/Used/isolated;
 - the unified feature can ship without provider-specific semantic dishonesty.
