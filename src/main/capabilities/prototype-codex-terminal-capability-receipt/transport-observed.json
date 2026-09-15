@@ -1,0 +1,90 @@
+{
+  "kind": "codex-terminal-capability-receipt-probe",
+  "version": "codex-cli 0.154.0",
+  "results": [
+    {
+      "variant": "stateless_sse",
+      "statefulSessionEstablished": false,
+      "methods": [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/call"
+      ],
+      "hostEntered": true,
+      "hostOutcome": true,
+      "providerItemTerminal": true,
+      "providerItemStatus": "completed",
+      "providerResultPresent": true,
+      "providerErrorClass": "none",
+      "providerReceiptLive": true,
+      "providerReceiptAfterRestart": true,
+      "turnTerminal": false
+    },
+    {
+      "variant": "stateless_json",
+      "statefulSessionEstablished": false,
+      "methods": [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/call"
+      ],
+      "hostEntered": true,
+      "hostOutcome": true,
+      "providerItemTerminal": true,
+      "providerItemStatus": "completed",
+      "providerResultPresent": true,
+      "providerErrorClass": "none",
+      "providerReceiptLive": true,
+      "providerReceiptAfterRestart": true,
+      "turnTerminal": false
+    },
+    {
+      "variant": "stateful_sse",
+      "statefulSessionEstablished": true,
+      "methods": [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/call"
+      ],
+      "hostEntered": true,
+      "hostOutcome": true,
+      "providerItemTerminal": true,
+      "providerItemStatus": "completed",
+      "providerResultPresent": true,
+      "providerErrorClass": "none",
+      "providerReceiptLive": true,
+      "providerReceiptAfterRestart": true,
+      "turnTerminal": false
+    },
+    {
+      "variant": "stateful_json",
+      "statefulSessionEstablished": true,
+      "methods": [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "tools/call"
+      ],
+      "hostEntered": true,
+      "hostOutcome": true,
+      "providerItemTerminal": true,
+      "providerItemStatus": "completed",
+      "providerResultPresent": true,
+      "providerErrorClass": "none",
+      "providerReceiptLive": true,
+      "providerReceiptAfterRestart": true,
+      "turnTerminal": false
+    }
+  ],
+  "privacy": {
+    "prompts": false,
+    "outputs": false,
+    "credentials": false,
+    "paths": false,
+    "sessionIds": false,
+    "receipts": false
+  }
+}

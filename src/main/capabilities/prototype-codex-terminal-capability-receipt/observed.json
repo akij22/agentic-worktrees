@@ -1,0 +1,69 @@
+{
+  "kind": "codex-terminal-capability-receipt-matrix",
+  "version": "codex-cli 0.154.0",
+  "observations": {
+    "concurrent": {
+      "receipts": 2,
+      "distinctSessions": true
+    },
+    "profileSwitch": {
+      "receipt": true
+    },
+    "retry": {
+      "receipt": true,
+      "distinct": true
+    },
+    "errors": [
+      {
+        "mode": "reported_error",
+        "receipt": true,
+        "terminal": true,
+        "status": "failed",
+        "hostOutcome": "reported_error"
+      },
+      {
+        "mode": "throw",
+        "receipt": true,
+        "terminal": true,
+        "status": "failed",
+        "hostOutcome": "thrown"
+      },
+      {
+        "mode": "timeout",
+        "receipt": true,
+        "terminal": true,
+        "status": "failed",
+        "hostOutcome": "timeout"
+      }
+    ],
+    "cancellation": {
+      "entered": true,
+      "sideChannel": "cancel_requested",
+      "providerTerminal": true,
+      "providerReceipt": true,
+      "hostOutcome": "cancelled"
+    },
+    "restartHistoryReceipt": true,
+    "resume": {
+      "receipt": true,
+      "retainedAfterResume": true
+    },
+    "directCredentialReceiptUnpaired": true,
+    "correlation": {
+      "exactPairs": 9,
+      "unknownSession": 1,
+      "profileMismatchPairs": 1,
+      "duplicateEventsDeduplicated": 1,
+      "staleEventsRejected": 1,
+      "conflictsQuarantined": 1
+    }
+  },
+  "privacy": {
+    "prompts": false,
+    "outputs": false,
+    "credentials": false,
+    "paths": false,
+    "sessionIds": false,
+    "receipts": false
+  }
+}
