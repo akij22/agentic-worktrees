@@ -2,7 +2,7 @@
  * audience: developers · use: identify workspace and access actions · tone: utilitarian
  * pre-emit critique: P4 H5 E4 S5 R5 V4
  * Existing controls supply focus, hover, active and disabled states; errors stay visible.
- * Session loading remains owned by CodingAgentSession; successful actions update existing state.
+ * Session context now lives beside each chat in the project sidebar.
  */
 .session-header {
   display: flex;
@@ -30,12 +30,6 @@
 
 .session-header-actions button {
   white-space: nowrap;
-}
-
-.session-header-details {
-  width: min(360px, calc(100vw - 24px));
-  max-height: min(560px, var(--available-height));
-  overflow-y: auto;
 }
 
 .session-header-error {

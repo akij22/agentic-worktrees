@@ -28,6 +28,10 @@ _Avoid_: Activation, installation
 The provider process owned for one coding-agent kind and one Worktree, within which that Worktree's provider sessions execute.
 _Avoid_: Global runtime, session process
 
+**Provider qualification**:
+A version-pinned proof that one coding-agent runtime satisfies the required isolation, attribution and lifecycle contract before it can admit work.
+_Avoid_: Compatibility assumption, best-effort support
+
 **Installed**:
 The Resource is present in the user's library but is not necessarily assigned to a Worktree.
 _Avoid_: Enabled, active
@@ -47,6 +51,10 @@ _Avoid_: Requested, discovered, inferred use
 **Activity attribution**:
 The verified relationship between Resource-use evidence and its exact application session. It remains unknown when provider and host observations cannot be paired without inference.
 _Avoid_: Worktree ownership, timing correlation
+
+**Usage receipt**:
+Version-qualified provider or runtime evidence that crosses the trusted boundary required to classify one Resource attempt as Used.
+_Avoid_: Submission acknowledgement, bridge completion
 
 **Failed**:
 The requested Assignment generation could not be applied, while a prior verified generation may still remain available.

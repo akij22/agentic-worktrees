@@ -175,6 +175,7 @@ describe("Coding Agent project layout", () => {
     const props = {
       activeRunId: undefined,
       error: undefined,
+      sessionDetails: new Map(),
       onNewSession: vi.fn(),
       onOpenSession: vi.fn(),
     };
@@ -201,6 +202,54 @@ describe("Coding Agent project layout", () => {
     expect(screen.queryByText("Refine chat layout")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /agentic-worktrees/ }));
-    expect(screen.getByText("Refine chat layout")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Refine chat layout/ })).toBeTruthy();
+  });
+
+  it("reveals session context when a chat row is hovered or focused", () => {
+    const onOpenSession = vi.fn();
+    mocks.useCodingAgentSessions.mockReturnValue(loadedSessionsState());
+    render(
+      <CodingAgentProjectSidebar
+        contexts={[context]}
+        sessions={[session]}
+        sessionDetails={new Map([
+          [
+            session.id,
+            {
+              lastActivity: undefined,
+              isProcessing: true,
+              additions: 0,
+              deletions: 0,
+              changedFiles: 0,
+              activeCapabilities: [{ id: "web-search", name: "Web Search" }],
+            },
+          ],
+        ])}
+        activeRunId={session.id}
+        width={320}
+        loading={false}
+        onNewSession={vi.fn()}
+        onOpenSession={onOpenSession}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /agentic-worktrees/ }));
+    const chat = screen.getByRole("button", {
+      name: "Refine chat layout. Hover or focus for session details.",
+    });
+    fireEvent.mouseEnter(chat.parentElement as HTMLElement);
+
+    const card = screen.getByRole("tooltip");
+    expect(card.getAttribute("aria-hidden")).toBe("false");
+    expect(card.getAttribute("style")).toContain("top:");
+    expect(card.textContent).toContain(context.repository.fullName);
+    expect(card.textContent).toContain(context.worktree.branchName);
+    expect(card.textContent).toContain("Web Search");
+    expect(onOpenSession).not.toHaveBeenCalled();
+
+    fireEvent.mouseLeave(chat.parentElement as HTMLElement);
+    expect(card.getAttribute("aria-hidden")).toBe("true");
+    fireEvent.focus(chat);
+    expect(card.getAttribute("aria-hidden")).toBe("false");
   });
 });

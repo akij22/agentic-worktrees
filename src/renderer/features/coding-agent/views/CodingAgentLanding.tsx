@@ -33,7 +33,7 @@ export const CodingAgentLanding = ({
   );
   const [isResizingProjectSidebar, setIsResizingProjectSidebar] =
     useState(false);
-  const { status, contexts, sessions, loading, error } =
+  const { status, contexts, sessions, sessionDetails, loading, error } =
     useCodingAgentSessions();
   const requestedWorktreeId = searchParams.get("worktreeId") ?? undefined;
   const configuredInstallations =
@@ -73,6 +73,7 @@ export const CodingAgentLanding = ({
       <CodingAgentProjectSidebar
         contexts={contexts}
         sessions={sessions}
+        sessionDetails={sessionDetails}
         activeRunId={activeRunId}
         width={projectSidebarWidth}
         loading={loading}

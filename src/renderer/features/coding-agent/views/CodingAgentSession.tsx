@@ -321,8 +321,6 @@ export const CodingAgentSession = ({
         title={headerTitle}
         layoutActions={headerActions}
         editorError={editorError?.message}
-        capabilities={sessionState.capabilities}
-        onRemoveCapability={sessionState.deactivateCapability}
         editorAction={
           <DropdownMenu
             label="Open in editor"
