@@ -7,7 +7,7 @@ import type {
 import type { SessionGridDetail } from "../types";
 import { Button } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
-import { formatDate } from "../lib/formatters";
+import { formatListTimestamp } from "../lib/formatters";
 import {
   buildRepositoryFilters,
   buildThreadEntries,
@@ -16,6 +16,7 @@ import {
   groupThreadEntries,
   type ThreadListEntry,
 } from "../lib/thread-list";
+import { AgentLogo } from "./AgentLogo";
 import {
   clampThreadDossierTop,
   ThreadSessionDossier,
@@ -74,11 +75,11 @@ const ThreadRow = ({
       <button
         type="button"
         aria-current={active ? "page" : undefined}
-        aria-label={`${session.title || "Untitled thread"}. Hover or focus for thread details.`}
+        aria-label={`${session.title || "Untitled thread"}, ${agentLabel}. Hover or focus for thread details.`}
         aria-describedby={`thread-dossier-${session.id}`}
         onClick={() => onOpenSession(session)}
         className={cn(
-          "relative mb-0.5 flex w-full items-start gap-2 overflow-hidden rounded-lg px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
+          "relative mb-1 flex w-full gap-2.5 overflow-hidden rounded-lg px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
           active
             ? "bg-sidebar-row-selected text-foreground shadow-[inset_2px_0_0_var(--primary),inset_0_1px_0_rgba(255,255,255,0.045)]"
             : "text-sidebar-foreground hover:bg-sidebar-row-hover/70",
@@ -90,35 +91,56 @@ const ThreadRow = ({
             aria-hidden="true"
           />
         ) : null}
-        <span
-          className={cn(
-            "mt-1 size-1.5 shrink-0 rounded-full",
-            status.className,
-          )}
-          title={status.label}
-          aria-label={status.label}
+
+        <AgentLogo
+          agentKind={session.agentKind}
+          alt=""
+          invertOnDark={session.agentKind !== "codex"}
+          className="mt-0.5 size-4 shrink-0 object-contain"
         />
+        <span className="sr-only">{agentLabel}</span>
+
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-xs font-medium">
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                status.className,
+              )}
+              title={status.label}
+              aria-label={status.label}
+            />
+            <span className="min-w-0 flex-1 text-[13px] font-medium leading-5">
               {session.title || "Untitled thread"}
             </span>
-            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-              {formatDate(session.updatedAt)}
+            <span className="shrink-0 font-mono text-[10px] leading-5 text-muted-foreground">
+              {formatListTimestamp(session.updatedAt)}
             </span>
           </span>
-          <span className="mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+
+          {/* The project and the branch get their own lines. Run together on one
+              line they competed for width and the branch was the loser, which
+              is the part a developer most needs to see. */}
+          <span
+            className="mt-1 block truncate text-[11px] leading-4 text-foreground/75"
+            title={entry.repositoryName}
+          >
+            {entry.repositoryName}
+          </span>
+          {entry.branchName ? (
             <span
-              className="shrink-0 font-sans text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80"
-              title={agentLabel}
+              className="mt-0.5 flex min-w-0 items-start gap-1.5 text-[11px] leading-4"
+              title={entry.branchName}
             >
-              {agentLabel}
+              <GitBranch
+                aria-hidden="true"
+                className="mt-[3px] size-3 shrink-0 text-muted-foreground/70"
+              />
+              <span className="min-w-0 break-all font-mono text-muted-foreground">
+                {entry.branchName}
+              </span>
             </span>
-            <span className="min-w-0 flex-1 truncate">
-              {entry.repositoryName}
-              {entry.branchName ? ` · ${entry.branchName}` : ""}
-            </span>
-          </span>
+          ) : null}
         </span>
       </button>
       <ThreadSessionDossier

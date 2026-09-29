@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   CodingAgentSessionDto,
@@ -339,5 +339,99 @@ describe("ThreadListSidebar", () => {
     expect(
       screen.getByText("No threads yet. Start one from the composer."),
     ).toBeTruthy();
+  });
+
+  it("identifies the coding agent by its logo rather than by text", () => {
+    const { rerender } = render(
+      <ThreadListSidebar
+        {...baseProps}
+        contexts={[context("repo-a", "agentic-worktrees", "wt-1", "main")]}
+        sessions={[
+          session({
+            id: "codex-run",
+            worktreeId: "wt-1",
+            updatedAt: new Date(),
+            agentKind: "codex",
+          }),
+        ]}
+      />,
+    );
+
+    const logo = document.querySelector(
+      "img[src*='openai']",
+    ) as HTMLImageElement | null;
+    expect(logo).toBeTruthy();
+    expect(logo?.getAttribute("alt")).toBe("");
+    // The name stays available to assistive technology.
+    expect(
+      screen.getByRole("button", { name: /A thread, Codex/ }),
+    ).toBeTruthy();
+
+    rerender(
+      <ThreadListSidebar
+        {...baseProps}
+        contexts={[context("repo-a", "agentic-worktrees", "wt-1", "main")]}
+        sessions={[
+          session({
+            id: "opencode-run",
+            worktreeId: "wt-1",
+            updatedAt: new Date(),
+            agentKind: "opencode",
+          }),
+        ]}
+      />,
+    );
+
+    expect(document.querySelector("img[src*='opencode']")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /A thread, OpenCode/ }),
+    ).toBeTruthy();
+  });
+
+  it("gives the project and the branch a line each so neither is truncated", () => {
+    const longBranch = "feat/a-very-long-branch-name-that-used-to-be-cut-off";
+    render(
+      <ThreadListSidebar
+        {...baseProps}
+        contexts={[
+          context("repo-a", "agentic-worktrees", "wt-1", longBranch),
+        ]}
+        sessions={[
+          session({ id: "one", worktreeId: "wt-1", updatedAt: new Date() }),
+        ]}
+      />,
+    );
+
+    const row = screen.getByRole("button", { name: /A thread/ });
+    const project = within(row).getByText("agentic-worktrees");
+    const branch = within(row).getByText(longBranch);
+
+    // Separate elements, so neither can squeeze the other out of existence.
+    expect(project).not.toBe(branch);
+    expect(branch.className).toContain("break-all");
+    expect(branch.className).not.toContain("truncate");
+  });
+
+  it("distinguishes the project from the branch by typography", () => {
+    render(
+      <ThreadListSidebar
+        {...baseProps}
+        contexts={[
+          context("repo-a", "agentic-worktrees", "wt-1", "feature/mvp"),
+        ]}
+        sessions={[
+          session({ id: "one", worktreeId: "wt-1", updatedAt: new Date() }),
+        ]}
+      />,
+    );
+
+    // The project reads as a name, the branch as code.
+    const row = screen.getByRole("button", { name: /A thread/ });
+    expect(within(row).getByText("agentic-worktrees").className).not.toContain(
+      "font-mono",
+    );
+    expect(within(row).getByText("feature/mvp").className).toContain(
+      "font-mono",
+    );
   });
 });
