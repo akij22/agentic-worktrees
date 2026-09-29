@@ -620,8 +620,8 @@ export const Dashboard = () => {
 						onOpenCodingAgent={(worktree) =>
 							navigate(
 								worktree.activeRunId
-									? `/coding-agent/${worktree.id}/${worktree.activeRunId}`
-									: `/coding-agent?worktreeId=${encodeURIComponent(worktree.id)}&new=1`,
+									? `/chat/${encodeURIComponent(worktree.id)}/${encodeURIComponent(worktree.activeRunId)}`
+									: `/chat?worktreeId=${encodeURIComponent(worktree.id)}`,
 							)
 						}
 					/>

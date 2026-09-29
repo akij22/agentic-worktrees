@@ -95,7 +95,7 @@ export const Intelligence = () => {
 
 	const openChat = (worktreeId: string, runId: string) => {
 		navigate(
-			`/coding-agent/${encodeURIComponent(worktreeId)}/${encodeURIComponent(runId)}`,
+			`/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(runId)}`,
 		);
 	};
 	const reviewOverlap = (overlapId: string) => {

@@ -5,22 +5,23 @@ import { getRouteTransitionSection } from './route-transition';
 
 describe('RouteTransition', () => {
   it('classifies top-level screens into distinct transition sections', () => {
-    expect(getRouteTransitionSection('/')).toBe('dashboard');
-    expect(getRouteTransitionSection('/coding-agent')).toBe('coding-agent');
+    expect(getRouteTransitionSection('/')).toBe('chat');
+    expect(getRouteTransitionSection('/worktrees')).toBe('worktrees');
+    expect(getRouteTransitionSection('/intelligence')).toBe('intelligence');
+    expect(getRouteTransitionSection('/marketplace')).toBe('marketplace');
     expect(getRouteTransitionSection('/settings')).toBe('settings');
   });
 
-  it('keeps all Coding Agent session paths in the Coding Agent section', () => {
-    expect(getRouteTransitionSection('/coding-agent/worktree-1/run-1')).toBe(
-      'coding-agent',
-    );
-    expect(getRouteTransitionSection('/coding-agent/unexpected/nested/path')).toBe(
-      'coding-agent',
+  it('keeps the chat landing and every thread in one section', () => {
+    expect(getRouteTransitionSection('/chat')).toBe('chat');
+    expect(getRouteTransitionSection('/chat/worktree-1/run-1')).toBe('chat');
+    expect(getRouteTransitionSection('/chat/unexpected/nested/path')).toBe(
+      'chat',
     );
   });
 
-  it('matches the existing Dashboard redirect behavior for unknown paths', () => {
-    expect(getRouteTransitionSection('/unknown')).toBe('dashboard');
+  it('sends unknown paths to the chat landing section', () => {
+    expect(getRouteTransitionSection('/unknown')).toBe('chat');
   });
 
   it('renders an animated layout wrapper without changing its content', () => {

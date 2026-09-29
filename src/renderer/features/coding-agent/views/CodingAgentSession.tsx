@@ -418,7 +418,7 @@ export const CodingAgentSession = ({
               />
             ) : null}
             <SessionComposer
-              session={session}
+              target={{ kind: "session", session }}
               branchName={context.worktree.branchName}
               usage={composerUsage}
               draft={draft}
