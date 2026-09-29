@@ -6,6 +6,8 @@ import type {
   CodingAgentWorktreeContextDto,
 } from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
+import { CapabilityPanel } from "../components/CapabilityPanel";
+import { useWorktreeCapabilities } from "../hooks/useWorktreeCapabilities";
 import { HarnessModelPicker } from "../components/HarnessModelPicker";
 import { SessionComposer } from "../components/SessionComposer";
 import { WorktreeRow } from "../components/WorktreeRow";
@@ -47,6 +49,9 @@ export const NewThreadView = ({
   const [createState, setCreateState] = useState<CreateState>({
     status: "idle",
   });
+  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
+  const { activeCount: activeCapabilityCount } =
+    useWorktreeCapabilities(worktreeId);
 
   const context = useMemo(
     () => contexts.find(({ worktree }) => worktree.id === worktreeId),
@@ -178,9 +183,22 @@ export const NewThreadView = ({
       <WorktreeRow
         contexts={contexts}
         selectedWorktreeId={worktreeId}
-        activeCapabilityCount={0}
-        onSelectWorktree={setWorktreeId}
+        activeCapabilityCount={activeCapabilityCount}
+        onSelectWorktree={(next) => {
+          setWorktreeId(next);
+          setCapabilitiesOpen(false);
+        }}
+        onOpenCapabilities={() => setCapabilitiesOpen((open) => !open)}
+        capabilitiesExpanded={capabilitiesOpen}
+        capabilitiesPanelId="landing-capability-panel"
       />
+
+      {capabilitiesOpen ? (
+        <CapabilityPanel
+          context={context}
+          onClose={() => setCapabilitiesOpen(false)}
+        />
+      ) : null}
 
       {createState.status === "error" ? (
         <p role="alert" className="max-w-[40rem] text-sm text-destructive">

@@ -60,6 +60,9 @@ const installation: CodingAgentInstallationStatusDto = {
 };
 
 const createSession = vi.fn();
+const listWorktree = vi.fn();
+const listCapabilities = vi.fn();
+const capabilityChanged = vi.fn();
 const locationProbe = vi.fn();
 
 const LocationProbe = () => {
@@ -95,9 +98,22 @@ beforeEach(() => {
   createSession.mockReset();
   locationProbe.mockReset();
   createSession.mockResolvedValue({ id: "run-new", worktreeId: "wt-1" });
+  listWorktree.mockReset();
+  listWorktree.mockResolvedValue([]);
+  listCapabilities.mockReset();
+  listCapabilities.mockResolvedValue([]);
+  capabilityChanged.mockReset();
+  capabilityChanged.mockReturnValue(() => undefined);
   Object.defineProperty(window, "api", {
     configurable: true,
-    value: { codingAgent: { createSession } },
+    value: {
+      codingAgent: { createSession },
+      capabilities: {
+        listWorktree,
+        list: listCapabilities,
+        onChanged: capabilityChanged,
+      },
+    },
   });
 });
 

@@ -919,9 +919,27 @@ export const capabilitySessionStateSchema = z.object({
 });
 export type CapabilitySessionStateDto = z.infer<typeof capabilitySessionStateSchema>;
 
+/**
+ * The Assignment for one Worktree, as reported to the renderer. Distinct from
+ * CapabilitySessionStateDto, which reports one session's materialisation.
+ */
+export const worktreeCapabilityStateSchema = z.object({
+	worktreeId: z.string().min(1),
+	capabilityId: z.string().min(1),
+	name: z.string(),
+	version: z.string(),
+	state: capabilityStateSchema,
+	errorCode: z.string().optional(),
+	activatedAt: z.string().optional(),
+	deactivatedAt: z.string().optional(),
+});
+export type WorktreeCapabilityStateDto = z.infer<typeof worktreeCapabilityStateSchema>;
+
 const capabilityIdSchema = z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/);
 export const capabilityListRequestSchema = z.object({ runId: z.string().trim().min(1).optional() }).optional().default({});
 export const capabilityGetRequestSchema = z.object({ capabilityId: capabilityIdSchema, runId: z.string().trim().min(1).optional() });
+export const worktreeCapabilityListRequestSchema = z.object({ worktreeId: z.string().trim().min(1) });
+export const worktreeCapabilityAssignRequestSchema = z.object({ worktreeId: z.string().trim().min(1), capabilityId: capabilityIdSchema });
 const capabilitySettingValueSchema = z.union([
 	z.string().max(4_096),
 	z.number().finite(),
@@ -940,6 +958,7 @@ export const capabilityDeactivateRequestSchema = capabilityActivateRequestSchema
 export const capabilityChangedEventSchema = z.discriminatedUnion("scope", [
 	z.object({ scope: z.literal("session"), runId: z.string().trim().min(1), capabilityId: capabilityIdSchema, state: capabilityStateSchema, updatedAt: z.string().datetime() }).strict(),
 	z.object({ scope: z.literal("catalog"), capabilityId: capabilityIdSchema, change: z.enum(["installed", "updated", "removed", "blocked"]), updatedAt: z.string().datetime() }).strict(),
+	z.object({ scope: z.literal("worktree"), worktreeId: z.string().trim().min(1), capabilityId: capabilityIdSchema, state: capabilityStateSchema, updatedAt: z.string().datetime() }).strict(),
 ]);
 export type CapabilityChangedEventDto = z.infer<typeof capabilityChangedEventSchema>;
 

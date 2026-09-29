@@ -8,6 +8,7 @@ import type {
 	CapabilityDetailDto,
 	CapabilitySessionStateDto,
 	CapabilitySummaryDto,
+	WorktreeCapabilityStateDto,
 	CodingAgentAccountUsageDto,
 	CodingAgentKindDto,
 	CodingAgentModelDto,
@@ -220,6 +221,14 @@ export interface Api {
 		configure: (request: CapabilityConfigureRequest) => Promise<CapabilityDetailDto>;
 		activate: (request: CapabilityActivateRequest) => Promise<CapabilitySessionStateDto>;
 		deactivate: (request: CapabilityDeactivateRequest) => Promise<CapabilitySessionStateDto>;
+		/**
+		 * The Assignments recorded for one Worktree. Readable before any
+		 * session exists, which is why the composer can show them on the
+		 * landing.
+		 */
+		listWorktree: (request: { worktreeId: string }) => Promise<WorktreeCapabilityStateDto[]>;
+		assignWorktree: (request: { worktreeId: string; capabilityId: string }) => Promise<WorktreeCapabilityStateDto>;
+		revokeWorktree: (request: { worktreeId: string; capabilityId: string }) => Promise<WorktreeCapabilityStateDto>;
 		onChanged: (listener: (event: CapabilityChangedEventDto) => void) => () => void;
 	};
 	codingAgent: {
@@ -236,8 +245,7 @@ export interface Api {
 			agentKind: CodingAgentKindDto;
 			worktreeId: string;
 			title: string;
-		}) => Promise<CodingAgentSessionDto>;
-		setSessionModel: (request: {
+		}) => Promise<CodingAgentSessionDto>;		setSessionModel: (request: {
 			runId: string;
 			providerId: string;
 			modelId: string;

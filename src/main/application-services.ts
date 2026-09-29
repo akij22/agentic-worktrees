@@ -270,6 +270,9 @@ const initializeCapabilities = async (): Promise<CapabilityService> => {
           .listSessionCapabilities(runId)
           .some((record) => interruptedStates.includes(record.status));
       },
+      inheritWorktreeCapabilities: (worktreeId, runId) => {
+        service.inheritWorktreeCapabilitiesIntoSession(worktreeId, runId);
+      },
     });
   capabilityDistributionService = new CapabilityDistributionService({
     layout: packageLayout,

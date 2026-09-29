@@ -543,6 +543,37 @@ const bootstrapStatements = [
     CREATE INDEX IF NOT EXISTS session_capabilities_status_idx
     ON session_capabilities (status)
   `,
+	`
+    CREATE TABLE IF NOT EXISTS worktree_capabilities (
+      id TEXT PRIMARY KEY NOT NULL,
+      worktree_id TEXT NOT NULL,
+      capability_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      status TEXT NOT NULL,
+      error_code TEXT,
+      activated_at INTEGER,
+      deactivated_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (worktree_id) REFERENCES worktrees(id) ON DELETE CASCADE
+    )
+  `,
+	`
+    CREATE UNIQUE INDEX IF NOT EXISTS worktree_capabilities_worktree_capability_unique
+    ON worktree_capabilities (worktree_id, capability_id)
+  `,
+	`
+    CREATE INDEX IF NOT EXISTS worktree_capabilities_worktree_id_idx
+    ON worktree_capabilities (worktree_id)
+  `,
+	`
+    CREATE INDEX IF NOT EXISTS worktree_capabilities_capability_id_idx
+    ON worktree_capabilities (capability_id)
+  `,
+	`
+    CREATE INDEX IF NOT EXISTS worktree_capabilities_status_idx
+    ON worktree_capabilities (status)
+  `,
 	`CREATE TABLE IF NOT EXISTS skill_installations (
       skill_id TEXT PRIMARY KEY NOT NULL, version TEXT NOT NULL, source_kind TEXT NOT NULL,
       source_ref TEXT NOT NULL, content_digest TEXT NOT NULL, name TEXT NOT NULL,
