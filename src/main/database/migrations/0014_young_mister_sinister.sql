@@ -1,0 +1,4 @@
+CREATE UNIQUE INDEX `resource_distribution_operations_one_active_per_resource` ON `resource_distribution_operations` (`resource_kind`,`resource_id`) WHERE "resource_distribution_operations"."status" IN ('preparing','waiting_for_idle','applying','commit_pending','rolling_back','recovery_required');--> statement-breakpoint
+CREATE INDEX `resource_distribution_operations_status_idx` ON `resource_distribution_operations` (`status`);--> statement-breakpoint
+CREATE UNIQUE INDEX `worktree_assignment_attempts_one_active_per_worktree` ON `worktree_assignment_attempts` (`worktree_id`) WHERE "worktree_assignment_attempts"."status" IN ('preparing','waiting_for_idle','applying','rolling_back');--> statement-breakpoint
+CREATE INDEX `worktree_assignment_attempts_worktree_status_idx` ON `worktree_assignment_attempts` (`worktree_id`,`status`);

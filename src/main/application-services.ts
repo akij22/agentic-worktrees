@@ -31,6 +31,8 @@ import { SkillRepository } from "./skills/skill-repository";
 import { SkillService } from "./skills/skill-service";
 import { createSkillStorageLayout } from "./skills/skill-installer";
 import { CapabilityDistributionService } from "./capabilities/capability-distribution-service";
+import { AssignmentMigrator } from "./assignments/assignment-migrator";
+import { DatabaseAssignmentMigrationCatalog } from "./assignments/database-assignment-migration-catalog";
 
 let currentUserDataPath = "";
 let currentMode: "ui" | "cli" = "ui";
@@ -301,6 +303,8 @@ export async function createApplicationServices(input: {
   const { configureDatabaseUserDataPath } = await import("./database/client");
   configureDatabaseUserDataPath(input.userDataPath);
   initDatabase();
+  const sqlite = getSqlite();
+  new AssignmentMigrator(sqlite, new DatabaseAssignmentMigrationCatalog(sqlite)).runInitialMigration();
   const capabilityService = await initializeCapabilities();
   if (!capabilityDistributionService || !currentWebSearchMigration)
     throw new Error("capability_startup_unavailable");
