@@ -103,10 +103,7 @@ const ThreadRow = ({
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                status.className,
-              )}
+              className={cn("size-1.5 shrink-0 rounded-full", status.className)}
               title={status.label}
               aria-label={status.label}
             />

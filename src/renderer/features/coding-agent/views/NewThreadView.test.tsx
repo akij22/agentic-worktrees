@@ -173,9 +173,12 @@ describe("NewThreadView", () => {
       ],
     });
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
-      target: { value: "Continue" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Message to agent" }),
+      {
+        target: { value: "Continue" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() =>
@@ -196,9 +199,12 @@ describe("NewThreadView", () => {
       ],
     });
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
-      target: { value: "Continue" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Message to agent" }),
+      {
+        target: { value: "Continue" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
@@ -254,9 +260,12 @@ describe("NewThreadView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Coding agent" }));
     fireEvent.click(screen.getByRole("option", { name: /Codex/ }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
-      target: { value: "Continue" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Message to agent" }),
+      {
+        target: { value: "Continue" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   CodingAgentSessionDto,
@@ -393,9 +399,7 @@ describe("ThreadListSidebar", () => {
     render(
       <ThreadListSidebar
         {...baseProps}
-        contexts={[
-          context("repo-a", "agentic-worktrees", "wt-1", longBranch),
-        ]}
+        contexts={[context("repo-a", "agentic-worktrees", "wt-1", longBranch)]}
         sessions={[
           session({ id: "one", worktreeId: "wt-1", updatedAt: new Date() }),
         ]}
