@@ -280,6 +280,33 @@ describe("SessionComposer file mentions", () => {
 });
 
 describe("SessionStatusPopup", () => {
+  it("shows unavailable after loading completes without usage statistics", () => {
+    const markup = renderToStaticMarkup(
+      <SessionStatusPopup
+        session={createSession("codex")}
+        loading={false}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Unavailable");
+    expect(markup).not.toContain("Loading…");
+    expect(markup).not.toContain("tokens");
+  });
+
+  it("keeps the loading state while usage is being requested", () => {
+    const markup = renderToStaticMarkup(
+      <SessionStatusPopup
+        session={createSession("codex")}
+        loading={true}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Loading…");
+    expect(markup).not.toContain("Unavailable");
+  });
+
   it("renders context usage, total cost, and current model", () => {
     const markup = renderToStaticMarkup(
       <SessionStatusPopup

@@ -72,7 +72,9 @@ export const SessionStatusPopup = ({
       <div className="flex items-end justify-between gap-3">
         <Detail
           label="Context used"
-          value={loading || !usage ? "Loading…" : `${usage.contextPercentage.toFixed(1)}%`}
+          value={loading
+            ? "Loading…"
+            : usage ? `${usage.contextPercentage.toFixed(1)}%` : "Unavailable"}
         />
         {usage ? (
           <span className="font-mono text-[10px] text-muted-foreground">

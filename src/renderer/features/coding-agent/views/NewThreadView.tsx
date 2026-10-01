@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
   CodingAgentInstallationStatusDto,
@@ -45,7 +45,14 @@ export const NewThreadView = ({
       resolveDefaultWorktreeId(contexts, sessions)
     );
   });
-  const [agentKind, setAgentKind] = useState<CodingAgentKindDto | undefined>();  const [draft, setDraft] = useState("");
+  const [agentKind, setAgentKind] = useState<CodingAgentKindDto | undefined>();
+  const [draft, setDraft] = useState("");
+  const sendingRef = useRef(false);
+  const pendingSessionRef = useRef<{
+    id: string;
+    worktreeId: string;
+    agentKind: CodingAgentKindDto;
+  } | undefined>(undefined);
   const [createState, setCreateState] = useState<CreateState>({
     status: "idle",
   });
@@ -66,19 +73,25 @@ export const NewThreadView = ({
 
   const createAndOpen = useCallback(
     async (kind: CodingAgentKindDto) => {
-      if (!worktreeId || !kind) return;
-      const reusable = findReusableDraft(sessions, worktreeId);
-      if (reusable) {
-        navigate(`/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(reusable.id)}`);
-        return;
-      }
+      const content = draft.trim();
+      if (!worktreeId || !content || sendingRef.current) return;
+      sendingRef.current = true;
       setCreateState({ status: "creating" });
       try {
-        const session = await window.api.codingAgent.createSession({
-          agentKind: kind,
-          worktreeId,
-          title: context?.worktree.name ?? "New thread",
-        });
+        const pending = pendingSessionRef.current;
+        const reusable =
+          pending?.worktreeId === worktreeId && pending.agentKind === kind
+            ? pending
+            : findReusableDraft(sessions, worktreeId);
+        const session = reusable ??
+          await window.api.codingAgent.createSession({
+            agentKind: kind,
+            worktreeId,
+            title: context?.worktree.name ?? "New thread",
+          });
+        pendingSessionRef.current = { id: session.id, worktreeId, agentKind: kind };
+        await window.api.codingAgent.sendMessage({ runId: session.id, content });
+        setDraft("");
         navigate(
           `/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(session.id)}`,
         );
@@ -87,9 +100,11 @@ export const NewThreadView = ({
           status: "error",
           message: cause instanceof Error ? cause.message : String(cause),
         });
+      } finally {
+        sendingRef.current = false;
       }
     },
-    [context, navigate, sessions, worktreeId],
+    [context, draft, navigate, sessions, worktreeId],
   );
 
   if (contexts.length === 0) {

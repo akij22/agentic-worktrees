@@ -788,7 +788,7 @@ export const listAgentModels = async (
 
 export const getAgentSessionUsage = async (
   runId: string,
-): Promise<CodingAgentSessionUsage> => {
+): Promise<CodingAgentSessionUsage | null> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);

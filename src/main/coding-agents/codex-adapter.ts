@@ -398,18 +398,13 @@ export class CodexAdapter implements CodingAgentAdapter {
     directory: string,
     sessionId: string,
     input: { providerId: string; modelId: string },
-  ): Promise<CodingAgentSessionUsage> {
+  ): Promise<CodingAgentSessionUsage | null> {
     if (input.providerId !== "openai") {
       throw new Error(`Codex does not support provider ${input.providerId}.`);
     }
     this.directoryByThread.set(sessionId, directory);
     const usage = this.usageByThread.get(sessionId);
-    if (!usage) {
-      throw new Error("Codex token usage is not available yet.");
-    }
-    if (usage.modelContextWindow === null) {
-      throw new Error("Codex context window is not available yet.");
-    }
+    if (!usage || usage.modelContextWindow === null) return null;
     const contextTokens = usage.last.totalTokens;
     const contextWindow = usage.modelContextWindow;
     return {

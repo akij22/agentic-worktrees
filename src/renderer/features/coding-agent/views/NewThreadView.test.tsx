@@ -61,6 +61,7 @@ const installation: CodingAgentInstallationStatusDto = {
 };
 
 const createSession = vi.fn();
+const sendMessage = vi.fn();
 const listWorktree = vi.fn();
 const listCapabilities = vi.fn();
 const capabilityChanged = vi.fn();
@@ -96,6 +97,8 @@ const renderLanding = (
   );
 
 beforeEach(() => {
+  sendMessage.mockReset();
+  sendMessage.mockResolvedValue(undefined);
   createSession.mockReset();
   locationProbe.mockReset();
   createSession.mockResolvedValue({ id: "run-new", worktreeId: "wt-1" });
@@ -108,7 +111,7 @@ beforeEach(() => {
   Object.defineProperty(window, "api", {
     configurable: true,
     value: {
-      codingAgent: { createSession },
+      codingAgent: { createSession, sendMessage },
       capabilities: {
         listWorktree,
         list: listCapabilities,
@@ -171,6 +174,10 @@ describe("NewThreadView", () => {
       worktreeId: "wt-1",
       title: "codex-ui",
     });
+    expect(sendMessage).toHaveBeenCalledWith({
+      runId: "run-new",
+      content: "Make the sidebar denser",
+    });
     await waitFor(() =>
       expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"),
     );
@@ -200,6 +207,10 @@ describe("NewThreadView", () => {
       expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-draft"),
     );
     expect(createSession).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith({
+      runId: "run-draft",
+      content: "Continue",
+    });
   });
 
   it("does not reuse a draft belonging to another worktree", async () => {
@@ -259,6 +270,39 @@ describe("NewThreadView", () => {
         }) as HTMLTextAreaElement
       ).value,
     ).toBe("Make the sidebar denser");
+  });
+
+  it("waits for message submission before opening the thread", async () => {
+    let finishSend!: () => void;
+    sendMessage.mockReturnValue(new Promise<void>((resolve) => { finishSend = resolve; }));
+    renderLanding();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
+      target: { value: "  Search the codebase  " },
+    });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Message to agent" }), { key: "Enter" });
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      runId: "run-new", content: "Search the codebase",
+    }));
+    expect(locationProbe).not.toHaveBeenCalledWith("/chat/wt-1/run-new");
+    expect(screen.getByRole("textbox", { name: "Message to agent" }).hasAttribute("disabled")).toBe(true);
+    finishSend();
+    await waitFor(() => expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"));
+  });
+
+  it("keeps a failed message and retries it in the session already created", async () => {
+    sendMessage.mockRejectedValueOnce(new Error("Message submission failed."));
+    renderLanding();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
+      target: { value: "Search the codebase" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Message submission failed."));
+    expect(locationProbe).not.toHaveBeenCalledWith("/chat/wt-1/run-new");
+    expect((screen.getByRole("textbox", { name: "Message to agent" }) as HTMLTextAreaElement).value).toBe("Search the codebase");
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"));
+    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenNthCalledWith(2, { runId: "run-new", content: "Search the codebase" });
   });
 
   it("creates with the harness chosen in the chip, not the default one", async () => {

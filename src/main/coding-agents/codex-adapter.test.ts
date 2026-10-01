@@ -211,7 +211,7 @@ describe("Codex adapter", () => {
     });
   });
 
-  it("reports when Codex usage details are not available yet", async () => {
+  it("returns unavailable until Codex reports both token usage and a context window", async () => {
     const { adapter, client } = createAdapter();
 
     await expect(
@@ -219,7 +219,7 @@ describe("Codex adapter", () => {
         providerId: "openai",
         modelId: "gpt-5.4",
       }),
-    ).rejects.toThrow("Codex token usage is not available yet.");
+    ).resolves.toBeNull();
 
     emitTokenUsage(client, "thread-1", null);
     await expect(
@@ -227,7 +227,25 @@ describe("Codex adapter", () => {
         providerId: "openai",
         modelId: "gpt-5.4",
       }),
-    ).rejects.toThrow("Codex context window is not available yet.");
+    ).resolves.toBeNull();
+
+    emitTokenUsage(client, "thread-1");
+    await expect(
+      adapter.getUsage("/repo", "thread-1", {
+        providerId: "openai",
+        modelId: "gpt-5.4",
+      }),
+    ).resolves.toMatchObject({ contextTokens: 40_000, contextPercentage: 20 });
+  });
+
+  it("still rejects unsupported providers when usage is unavailable", async () => {
+    const { adapter } = createAdapter();
+    await expect(
+      adapter.getUsage("/repo", "thread-1", {
+        providerId: "anthropic",
+        modelId: "claude-sonnet",
+      }),
+    ).rejects.toThrow("Codex does not support provider anthropic.");
   });
 
   it("scopes usage by thread and clears it when stopped", async () => {
@@ -239,7 +257,7 @@ describe("Codex adapter", () => {
         providerId: "openai",
         modelId: "gpt-5.4",
       }),
-    ).rejects.toThrow("Codex token usage is not available yet.");
+    ).resolves.toBeNull();
 
     await adapter.stop();
     await expect(
@@ -247,7 +265,7 @@ describe("Codex adapter", () => {
         providerId: "openai",
         modelId: "gpt-5.4",
       }),
-    ).rejects.toThrow("Codex token usage is not available yet.");
+    ).resolves.toBeNull();
   });
 
   it("starts a persistent thread with untrusted command approvals and gives it a name", async () => {
