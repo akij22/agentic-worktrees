@@ -5,6 +5,7 @@ import {
 	capabilityChangedEventSchema,
 	capabilityDetailSchema,
 	capabilitySessionStateSchema,
+	worktreeCapabilityStateSchema,
 	capabilitySummarySchema,
 	codingAgentSessionSnapshotSchema,
 	githubAuthStatusSchema,
@@ -263,6 +264,9 @@ const api: Api = {
 		configure: async (request) => capabilityDetailSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_CONFIGURE, request)),
 		activate: async (request) => capabilitySessionStateSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_ACTIVATE, request)),
 		deactivate: async (request) => capabilitySessionStateSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_DEACTIVATE, request)),
+		listWorktree: async (request) => worktreeCapabilityStateSchema.array().parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_WORKTREE_LIST, request)),
+		assignWorktree: async (request) => worktreeCapabilityStateSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_WORKTREE_ASSIGN, request)),
+		revokeWorktree: async (request) => worktreeCapabilityStateSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CAPABILITY_WORKTREE_REVOKE, request)),
 		onChanged: (listener) => {
 			const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(capabilityChangedEventSchema.parse(payload));
 			ipcRenderer.on(IPC_CHANNELS.CAPABILITY_CHANGED, handler);

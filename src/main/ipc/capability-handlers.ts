@@ -1,4 +1,4 @@
-import { capabilityActivateRequestSchema, capabilityChangedEventSchema, capabilityConfigureRequestSchema, capabilityDeactivateRequestSchema, capabilityDetailSchema, capabilityGetRequestSchema, capabilityListRequestSchema, capabilitySessionStateSchema, capabilitySummarySchema } from "../../shared/ipc/schemas";
+import { capabilityActivateRequestSchema, capabilityChangedEventSchema, capabilityConfigureRequestSchema, capabilityDeactivateRequestSchema, capabilityDetailSchema, capabilityGetRequestSchema, capabilityListRequestSchema, capabilitySessionStateSchema, capabilitySummarySchema, worktreeCapabilityAssignRequestSchema, worktreeCapabilityListRequestSchema, worktreeCapabilityStateSchema } from "../../shared/ipc/schemas";
 import type { CapabilityService } from "../capabilities/capability-service";
 
 export function createCapabilityHandlers(service: CapabilityService) {
@@ -8,6 +8,9 @@ export function createCapabilityHandlers(service: CapabilityService) {
     async configure(raw: unknown) { return capabilityDetailSchema.parse(await service.configureCapability(capabilityConfigureRequestSchema.parse(raw))); },
     async activate(raw: unknown) { const request = capabilityActivateRequestSchema.parse(raw); return capabilitySessionStateSchema.parse(await service.activateCapability(request.runId, request.capabilityId)); },
     async deactivate(raw: unknown) { const request = capabilityDeactivateRequestSchema.parse(raw); return capabilitySessionStateSchema.parse(await service.deactivateCapability(request.runId, request.capabilityId)); },
+    listWorktree(raw: unknown) { const request = worktreeCapabilityListRequestSchema.parse(raw); return worktreeCapabilityStateSchema.array().parse(service.listWorktreeCapabilities(request.worktreeId)); },
+    async assignWorktree(raw: unknown) { const request = worktreeCapabilityAssignRequestSchema.parse(raw); return worktreeCapabilityStateSchema.parse(await service.assignCapabilityToWorktree(request.worktreeId, request.capabilityId)); },
+    async revokeWorktree(raw: unknown) { const request = worktreeCapabilityAssignRequestSchema.parse(raw); return worktreeCapabilityStateSchema.parse(await service.revokeCapabilityFromWorktree(request.worktreeId, request.capabilityId)); },
     event(raw: unknown) { return capabilityChangedEventSchema.parse(raw); },
   };
 }

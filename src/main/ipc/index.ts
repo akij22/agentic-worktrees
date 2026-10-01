@@ -460,6 +460,9 @@ const handleCapabilityGet = (_event: IpcMainInvokeEvent, rawRequest: unknown) =>
 const handleCapabilityConfigure = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().configure(rawRequest);
 const handleCapabilityActivate = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().activate(rawRequest);
 const handleCapabilityDeactivate = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().deactivate(rawRequest);
+const handleCapabilityWorktreeList = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().listWorktree(rawRequest);
+const handleCapabilityWorktreeAssign = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().assignWorktree(rawRequest);
+const handleCapabilityWorktreeRevoke = (_event: IpcMainInvokeEvent, rawRequest: unknown) => capabilityHandlers().revokeWorktree(rawRequest);
 
 const handleCodingAgentSelectExecutable = async (
 	_event: IpcMainInvokeEvent,
@@ -709,6 +712,9 @@ export const registerIpcHandlers = (): void => {
 	ipcMain.handle(IPC_CHANNELS.CAPABILITY_CONFIGURE, handleCapabilityConfigure);
 	ipcMain.handle(IPC_CHANNELS.CAPABILITY_ACTIVATE, handleCapabilityActivate);
 	ipcMain.handle(IPC_CHANNELS.CAPABILITY_DEACTIVATE, handleCapabilityDeactivate);
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_WORKTREE_LIST, handleCapabilityWorktreeList);
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_WORKTREE_ASSIGN, handleCapabilityWorktreeAssign);
+	ipcMain.handle(IPC_CHANNELS.CAPABILITY_WORKTREE_REVOKE, handleCapabilityWorktreeRevoke);
 	ipcMain.handle(IPC_CHANNELS.MARKETPLACE_LIST, (_event, raw) => invokeMarketplace("list", raw, "package_sync_failed"));
 	ipcMain.handle(IPC_CHANNELS.MARKETPLACE_INSPECT, (_event, raw) => invokeMarketplace("inspect", raw, "package_source_invalid"));
 	ipcMain.handle(IPC_CHANNELS.MARKETPLACE_INSTALL, (_event, raw) => invokeMarketplace("install", raw, "package_install_failed"));

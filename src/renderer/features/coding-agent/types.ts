@@ -11,6 +11,7 @@ export type SessionGridDetail = {
   additions: number;
   deletions: number;
   changedFiles: number;
+  activeCapabilities?: { id: string; name: string }[];
 };
 
 export type DiffLine = {

@@ -617,8 +617,10 @@ describe("coding-agent service routing", () => {
     const stopSession = vi.fn((runId: string) => {
       connections.delete(runId);
     });
+    const inheritWorktreeCapabilities = vi.fn((_worktreeId: string, _runId: string) => {});
     configureCodingAgentCapabilityBridge({
       prepareSession,
+      inheritWorktreeCapabilities,
       listConnections: (agentKind) =>
         agentKind === "opencode" ? [...connections.values()] : [],
       stopSession,

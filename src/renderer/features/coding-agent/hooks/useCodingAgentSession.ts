@@ -37,6 +37,7 @@ export const useCodingAgentSession = (runId: string) => {
   const wasBusyRef = useRef(false);
   const agentRef = useRef({ kind: "", name: "coding agent" });
   const runIdRef = useRef(runId);
+  const worktreeIdRef = useRef<string | undefined>(undefined);
   const performLoadRef = useRef<() => Promise<void>>(async () => undefined);
   const refreshQueueRef = useRef<CoalescingTaskQueue | null>(null);
   runIdRef.current = runId;
@@ -90,6 +91,7 @@ export const useCodingAgentSession = (runId: string) => {
       });
       if (requestedRunId !== runIdRef.current) return;
       setSnapshot(next);
+      worktreeIdRef.current = next.context.worktree.id;
       agentRef.current = {
         kind: next.session.agentKind,
         name: next.session.agentName,
@@ -119,7 +121,15 @@ export const useCodingAgentSession = (runId: string) => {
         void capabilityApi.list({ runId }).then(setCapabilityLibrary).catch(() => undefined);
         return;
       }
-      if (event.runId !== runId) return;
+      if (event.scope === "session") {
+        if (event.runId !== runId) return;
+        void load();
+        void capabilityApi.list({ runId }).then(setCapabilityLibrary).catch(() => undefined);
+        return;
+      }
+      // A worktree level Assignment can change what this session should hold,
+      // so reconcile the session snapshot rather than only the library.
+      if (event.worktreeId !== worktreeIdRef.current) return;
       void load();
       void capabilityApi.list({ runId }).then(setCapabilityLibrary).catch(() => undefined);
     }) ?? (() => undefined);

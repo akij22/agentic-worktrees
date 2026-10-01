@@ -8,6 +8,7 @@ import type {
   CapabilitySessionStateDto,
   CapabilityStateDto,
   CapabilitySummaryDto,
+  WorktreeCapabilityStateDto,
 } from "../../shared/ipc/schemas";
 import type { CodingAgentCapabilityActivator } from "./activation-types";
 import {
@@ -25,7 +26,13 @@ import type {
   CapabilityRepository,
   SessionCapabilityRecord,
   SessionCapabilityIdentity,
+  WorktreeCapabilityRecord,
 } from "./capability-repository";
+import {
+  isInheritableAssignment,
+  nextAssignmentStatus,
+  settleAssignmentStatus,
+} from "./capability-assignment";
 import { prepareCapabilityConfiguration } from "./capability-configuration";
 import type { CapabilitySessionPackageCoordinator } from "./capability-session-package-coordinator";
 
@@ -967,5 +974,217 @@ export class CapabilityService implements CapabilitySessionPackageCoordinator {
       updatedAt: record.updatedAt.toISOString(),
     };
     for (const listener of this.listeners) listener(event);
+  }
+
+  // ---------------------------------------------------------------------
+  // Assignment: the decision that one installed Resource is available to one
+  // Worktree. Materialisation into a session's runtime still happens per run.
+  // ---------------------------------------------------------------------
+
+  private worktreeDto(
+    record: WorktreeCapabilityRecord,
+  ): WorktreeCapabilityStateDto {
+    const capability = this.getCatalog(record.capabilityId);
+    return {
+      worktreeId: record.worktreeId,
+      capabilityId: record.capabilityId,
+      name: capability.manifest.name,
+      version: record.version,
+      state: record.status as CapabilityStateDto,
+      ...(record.errorCode ? { errorCode: record.errorCode } : {}),
+      ...(record.activatedAt
+        ? { activatedAt: record.activatedAt.toISOString() }
+        : {}),
+      ...(record.deactivatedAt
+        ? { deactivatedAt: record.deactivatedAt.toISOString() }
+        : {}),
+    };
+  }
+
+  private emitWorktree(record: WorktreeCapabilityRecord): void {
+    const event: CapabilityChangedEventDto = {
+      scope: "worktree",
+      worktreeId: record.worktreeId,
+      capabilityId: record.capabilityId,
+      state: record.status as CapabilityStateDto,
+      updatedAt: record.updatedAt.toISOString(),
+    };
+    for (const listener of this.listeners) listener(event);
+  }
+
+  /**
+   * The Assignments a new session on this worktree should materialise.
+   * Read by session creation before the run row exists.
+   */
+  listInheritableWorktreeCapabilities(
+    worktreeId: string,
+  ): WorktreeCapabilityRecord[] {
+    return this.dependencies.repository
+      .listWorktreeCapabilities(worktreeId)
+      .filter((record) => isInheritableAssignment(record));
+  }
+
+  /**
+   * Seeds a new session with its worktree's Assignments.
+   *
+   * This is what makes a thread created on a worktree start with the
+   * capabilities that worktree was given, instead of starting empty. Records
+   * are written as `pending_activation` so session creation's existing
+   * connection check sees work to do and prepares the runtime from them.
+   */
+  inheritWorktreeCapabilitiesIntoSession(
+    worktreeId: string,
+    runId: string,
+  ): string[] {
+    const inherited: string[] = [];
+    for (const record of this.listInheritableWorktreeCapabilities(worktreeId)) {
+      const existing = this.dependencies.repository.getSessionCapability(
+        runId,
+        record.capabilityId,
+      );
+      if (existing) continue;
+      this.dependencies.repository.transitionSessionCapability({
+        runId,
+        capabilityId: record.capabilityId,
+        version: record.version,
+        to: "pending_activation",
+      });
+      inherited.push(record.capabilityId);
+    }
+    return inherited;
+  }
+
+  listWorktreeCapabilities(
+    worktreeId: string,
+  ): WorktreeCapabilityStateDto[] {
+    return this.dependencies.repository
+      .listWorktreeCapabilities(worktreeId)
+      .map((record) => this.worktreeDto(record));
+  }
+
+  /**
+   * Records the Assignment, then reconciles the sessions currently running on
+   * that worktree so the decision is not merely declared.
+   *
+   * Sessions that are mid-turn are left alone and reported through the
+   * Assignment's own state: the decision stands, the materialisation does not.
+   */
+  async assignCapabilityToWorktree(
+    worktreeId: string,
+    capabilityId: string,
+  ): Promise<WorktreeCapabilityStateDto> {
+    return this.setWorktreeCapability(worktreeId, capabilityId, "assign");
+  }
+
+  async revokeCapabilityFromWorktree(
+    worktreeId: string,
+    capabilityId: string,
+  ): Promise<WorktreeCapabilityStateDto> {
+    return this.setWorktreeCapability(worktreeId, capabilityId, "revoke");
+  }
+
+  private async setWorktreeCapability(
+    worktreeId: string,
+    capabilityId: string,
+    action: "assign" | "revoke",
+  ): Promise<WorktreeCapabilityStateDto> {
+    const capability = this.getCatalog(capabilityId);
+    if (action === "assign") {
+      const installation =
+        this.dependencies.repository.getInstallation(capabilityId);
+      if (
+        !installation?.configured ||
+        installation.permissionDigest !== permissionDigest(capability.manifest) ||
+        installation.version !== capability.manifest.version
+      )
+        throw new CapabilityError(
+          "permission_denied",
+          "Review and configure this capability before assigning it.",
+        );
+    }
+    const existing = this.dependencies.repository.getWorktreeCapability(
+      worktreeId,
+      capabilityId,
+    );
+    const pending = this.dependencies.repository.transitionWorktreeCapability({
+      worktreeId,
+      capabilityId,
+      version: capability.manifest.version,
+      to: nextAssignmentStatus(existing, action),
+    });
+    this.emitWorktree(pending);
+
+    // Only sessions that currently hold the capability can be reconciled; a
+    // revoke of something nobody has is already true.
+    const runsToReconcile = this.dependencies.repository
+      .listSessionCapabilitiesByCapabilityId(capabilityId)
+      .filter(
+        (record) =>
+          record.status === "active" &&
+          this.dependencies.repository.getRunWorktreeId(record.runId) ===
+            worktreeId,
+      )
+      .map((record) => record.runId);
+
+    let reconciled = 0;
+    let firstError: unknown;
+    for (const runId of runsToReconcile) {
+      try {
+        if (action === "assign") await this.activateCapability(runId, capabilityId);
+        else await this.deactivateCapability(runId, capabilityId);
+        reconciled += 1;
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+
+    // A revoke with nothing to reconcile is complete. An assign with no live
+    // session is not: the decision stands as applying until some session on
+    // this worktree proves it against a runtime.
+    if (reconciled === 0 && runsToReconcile.length === 0) {
+      if (action === "revoke" || firstError) {
+        const settled = this.dependencies.repository.transitionWorktreeCapability({
+          worktreeId,
+          capabilityId,
+          version: capability.manifest.version,
+          to: settleAssignmentStatus(action, !firstError),
+          ...(firstError
+            ? {
+                errorCode:
+                  firstError instanceof CapabilityError
+                    ? firstError.code
+                    : "activation_failed",
+              }
+            : {}),
+        });
+        this.emitWorktree(settled);
+        return this.worktreeDto(settled);
+      }
+      return this.worktreeDto(pending);
+    }
+
+    const settled = this.dependencies.repository.transitionWorktreeCapability({
+      worktreeId,
+      capabilityId,
+      version: capability.manifest.version,
+      to: settleAssignmentStatus(action, !firstError),
+      ...(firstError
+        ? {
+            errorCode:
+              firstError instanceof CapabilityError
+                ? firstError.code
+                : "activation_failed",
+          }
+        : {}),
+    });
+    this.emitWorktree(settled);
+    if (firstError)
+      throw new CapabilityError(
+        firstError instanceof CapabilityError
+          ? firstError.code
+          : "activation_failed",
+        `Reconciled ${reconciled} of ${runsToReconcile.length} sessions on this worktree.`,
+      );
+    return this.worktreeDto(settled);
   }
 }

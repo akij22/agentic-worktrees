@@ -47,6 +47,23 @@ export interface SessionCapabilityRecord {
   updatedAt: Date;
 }
 
+/**
+ * The Assignment for one Worktree. Distinct from a SessionCapabilityRecord:
+ * this is the decision, that one is its materialisation into a runtime.
+ */
+export interface WorktreeCapabilityRecord {
+  id: string;
+  worktreeId: string;
+  capabilityId: string;
+  version: string;
+  status: string;
+  errorCode?: string;
+  activatedAt?: Date;
+  deactivatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const allowedTransitions: Record<
   PersistedCapabilityStatus,
   readonly PersistedCapabilityStatus[]
@@ -146,6 +163,34 @@ export interface SessionCapabilitySnapshot {
 }
 
 const sessionSelect = `SELECT id, run_id runId, capability_id capabilityId, version, status, error_code errorCode, activated_at activatedAt, deactivated_at deactivatedAt, created_at createdAt, updated_at updatedAt FROM session_capabilities`;
+
+type WorktreeRow = Omit<
+  WorktreeCapabilityRecord,
+  "createdAt" | "updatedAt" | "activatedAt" | "deactivatedAt" | "errorCode"
+> & {
+  errorCode: string | null;
+  activatedAt: number | null;
+  deactivatedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+function worktreeFromRow(row: WorktreeRow): WorktreeCapabilityRecord {
+  return {
+    id: row.id,
+    worktreeId: row.worktreeId,
+    capabilityId: row.capabilityId,
+    version: row.version,
+    status: row.status,
+    ...(row.errorCode ? { errorCode: row.errorCode } : {}),
+    ...(row.activatedAt ? { activatedAt: new Date(row.activatedAt) } : {}),
+    ...(row.deactivatedAt ? { deactivatedAt: new Date(row.deactivatedAt) } : {}),
+    createdAt: new Date(row.createdAt),
+    updatedAt: new Date(row.updatedAt),
+  };
+}
+
+const worktreeSelect = `SELECT id, worktree_id worktreeId, capability_id capabilityId, version, status, error_code errorCode, activated_at activatedAt, deactivated_at deactivatedAt, created_at createdAt, updated_at updatedAt FROM worktree_capabilities`;
 
 export class CapabilityRepository {
   constructor(private readonly sqlite: Database.Database = getSqlite()) {}
@@ -374,6 +419,117 @@ export class CapabilityRepository {
     return this.listSessionCapabilitiesByCapabilityId(capabilityId)
       .filter((record) => record.status === "active")
       .map((record) => record.runId);
+  }
+
+  /**
+   * The worktree a run belongs to, used to decide which sessions a worktree
+   * level Assignment has to reconcile.
+   */
+  getRunWorktreeId(runId: string): string | undefined {
+    const row = this.sqlite
+      .prepare(`SELECT worktree_id worktreeId FROM runs WHERE id = ?`)
+      .get(runId) as { worktreeId: string } | undefined;
+    return row?.worktreeId;
+  }
+
+  getWorktreeCapability(
+    worktreeId: string,
+    capabilityId: string,
+  ): WorktreeCapabilityRecord | undefined {    const row = this.sqlite
+      .prepare(`${worktreeSelect} WHERE worktree_id = ? AND capability_id = ?`)
+      .get(worktreeId, capabilityId) as WorktreeRow | undefined;
+    return row ? worktreeFromRow(row) : undefined;
+  }
+
+  listWorktreeCapabilities(worktreeId: string): WorktreeCapabilityRecord[] {
+    return (
+      this.sqlite
+        .prepare(`${worktreeSelect} WHERE worktree_id = ? ORDER BY capability_id`)
+        .all(worktreeId) as WorktreeRow[]
+    ).map(worktreeFromRow);
+  }
+
+  listWorktreeCapabilitiesByCapabilityId(
+    capabilityId: string,
+  ): WorktreeCapabilityRecord[] {
+    return (
+      this.sqlite
+        .prepare(`${worktreeSelect} WHERE capability_id = ? ORDER BY worktree_id`)
+        .all(capabilityId) as WorktreeRow[]
+    ).map(worktreeFromRow);
+  }
+
+  /**
+   * Moves an Assignment to a new state, inserting it when absent.
+   *
+   * Unlike the session table this does not police a transition graph: the
+   * worktree-level decision can be re-asserted from any state, and the
+   * validity rules live in the service that owns the domain.
+   */
+  transitionWorktreeCapability(input: {
+    worktreeId: string;
+    capabilityId: string;
+    version: string;
+    to: string;
+    errorCode?: string;
+  }): WorktreeCapabilityRecord {
+    return this.sqlite.transaction(() => {
+      const now = Date.now();
+      const current = this.getWorktreeCapability(
+        input.worktreeId,
+        input.capabilityId,
+      );
+      if (!current) {
+        this.sqlite
+          .prepare(
+            `INSERT INTO worktree_capabilities (id, worktree_id, capability_id, version, status, error_code, activated_at, deactivated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
+          )
+          .run(
+            randomUUID(),
+            input.worktreeId,
+            input.capabilityId,
+            input.version,
+            input.to,
+            input.errorCode ?? null,
+            now,
+            now,
+          );
+      } else {
+        this.sqlite
+          .prepare(
+            `UPDATE worktree_capabilities SET version = ?, status = ?, error_code = ?, activated_at = CASE WHEN ? = 'active' THEN ? ELSE activated_at END, deactivated_at = CASE WHEN ? = 'deactivated' THEN ? ELSE deactivated_at END, updated_at = ? WHERE id = ?`,
+          )
+          .run(
+            input.version,
+            input.to,
+            input.errorCode ?? null,
+            input.to,
+            now,
+            input.to,
+            now,
+            now,
+            current.id,
+          );
+      }
+      const record = this.getWorktreeCapability(
+        input.worktreeId,
+        input.capabilityId,
+      );
+      if (!record)
+        throw new CapabilityError(
+          "internal_error",
+          "Assignment state could not be saved.",
+        );
+      return record;
+    })();
+  }
+
+  deleteWorktreeCapability(worktreeId: string, capabilityId: string): void {
+    this.sqlite
+      .prepare(
+        `DELETE FROM worktree_capabilities WHERE worktree_id = ? AND capability_id = ?`,
+      )
+      .run(worktreeId, capabilityId);
   }
 
   isPackageActivationBlocked(capabilityId: string): boolean {

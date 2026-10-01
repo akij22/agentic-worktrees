@@ -37,6 +37,7 @@ export interface Integration {
   name: string;
   description: string;
   icon?: React.ComponentType<{ className?: string }>;
+  iconBare?: boolean;
   status: "connected" | "disconnected" | "error" | "expired";
   lastSynced?: Date;
   scopes?: string[];
@@ -204,11 +205,15 @@ export default function SettingsIntegrations({
               >
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
                   <div className="flex items-start gap-3">
-                    {integration.icon && (
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                        <integration.icon className="size-5 text-muted-foreground" />
-                      </div>
-                    )}
+                    {integration.icon ? (
+                      integration.iconBare ? (
+                        <integration.icon className="size-10 shrink-0 object-contain" />
+                      ) : (
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+                          <integration.icon className="size-5 text-muted-foreground" />
+                        </div>
+                      )
+                    ) : null}
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-medium text-sm">

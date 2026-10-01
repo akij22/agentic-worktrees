@@ -1,20 +1,10 @@
-export const isDashboardWorkspace = (pathname: string): boolean =>
+export const isFullBleedWorkspace = (pathname: string): boolean =>
   pathname === '/' ||
+  pathname === '/worktrees' ||
   pathname === '/intelligence' ||
-  pathname === '/coding-agent' ||
-  pathname.startsWith('/coding-agent/');
+  pathname === '/marketplace' ||
+  pathname === '/chat' ||
+  pathname.startsWith('/chat/');
 
-export const DASHBOARD_SIDEBAR_MIN_WIDTH = 72;
-export const DASHBOARD_SIDEBAR_EXPANDED_MIN_WIDTH = 192;
-export const DASHBOARD_SIDEBAR_MAX_WIDTH = 320;
-export const DASHBOARD_SIDEBAR_DEFAULT_WIDTH = DASHBOARD_SIDEBAR_MIN_WIDTH;
-
-export const clampDashboardSidebarWidth = (width: number): number => {
-  if (width < DASHBOARD_SIDEBAR_EXPANDED_MIN_WIDTH) {
-    return DASHBOARD_SIDEBAR_MIN_WIDTH;
-  }
-  return Math.min(DASHBOARD_SIDEBAR_MAX_WIDTH, width);
-};
-
-export const isDashboardSidebarCollapsed = (width: number): boolean =>
-  width < DASHBOARD_SIDEBAR_EXPANDED_MIN_WIDTH;
+export const WORKSPACE_SIDEBAR_MIN_WIDTH = 240;
+export const WORKSPACE_SIDEBAR_DEFAULT_WIDTH = WORKSPACE_SIDEBAR_MIN_WIDTH;

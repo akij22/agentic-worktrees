@@ -1,13 +1,31 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Bot, GitFork } from 'lucide-react';
+import { useCallback, useEffect, useState } from "react";
 import type {
   CodingAgentKindDto,
   CodingAgentStatusDto,
-} from '../../shared/ipc/schemas';
+} from "../../shared/ipc/schemas";
+import githubLogo from "../assets/github-logo.png";
 import SettingsIntegrations, {
   type Integration,
-} from '../components/ui/settings-integrations';
-import { useGitHubAuth } from '../features/auth/useGitHubAuth';
+} from "../components/ui/settings-integrations";
+import { useGitHubAuth } from "../features/auth/useGitHubAuth";
+import { AgentLogo } from "../features/coding-agent/components/AgentLogo";
+
+const CodexLogo = ({ className }: { className?: string }) => (
+  <AgentLogo
+    agentKind="codex"
+    alt="OpenAI logo"
+    className={className}
+    invertOnDark={false}
+  />
+);
+
+const OpenCodeLogo = ({ className }: { className?: string }) => (
+  <AgentLogo agentKind="opencode" alt="OpenCode logo" className={className} />
+);
+
+const GitHubLogo = ({ className }: { className?: string }) => (
+  <img src={githubLogo} alt="GitHub logo" className={className} />
+);
 
 export const Settings = () => {
   const githubAuth = useGitHubAuth();
@@ -40,24 +58,28 @@ export const Settings = () => {
 
   const integrations: Integration[] = [
     {
-      id: 'github',
-      name: 'GitHub',
+      id: "github",
+      name: "GitHub",
       description: githubStatus.profile?.name
         ? `${githubStatus.profile.name} · @${githubStatus.profile.login}`
-        : `@${githubStatus.profile?.login ?? 'unknown'}`,
-      icon: GitFork,
-      status: 'connected',
+        : `@${githubStatus.profile?.login ?? "unknown"}`,
+      icon: GitHubLogo,
+      iconBare: true,
+      status: "connected",
     },
     ...(status?.installations ?? []).map((installation) => ({
       id: installation.kind,
       name: installation.name,
       description: installation.configured
-        ? `Version ${installation.version ?? 'unknown'} · ${installation.running ? 'running' : 'configured'}`
+        ? `Version ${installation.version ?? "unknown"} · ${installation.running ? "running" : "configured"}`
         : `Select the local ${installation.name} executable.`,
-      icon: Bot,
-      status: installation.configured ? 'connected' as const : 'disconnected' as const,
+      icon: installation.kind === "codex" ? CodexLogo : OpenCodeLogo,
+      iconBare: true,
+      status: installation.configured
+        ? ("connected" as const)
+        : ("disconnected" as const),
       configurationAction: {
-        connectedLabel: 'Change path',
+        connectedLabel: "Change path",
         disconnectedLabel: `Select ${installation.name}`,
       },
     })),
@@ -71,7 +93,7 @@ export const Settings = () => {
   };
 
   const handleDisconnect = async (integrationId: string) => {
-    if (integrationId === 'github') {
+    if (integrationId === "github") {
       await githubAuth.logout();
       return;
     }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const select = vi.fn();
 const setFilter = vi.fn();
@@ -55,6 +55,7 @@ vi.mock("../features/marketplace/hooks/useMarketplace", () => ({
 }));
 
 import { Marketplace } from "./Marketplace";
+import { AppShell } from "../components/AppShell";
 
 afterEach(() => {
   cleanup();
@@ -111,15 +112,25 @@ describe("Marketplace", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
-  it("keeps the header compact before an item is selected", () => {
-    render(
-      <MemoryRouter>
-        <Marketplace />
+  it("uses one populated sidebar and a full-height workspace inside the app shell", () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/marketplace"]}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/marketplace" element={<Marketplace />} />
+          </Route>
+        </Routes>
       </MemoryRouter>,
     );
-    const marketplace = screen.getByRole("region", { name: "Marketplace" });
-    expect(marketplace.className).toContain(
-      "lg:grid-rows-[auto_minmax(0,1fr)]",
-    );
+    expect(container.querySelectorAll("aside")).toHaveLength(1);
+    const sidebar = screen.getByRole("complementary", { name: "Ecosystem index" });
+    expect(within(sidebar).getByRole("navigation", { name: "Main navigation" })).toBeTruthy();
+    expect(within(sidebar).getByText("Web Search")).toBeTruthy();
+    expect(within(sidebar).getByRole("group", { name: "Marketplace filters" })).toBeTruthy();
+    expect(within(sidebar).getByRole("link", { name: "Settings" })).toBeTruthy();
+    expect(sidebar.style.width).toBe("240px");
+    expect(screen.getAllByRole("heading", { name: "Marketplace" })).toHaveLength(1);
+    const workspace = screen.getByRole("region", { name: "Marketplace" });
+    expect(workspace.parentElement?.parentElement?.classList.contains("p-6")).toBe(false);
   });
 });

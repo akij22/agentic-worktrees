@@ -1,0 +1,38 @@
+/* Hallmark · component: session top bar · genre: modern-minimal · theme: existing app
+ * audience: developers · use: identify workspace and access actions · tone: utilitarian
+ * pre-emit critique: P4 H5 E4 S5 R5 V4
+ * Existing controls supply focus, hover, active and disabled states; errors stay visible.
+ * Session context now lives beside each chat in the project sidebar.
+ */
+.session-header {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 8px 12px;
+}
+
+.session-header-identity {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.session-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.session-header-actions button {
+  white-space: nowrap;
+}
+
+.session-header-error {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}

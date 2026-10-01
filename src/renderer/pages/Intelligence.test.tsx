@@ -149,7 +149,7 @@ const renderPage = (value: IntelligenceSnapshotDto) => {
 			<Routes>
 				<Route path="/intelligence" element={<Intelligence />} />
 				<Route
-					path="/coding-agent/:worktreeId/:runId"
+					path="/chat/:worktreeId/:runId"
 					element={<p>Chat destination</p>}
 				/>
 			</Routes>

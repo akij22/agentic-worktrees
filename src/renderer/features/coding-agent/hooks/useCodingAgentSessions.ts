@@ -37,7 +37,7 @@ export const useCodingAgentSessions = () => {
 						return {
 							id: session.id,
 							session: snapshot.session,
-							detail: {
+								detail: {
 								lastActivity: snapshot.messages.at(-1)?.content,
 								isProcessing:
 									["creating", "busy"].includes(snapshot.session.status) &&
@@ -54,7 +54,10 @@ export const useCodingAgentSessions = () => {
 									0,
 								),
 								changedFiles: snapshot.diff.length,
-							},
+								activeCapabilities: snapshot.capabilities
+									.filter(({ state }) => state === "active")
+									.map(({ id, name }) => ({ id, name })),
+								},
 							error: undefined,
 						};
 					} catch (cause) {
@@ -67,6 +70,7 @@ export const useCodingAgentSessions = () => {
 								additions: 0,
 								deletions: 0,
 								changedFiles: 0,
+								activeCapabilities: [],
 							},
 							error: cause instanceof Error ? cause.message : String(cause),
 						};

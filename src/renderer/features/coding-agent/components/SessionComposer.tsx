@@ -1,7 +1,15 @@
-import { GitBranch, Layers3 } from "lucide-react";
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import "./SessionComposer.css";
+import { ArrowUp, GitBranch, Layers3 } from "lucide-react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type {
   CapabilitySummaryDto,
+  CodingAgentKindDto,
   CodingAgentModelDto,
   CodingAgentSessionDto,
 } from "../../../../shared/ipc/schemas";
@@ -18,9 +26,30 @@ import type { SkillSummaryDto } from "../../../../shared/skills/schemas";
 import { findActiveSkillCommand } from "../lib/skill-commands";
 import { isSkillSelectable, SkillCommandMenu } from "../../skills/components/SkillCommandMenu";
 import { SkillInvocationChip } from "../../skills/components/SkillInvocationChip";
+import { getAgentDisplay } from "../lib/agent-display";
+
+/**
+ * The composer has two modes.
+ *
+ * `session` renders the composer bound to a live session: it reads the model
+ * list, the capability library and the worktree from the session itself.
+ *
+ * `detached` renders the composer for the landing, before any session exists.
+ * It still resolves file mentions and slash commands because both only need a
+ * worktree id, which is why the transition into a session does not visibly
+ * move anything.
+ */
+export type ComposerTarget =
+  | { kind: "session"; session: CodingAgentSessionDto }
+  | {
+      kind: "detached";
+      worktreeId: string;
+      agentKind: CodingAgentKindDto;
+      agentName: string;
+    };
 
 type Props = {
-  session: CodingAgentSessionDto;
+  target: ComposerTarget;
   branchName?: string;
   usage?: {
     contextPercentage: number;
@@ -36,6 +65,12 @@ type Props = {
   changingModel: boolean;
   busy: boolean;
   locked: boolean;
+  /**
+   * Rendered at the head of the settings row. The landing passes the harness
+   * picker here so the composer keeps one settings row in both modes.
+   */
+  leadingControl?: ReactNode;
+  contextToolbar?: ReactNode;
   onDraftChange: (draft: string) => void;
   onModelChange: (key: string) => void;
   onReasoningChange: (variant: string) => void;
@@ -53,7 +88,7 @@ type Props = {
 };
 
 export const SessionComposer = ({
-  session,
+  target,
   branchName,
   usage,
   draft,
@@ -65,6 +100,8 @@ export const SessionComposer = ({
   changingModel,
   busy,
   locked,
+  leadingControl,
+  contextToolbar,
   onDraftChange,
   onModelChange,
   onReasoningChange,
@@ -77,6 +114,15 @@ export const SessionComposer = ({
   onDeactivateCapability,
   skills = [], selectedSkill, onSkillSelect, onSkillClear,
 }: Props) => {
+  const isAttached = target.kind === "session";
+  const session = target.kind === "session" ? target.session : undefined;
+  const worktreeId =
+    target.kind === "session" ? target.session.worktreeId : target.worktreeId;
+  const agentKind =
+    target.kind === "session" ? target.session.agentKind : target.agentKind;
+  const agentName =
+    target.kind === "session" ? target.session.agentName : target.agentName;
+  const display = getAgentDisplay(agentName);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCaretRef = useRef<number | undefined>(undefined);
   const [caret, setCaret] = useState(draft.length);
@@ -99,15 +145,15 @@ export const SessionComposer = ({
       ? detectedMention
       : undefined;
   const fileSuggestions = useFileMentionSuggestions({
-    worktreeId: session.worktreeId,
+    worktreeId,
     mention: activeMention,
   });
   const filePaletteOpen = Boolean(activeMention);
   const selectableSkillIndexes = activeSkillCommand
-    ? matchingSkills.map((skill,index)=>isSkillSelectable(skill,session.agentKind)?index:-1).filter((index)=>index>=0)
+    ? matchingSkills.map((skill,index)=>isSkillSelectable(skill,agentKind)?index:-1).filter((index)=>index>=0)
     : [];
   const selectableCount = activeSkillCommand ? selectableSkillIndexes.length : slashCommands.length > 0 ? slashCommands.length : fileSuggestions.paths.length;
-  const selectSkill=(skill:SkillSummaryDto)=>{if(!isSkillSelectable(skill,session.agentKind))return;onSkillSelect?.(skill);onDraftChange(activeSkillCommand?.arguments??"");};
+  const selectSkill=(skill:SkillSummaryDto)=>{if(!isSkillSelectable(skill,agentKind))return;onSkillSelect?.(skill);onDraftChange(activeSkillCommand?.arguments??"");};
 
   useEffect(
     () => setSelectedSuggestionIndex(activeSkillCommand ? (selectableSkillIndexes[0] ?? -1) : 0),
@@ -152,7 +198,7 @@ export const SessionComposer = ({
       if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
         event.preventDefault();
         const selectedSkillOption=matchingSkills[selectedSuggestionIndex];
-        if(activeSkillCommand&&selectedSkillOption&&isSkillSelectable(selectedSkillOption,session.agentKind)){selectSkill(selectedSkillOption);return;}
+        if(activeSkillCommand&&selectedSkillOption&&isSkillSelectable(selectedSkillOption,agentKind)){selectSkill(selectedSkillOption);return;}
         const selectedCommand = slashCommands[selectedSuggestionIndex];
         if (selectedCommand) executeSlashCommand(selectedCommand.id);
         const selectedPath = fileSuggestions.paths[selectedSuggestionIndex];
@@ -204,8 +250,8 @@ export const SessionComposer = ({
     onSend();
   };
   return (
-    <div className="relative bg-background px-4 pb-4 pt-2">
-      {activeSkillCommand ? <SkillCommandMenu skills={matchingSkills} selectedIndex={selectedSuggestionIndex} agentKind={session.agentKind} onHover={setSelectedSuggestionIndex} onSelect={selectSkill}/> : null}
+    <div className="session-composer relative bg-background px-4 pb-4 pt-2">
+      {activeSkillCommand ? <SkillCommandMenu skills={matchingSkills} selectedIndex={selectedSuggestionIndex} agentKind={agentKind} onHover={setSelectedSuggestionIndex} onSelect={selectSkill}/> : null}
       {slashCommands.length > 0 ? (
         <div
           role="listbox"
@@ -287,7 +333,7 @@ export const SessionComposer = ({
           </p>
         </div>
       ) : null}
-      <div className="rounded-xl border border-white/[0.085] bg-[#090a0c] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_22px_52px_-34px_rgba(0,0,0,0.95)] transition-[border-color,box-shadow] focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-ring/20">
+      <div className="session-composer__surface">
         {selectedSkill ? <div className="px-2 pb-2"><SkillInvocationChip skill={selectedSkill} onRemove={()=>onSkillClear?.()}/></div> : null}
         <textarea
           ref={textareaRef}
@@ -301,13 +347,18 @@ export const SessionComposer = ({
           onClick={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyUp={(event) => setCaret(event.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
-          placeholder={`Describe the change you want ${session.agentName} to make…`}
+          placeholder={display.placeholder}
+          aria-label="Message to agent"
           rows={3}
           disabled={locked}
-          className="block w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 outline-none placeholder:text-placeholder disabled:opacity-60"
+          className="session-composer__input block w-full resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-placeholder disabled:opacity-60"
         />
-        <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/[0.07] px-1 pt-2.5">
-          <div className="flex min-w-0 items-center gap-2">
+        <div className="session-composer__toolbar">
+          <div className="session-composer__settings" role="group" aria-label="Message configuration">
+            {leadingControl}
+            {isAttached ? (
+            <div className="session-composer__setting">
+              <span className="session-composer__label">Model</span>
             <PickerMenu
               ariaLabel="AI model"
               open={modelPickerOpen}
@@ -317,33 +368,34 @@ export const SessionComposer = ({
                   ? [{ id: modelKey, label: "Loading models…" }]
                   : modelOptions.length > 0
                     ? modelOptions
-                    : [
-                        {
-                          id: `${session.providerId}::${session.modelId}`,
-                          label: session.modelId,
-                          hint: session.providerId,
-                        },
-                      ]
+                    : session
+                      ? [
+                          {
+                            id: `${session.providerId}::${session.modelId}`,
+                            label: session.modelId,
+                            hint: session.providerId,
+                          },
+                        ]
+                      : []
               }
               value={modelKey}
               onChange={onModelChange}
               display={
                 loadingModels
                   ? "Loading models…"
-                  : selectedModel
-                    ? selectedModel.modelName
-                    : session.modelId
+                  : (selectedModel?.modelName ?? session?.modelId)
               }
               searchable
               searchPlaceholder="Search models…"
               emptyLabel="No matching models"
               disabled={loadingModels || changingModel || models.length === 0}
-              triggerClassName="max-w-52"
+              triggerClassName="session-composer__picker max-w-52"
             />
-            {capabilityLibrary.length > 0 && onActivateCapability && onDeactivateCapability ? (
-              <CapabilityPicker runId={session.id} agentKind={session.agentKind} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
+            </div>
             ) : null}
             {reasoningVariants.length > 0 ? (
+              <div className="session-composer__setting">
+                <span className="session-composer__label">Reasoning</span>
               <PickerMenu
                 ariaLabel="Reasoning level"
                 open={reasoningPickerOpen}
@@ -355,42 +407,87 @@ export const SessionComposer = ({
                   reasoningVariant
                     ? reasoningVariant.charAt(0).toUpperCase() +
                       reasoningVariant.slice(1)
-                    : "Reasoning · default"
+                    : "Default"
                 }
                 disabled={locked}
-                triggerClassName="max-w-40"
+                triggerClassName="session-composer__picker max-w-40"
               />
+              </div>
             ) : null}
-            <span className="hidden text-xs text-muted-foreground 2xl:inline">
-              Enter to send · Shift + Enter for newline
-            </span>
+            {session && capabilityLibrary.length > 0 && onActivateCapability && onDeactivateCapability ? (
+              <div className="session-composer__setting">
+                <span className="session-composer__label">Capabilities</span>
+                <CapabilityPicker runId={session.id} agentKind={session.agentKind} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
+              </div>
+            ) : null}
           </div>
-          {busy ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="destructive"
-              aria-label={`Stop ${session.agentName}`}
-              title={`Stop ${session.agentName}`}
-              onClick={onStop}
+          <div className="session-composer__actions">
+            <div
+              className="session-composer__context flex min-w-0 items-center gap-2"
+              aria-label={
+                usage
+                  ? `Context used: ${usage.contextPercentage.toFixed(0)}%`
+                  : "Context usage unavailable"
+              }
+              title={
+                usage
+                  ? `${usage.contextTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
+                  : "Context usage unavailable"
+              }
             >
-              <span
-                aria-hidden="true"
-                className="size-3 rounded-[1px] bg-current"
-              />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              onClick={submit}
-              disabled={(!draft.trim() && !selectedSkill) || locked}
-            >
-              Send ↗
-            </Button>
-          )}
+              <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
+              <div className="flex gap-0.5" aria-hidden="true">
+                {Array.from({ length: 8 }, (_, index) => (
+                  <span
+                    key={index}
+                    className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
+                  />
+                ))}
+              </div>
+              <span className="font-mono text-[10px] font-medium text-foreground/80">
+                {usage
+                  ? `${usage.contextPercentage.toFixed(0)}% context`
+                  : "Context —"}
+              </span>
+            </div>
+
+            {busy ? (
+              <Button
+                className="session-composer__send"
+                type="button"
+                size="icon"
+                variant="destructive"
+                aria-label={display.stopLabel}
+                title={display.stopLabel}
+                onClick={onStop}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-3 rounded-[1px] bg-current"
+                />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon"
+                className="session-composer__send"
+                aria-label="Send message"
+                title="Send message (Enter)"
+                onClick={submit}
+                disabled={(!draft.trim() && !selectedSkill) || locked}
+              >
+                <ArrowUp className="size-4" aria-hidden="true" />
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="mt-2 flex min-w-0 items-center justify-between gap-4 px-1 text-[11px]">
+      </div>
+      <div
+        className="session-composer__context-toolbar"
+        role="group"
+        aria-label="Workspace context"
+      >
+        {contextToolbar ?? (
           <div
             className="flex min-w-0 items-center gap-2 text-muted-foreground"
             title={branchName}
@@ -406,35 +503,7 @@ export const SessionComposer = ({
               {branchName ?? "Current branch"}
             </span>
           </div>
-          <div
-            className="flex shrink-0 items-center gap-2"
-            aria-label={
-              usage
-                ? `Context used: ${usage.contextPercentage.toFixed(0)}%`
-                : "Context usage unavailable"
-            }
-            title={
-              usage
-                ? `${usage.contextTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
-                : "Context usage unavailable"
-            }
-          >
-            <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
-            <div className="flex gap-0.5" aria-hidden="true">
-              {Array.from({ length: 8 }, (_, index) => (
-                <span
-                  key={index}
-                  className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
-                />
-              ))}
-            </div>
-            <span className="font-mono text-[10px] font-medium text-foreground/80">
-              {usage
-                ? `${usage.contextPercentage.toFixed(0)}% context`
-                : "Context —"}
-            </span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

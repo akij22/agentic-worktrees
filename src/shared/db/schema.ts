@@ -324,6 +324,35 @@ export const capabilitySettings = sqliteTable(
 	}),
 );
 
+/**
+ * The Assignment: the persisted decision that one installed Resource is
+ * available to one Worktree. This is separate from `session_capabilities`,
+ * which records how that decision was materialised into a single session's
+ * provider runtime. A session inherits its worktree's Assignment when it is
+ * created.
+ */
+export const worktreeCapabilities = sqliteTable(
+	"worktree_capabilities",
+	{
+		id: text("id").primaryKey(),
+		worktreeId: text("worktree_id").notNull().references(() => worktrees.id, { onDelete: "cascade" }),
+		capabilityId: text("capability_id").notNull(),
+		version: text("version").notNull(),
+		status: text("status").notNull(),
+		errorCode: text("error_code"),
+		activatedAt: integer("activated_at", { mode: "timestamp_ms" }),
+		deactivatedAt: integer("deactivated_at", { mode: "timestamp_ms" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => ({
+		worktreeCapabilityUnique: uniqueIndex("worktree_capabilities_worktree_capability_unique").on(table.worktreeId, table.capabilityId),
+		worktreeIdIdx: index("worktree_capabilities_worktree_id_idx").on(table.worktreeId),
+		capabilityIdIdx: index("worktree_capabilities_capability_id_idx").on(table.capabilityId),
+		statusIdx: index("worktree_capabilities_status_idx").on(table.status),
+	}),
+);
+
 export const sessionCapabilities = sqliteTable(
 	"session_capabilities",
 	{
@@ -708,6 +737,7 @@ export type CodingAgentSessionDiff =
 	typeof codingAgentSessionDiffs.$inferSelect;
 export type CapabilityInstallation = typeof capabilityInstallations.$inferSelect;
 export type CapabilitySettingRecord = typeof capabilitySettings.$inferSelect;
+export type WorktreeCapability = typeof worktreeCapabilities.$inferSelect;
 export type SessionCapability = typeof sessionCapabilities.$inferSelect;
 export type IntelligenceSnapshot = typeof intelligenceSnapshots.$inferSelect;
 export type IntelligenceWorktree = typeof intelligenceWorktrees.$inferSelect;

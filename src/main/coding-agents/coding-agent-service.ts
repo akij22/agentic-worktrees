@@ -120,6 +120,12 @@ export interface CodingAgentCapabilityBridge {
   stopSession(runId: string): void;
   listSessionCapabilities(runId: string): AgentSessionCapabilitySnapshot[];
   isReloading(runId: string): boolean;
+  /**
+   * Seeds a new run with the Assignments recorded for its worktree, so a
+   * thread created on a worktree starts with that worktree's capabilities
+   * rather than starting empty.
+   */
+  inheritWorktreeCapabilities(worktreeId: string, runId: string): void;
 }
 
 let skillInvocationSource:
@@ -866,6 +872,7 @@ export const createAgentSession = async (input: {
   }
   getHarnessForInstallation(installation);
   const runId = nanoid();
+  capabilityBridge?.inheritWorktreeCapabilities(input.worktreeId, runId);
   const capabilityConnection =
     capabilityBridge && sessionNeedsCapabilityConnection(runId)
       ? await capabilityBridge.prepareSession(runId, input.agentKind)

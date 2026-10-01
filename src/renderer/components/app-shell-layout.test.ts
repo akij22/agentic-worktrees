@@ -1,33 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
-  clampDashboardSidebarWidth,
-  DASHBOARD_SIDEBAR_DEFAULT_WIDTH,
-  DASHBOARD_SIDEBAR_EXPANDED_MIN_WIDTH,
-  isDashboardSidebarCollapsed,
-  isDashboardWorkspace,
+  isFullBleedWorkspace,
 } from './app-shell-layout';
 
 describe('App shell layout', () => {
-  it('uses full-height workspaces for Dashboard, Intelligence, and Coding Agent', () => {
-    expect(isDashboardWorkspace('/')).toBe(true);
-    expect(isDashboardWorkspace('/intelligence')).toBe(true);
-    expect(isDashboardWorkspace('/coding-agent')).toBe(true);
-    expect(isDashboardWorkspace('/coding-agent/worktree/run')).toBe(true);
-    expect(isDashboardWorkspace('/settings')).toBe(false);
+  it('treats the chat landing, threads, worktrees and intelligence as full-height workspaces', () => {
+    expect(isFullBleedWorkspace('/')).toBe(true);
+    expect(isFullBleedWorkspace('/chat')).toBe(true);
+    expect(isFullBleedWorkspace('/chat/worktree/run')).toBe(true);
+    expect(isFullBleedWorkspace('/worktrees')).toBe(true);
+    expect(isFullBleedWorkspace('/intelligence')).toBe(true);
   });
 
-  it('keeps the dashboard navigation width within its usable range', () => {
-    expect(clampDashboardSidebarWidth(40)).toBe(72);
-    expect(clampDashboardSidebarWidth(176)).toBe(72);
-    expect(clampDashboardSidebarWidth(DASHBOARD_SIDEBAR_EXPANDED_MIN_WIDTH)).toBe(192);
-    expect(clampDashboardSidebarWidth(208)).toBe(208);
-    expect(clampDashboardSidebarWidth(380)).toBe(320);
+  it('keeps settings padded and marketplace full-height', () => {
+    expect(isFullBleedWorkspace('/settings')).toBe(false);
+    expect(isFullBleedWorkspace('/marketplace')).toBe(true);
   });
 
-  it('switches directly between compact and usable expanded widths', () => {
-    expect(DASHBOARD_SIDEBAR_DEFAULT_WIDTH).toBe(72);
-    expect(isDashboardSidebarCollapsed(72)).toBe(true);
-    expect(isDashboardSidebarCollapsed(176)).toBe(true);
-    expect(isDashboardSidebarCollapsed(192)).toBe(false);
+  it('no longer claims the retired coding-agent paths as a workspace', () => {
+    expect(isFullBleedWorkspace('/coding-agent')).toBe(false);
+    expect(isFullBleedWorkspace('/coding-agent/worktree/run')).toBe(false);
   });
+
 });

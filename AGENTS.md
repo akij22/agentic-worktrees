@@ -179,3 +179,13 @@ Do not use `npm run make` or `npm run publish` as routine verification. Do not s
 * Do not write commit messages in languages other than English.
 * Do not use the `superpowers` skills until I ask you to do so.
 * Do not use Ralph Loop until I ask you to do so.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
