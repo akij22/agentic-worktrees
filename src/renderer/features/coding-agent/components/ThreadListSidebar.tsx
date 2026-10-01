@@ -1,5 +1,5 @@
 import { GitBranch, LoaderCircle, Plus, Search } from "lucide-react";
-import { type CSSProperties, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import type {
   CodingAgentSessionDto,
   CodingAgentWorktreeContextDto,
@@ -24,6 +24,8 @@ import {
 import "./ThreadListSidebar.css";
 
 type Props = {
+  navigation?: ReactNode;
+  footer?: ReactNode;
   contexts: CodingAgentWorktreeContextDto[];
   sessions: CodingAgentSessionDto[];
   sessionDetails: Map<string, SessionGridDetail>;
@@ -152,6 +154,8 @@ const ThreadRow = ({
 };
 
 export const ThreadListSidebar = ({
+  navigation,
+  footer,
   contexts,
   sessions,
   sessionDetails,
@@ -196,6 +200,7 @@ export const ThreadListSidebar = ({
       }
       className="relative z-10 flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar-secondary text-sidebar-foreground shadow-[12px_0_32px_-28px_rgba(0,0,0,0.95)]"
     >
+      {navigation}
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border/70 px-4">
         <div>
           <h1 className="text-sm font-semibold tracking-tight text-foreground">
@@ -331,6 +336,7 @@ export const ThreadListSidebar = ({
           {error}
         </p>
       ) : null}
+      {footer}
     </aside>
   );
 };

@@ -1,97 +1,125 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { AppShell, findNavItem, navItems } from "./AppShell";
+import { ChatView } from "../features/coding-agent/views/ChatView";
+import { Marketplace } from "../pages/Marketplace";
+import { AppShell } from "./AppShell";
+import { findPageLabel } from "./AppNavigation";
+
+vi.mock("../features/coding-agent/hooks/useCodingAgentSessions", () => ({
+  useCodingAgentSessions: () => ({
+    contexts: [], sessions: [], sessionDetails: new Map(), loading: false,
+  }),
+}));
+vi.mock("../features/coding-agent/views/NewThreadView", () => ({
+  NewThreadView: () => <div>Chat landing content</div>,
+}));
+vi.mock("../features/coding-agent/views/CodingAgentWorkspace", () => ({
+  CodingAgentWorkspace: () => <div>Active thread content</div>,
+}));
+
+vi.mock("../features/marketplace/hooks/useMarketplace", () => ({
+  useMarketplace: () => ({
+    items: [], loading: false, query: "", filter: "all", isExactSpec: false,
+    setQuery: vi.fn(), setFilter: vi.fn(), installSkill: vi.fn(),
+  }),
+}));
 
 afterEach(() => cleanup());
 
+const renderShell = (path = "/chat") => render(
+  <MemoryRouter initialEntries={[path]}>
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route path="/" element={<ChatView />} />
+        <Route path="/chat" element={<ChatView />} />
+        <Route path="/chat/worktree/run" element={<ChatView activeRunId="run" />} />
+        <Route path="/marketplace" element={<Marketplace />} />
+        <Route path="/settings" element={<div>Settings content</div>} />
+        <Route path="/worktrees" element={<div>Worktrees content</div>} />
+        <Route path="/intelligence" element={<div>Intelligence content</div>} />
+      </Route>
+    </Routes>
+  </MemoryRouter>,
+);
+
 describe("AppShell navigation", () => {
-  it("orders the rail Chat first and Worktrees second, pinning Settings to the footer", () => {
-    const main = navItems.filter((item) => item.placement === "main");
-    const footer = navItems.filter((item) => item.placement === "footer");
+  it.each(["/", "/chat", "/chat/worktree/run"])(
+    "uses the thread sidebar as the only sidebar on %s",
+    (path) => {
+      const { container } = renderShell(path);
+      expect(container.querySelectorAll("aside")).toHaveLength(1);
+      expect(screen.queryByRole("separator", { name: "Resize main navigation" })).toBeNull();
+      expect(screen.getByRole("separator", { name: "Resize thread sidebar" })).toBeTruthy();
+      const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+      expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual(["Threads", "Marketplace"]);
+      expect(within(navigation).getByRole("link", { name: "Threads" }).getAttribute("aria-current")).toBe("page");
+      expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
+    },
+  );
 
-    expect(main.map((item) => item.to)).toEqual([
-      "/chat",
-      "/worktrees",
-      "/intelligence",
-      "/marketplace",
-    ]);
-    expect(footer.map((item) => item.to)).toEqual(["/settings"]);
+  it("switches to Marketplace and back with one sidebar and the correct active state", async () => {
+    const user = userEvent.setup();
+    const { container } = renderShell();
+    await user.click(screen.getByRole("link", { name: "Marketplace" }));
+    expect(screen.getByRole("region", { name: "Marketplace" })).toBeTruthy();
+    expect(container.querySelectorAll("aside")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Marketplace" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("link", { name: "Threads" }).getAttribute("aria-current")).toBeNull();
+    await user.click(screen.getByRole("link", { name: "Threads" }));
+    expect(screen.getByText("Chat landing content")).toBeTruthy();
+    expect(container.querySelectorAll("aside")).toHaveLength(1);
   });
 
-  it("resolves the page heading for every rail destination", () => {
-    expect(findNavItem("/chat/worktree/run")?.label).toBe("Chat");
-    expect(findNavItem("/worktrees")?.label).toBe("Worktrees");
-    expect(findNavItem("/intelligence")?.label).toBe("Intelligence");
-    expect(findNavItem("/marketplace")?.label).toBe("Marketplace");
-    expect(findNavItem("/settings")?.label).toBe("Settings");
+  it("keeps Settings and the secondary destinations accessible from the footer", async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByRole("link", { name: "Settings" }));
+    expect(screen.getByText("Settings content")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.keyboard("{Enter}");
+    expect(screen.getByText("Worktrees content")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Worktrees" }));
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(screen.getByText("Intelligence content")).toBeTruthy();
   });
 
-  it("falls back to the chat label on an unmapped path", () => {
-    expect(findNavItem("/unknown")).toBeUndefined();
+  it("retains keyboard resizing for the thread sidebar", () => {
+    renderShell();
+    const separator = screen.getByRole("separator", { name: "Resize thread sidebar" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("300");
+    fireEvent.keyDown(separator, { key: "ArrowRight" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("316");
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("300");
+  });
+
+  it("resolves headings for existing destinations", () => {
+    expect(findPageLabel("/chat/worktree/run")).toBe("Threads");
+    expect(findPageLabel("/worktrees")).toBe("Worktrees");
+    expect(findPageLabel("/intelligence")).toBe("Intelligence");
+    expect(findPageLabel("/marketplace")).toBe("Marketplace");
+    expect(findPageLabel("/settings")).toBe("Settings");
+    expect(findPageLabel("/unknown")).toBeUndefined();
   });
 });
 
-describe("AppShell visual language", () => {
-  it("renders the product mark plus a consistent vector navigation icon set", () => {
-    render(
-      <MemoryRouter initialEntries={["/chat"]}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/chat" element={<div>Chat content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    const navigation = screen.getByRole("navigation", {
-      name: "Main navigation",
-    });
-
-    expect(navigation.querySelectorAll("svg")).toHaveLength(4);
-    expect(navigation.querySelector("img")).toBeNull();
-    expect(screen.getByRole("img", { name: "Agentic Worktrees" })).toBeTruthy();
+describe("AppShell page layout", () => {
+  it("renders chat full-bleed without duplicate route chrome", () => {
+    renderShell();
+    expect(screen.queryByRole("heading", { name: "Threads", level: 1 })?.closest("main")?.querySelector("header")).toBeNull();
+    const routeFrame = screen.getByText("Chat landing content").closest("main")?.firstElementChild;
+    expect(routeFrame?.classList.contains("overflow-hidden")).toBe(true);
+    expect(routeFrame?.classList.contains("p-6")).toBe(false);
   });
 
-  it("renders the chat landing as a full-bleed workspace without duplicate route chrome", () => {
-    render(
-      <MemoryRouter initialEntries={["/chat"]}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/chat" element={<div>Chat landing content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    const workspace = screen.getByText("Chat landing content");
-    const routeFrame = workspace.parentElement;
-    const contentFrame = routeFrame?.parentElement;
-
-    expect(screen.queryByRole("heading", { name: "Chat" })).toBeNull();
-    expect(routeFrame?.classList.contains("h-full")).toBe(true);
-    expect(contentFrame?.classList.contains("overflow-hidden")).toBe(true);
-    expect(contentFrame?.classList.contains("p-6")).toBe(false);
-  });
-
-  it("keeps worktrees full-bleed and settings padded", () => {
-    render(
-      <MemoryRouter initialEntries={["/settings"]}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/settings" element={<div>Settings content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    const workspace = screen.getByText("Settings content");
-    const routeFrame = workspace.parentElement;
-    const contentFrame = routeFrame?.parentElement;
-
+  it("keeps settings padded", () => {
+    renderShell("/settings");
     expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+    const contentFrame = screen.getByText("Settings content").parentElement?.parentElement;
     expect(contentFrame?.classList.contains("p-6")).toBe(true);
   });
 });
