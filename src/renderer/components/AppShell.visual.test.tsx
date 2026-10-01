@@ -90,11 +90,14 @@ describe("AppShell navigation", () => {
   it("retains keyboard resizing for the thread sidebar", () => {
     renderShell();
     const separator = screen.getByRole("separator", { name: "Resize thread sidebar" });
-    expect(separator.getAttribute("aria-valuenow")).toBe("300");
-    fireEvent.keyDown(separator, { key: "ArrowRight" });
-    expect(separator.getAttribute("aria-valuenow")).toBe("316");
+    expect(separator.getAttribute("aria-valuenow")).toBe("240");
+    expect(separator.getAttribute("aria-valuenow")).toBe(separator.getAttribute("aria-valuemin"));
     fireEvent.keyDown(separator, { key: "ArrowLeft" });
-    expect(separator.getAttribute("aria-valuenow")).toBe("300");
+    expect(separator.getAttribute("aria-valuenow")).toBe("240");
+    fireEvent.keyDown(separator, { key: "ArrowRight" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("256");
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("240");
   });
 
   it("resolves headings for existing destinations", () => {

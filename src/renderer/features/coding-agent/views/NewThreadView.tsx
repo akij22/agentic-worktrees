@@ -159,7 +159,20 @@ export const NewThreadView = ({
               />
             </div>
           }
-          branchName={context?.worktree.branchName}
+          contextToolbar={
+            <WorktreeRow
+              contexts={contexts}
+              selectedWorktreeId={worktreeId}
+              activeCapabilityCount={activeCapabilityCount}
+              onSelectWorktree={(next) => {
+                setWorktreeId(next);
+                setCapabilitiesOpen(false);
+              }}
+              onOpenCapabilities={() => setCapabilitiesOpen((open) => !open)}
+              capabilitiesExpanded={capabilitiesOpen}
+              capabilitiesPanelId="landing-capability-panel"
+            />
+          }
           draft={draft}
           models={[]}
           modelKey=""
@@ -179,19 +192,6 @@ export const NewThreadView = ({
           onSlashCommand={() => undefined}
         />
       </div>
-
-      <WorktreeRow
-        contexts={contexts}
-        selectedWorktreeId={worktreeId}
-        activeCapabilityCount={activeCapabilityCount}
-        onSelectWorktree={(next) => {
-          setWorktreeId(next);
-          setCapabilitiesOpen(false);
-        }}
-        onOpenCapabilities={() => setCapabilitiesOpen((open) => !open)}
-        capabilitiesExpanded={capabilitiesOpen}
-        capabilitiesPanelId="landing-capability-panel"
-      />
 
       {capabilitiesOpen ? (
         <CapabilityPanel

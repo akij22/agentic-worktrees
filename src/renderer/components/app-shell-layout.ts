@@ -6,4 +6,5 @@ export const isFullBleedWorkspace = (pathname: string): boolean =>
   pathname === '/chat' ||
   pathname.startsWith('/chat/');
 
-export const WORKSPACE_SIDEBAR_DEFAULT_WIDTH = 300;
+export const WORKSPACE_SIDEBAR_MIN_WIDTH = 240;
+export const WORKSPACE_SIDEBAR_DEFAULT_WIDTH = WORKSPACE_SIDEBAR_MIN_WIDTH;

@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -122,6 +123,20 @@ afterEach(() => {
 });
 
 describe("NewThreadView", () => {
+  it("groups workspace, branch and capabilities beneath the composer", () => {
+    renderLanding();
+    const toolbar = screen.getByRole("group", { name: "Workspace context" });
+    expect(within(toolbar).getByRole("button", { name: "Current checkout" })).toBeTruthy();
+    expect(within(toolbar).getByText("feat/codex-ui")).toBeTruthy();
+    expect(screen.getAllByText("feat/codex-ui")).toHaveLength(1);
+    const capabilities = within(toolbar).getByRole("button", { name: /Capabilities/ });
+    fireEvent.click(capabilities);
+    expect(capabilities.getAttribute("aria-expanded")).toBe("true");
+    const surface = screen.getByRole("textbox", { name: "Message to agent" }).closest(".session-composer__surface");
+    expect(surface?.nextElementSibling).toBe(toolbar);
+    expect(screen.queryByText("Enter to send · Shift + Enter for newline")).toBeNull();
+  });
+
   it("writes into a worktree before any session exists", () => {
     renderLanding();
 

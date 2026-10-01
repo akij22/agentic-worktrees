@@ -70,6 +70,7 @@ type Props = {
    * picker here so the composer keeps one settings row in both modes.
    */
   leadingControl?: ReactNode;
+  contextToolbar?: ReactNode;
   onDraftChange: (draft: string) => void;
   onModelChange: (key: string) => void;
   onReasoningChange: (variant: string) => void;
@@ -100,6 +101,7 @@ export const SessionComposer = ({
   busy,
   locked,
   leadingControl,
+  contextToolbar,
   onDraftChange,
   onModelChange,
   onReasoningChange,
@@ -420,38 +422,72 @@ export const SessionComposer = ({
             ) : null}
           </div>
           <div className="session-composer__actions">
-          {busy ? (
-            <Button
-              className="session-composer__send"
-              type="button"
-              size="icon"
-              variant="destructive"
-              aria-label={display.stopLabel}
-              title={display.stopLabel}
-              onClick={onStop}
+            <div
+              className="session-composer__context flex min-w-0 items-center gap-2"
+              aria-label={
+                usage
+                  ? `Context used: ${usage.contextPercentage.toFixed(0)}%`
+                  : "Context usage unavailable"
+              }
+              title={
+                usage
+                  ? `${usage.contextTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
+                  : "Context usage unavailable"
+              }
             >
-              <span
-                aria-hidden="true"
-                className="size-3 rounded-[1px] bg-current"
-              />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="icon"
-              className="session-composer__send"
-              aria-label="Send message"
-              title="Send message (Enter)"
-              onClick={submit}
-              disabled={(!draft.trim() && !selectedSkill) || locked}
-            >
-              <ArrowUp className="size-4" aria-hidden="true" />
-            </Button>
-          )}
+              <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
+              <div className="flex gap-0.5" aria-hidden="true">
+                {Array.from({ length: 8 }, (_, index) => (
+                  <span
+                    key={index}
+                    className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
+                  />
+                ))}
+              </div>
+              <span className="font-mono text-[10px] font-medium text-foreground/80">
+                {usage
+                  ? `${usage.contextPercentage.toFixed(0)}% context`
+                  : "Context —"}
+              </span>
+            </div>
+
+            {busy ? (
+              <Button
+                className="session-composer__send"
+                type="button"
+                size="icon"
+                variant="destructive"
+                aria-label={display.stopLabel}
+                title={display.stopLabel}
+                onClick={onStop}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-3 rounded-[1px] bg-current"
+                />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon"
+                className="session-composer__send"
+                aria-label="Send message"
+                title="Send message (Enter)"
+                onClick={submit}
+                disabled={(!draft.trim() && !selectedSkill) || locked}
+              >
+                <ArrowUp className="size-4" aria-hidden="true" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
-        <div className="session-composer__metadata">
+      <div
+        className="session-composer__context-toolbar"
+        role="group"
+        aria-label="Workspace context"
+      >
+        {contextToolbar ?? (
           <div
             className="flex min-w-0 items-center gap-2 text-muted-foreground"
             title={branchName}
@@ -467,36 +503,8 @@ export const SessionComposer = ({
               {branchName ?? "Current branch"}
             </span>
           </div>
-          <div
-            className="flex shrink-0 items-center gap-2"
-            aria-label={
-              usage
-                ? `Context used: ${usage.contextPercentage.toFixed(0)}%`
-                : "Context usage unavailable"
-            }
-            title={
-              usage
-                ? `${usage.contextTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
-                : "Context usage unavailable"
-            }
-          >
-            <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
-            <div className="flex gap-0.5" aria-hidden="true">
-              {Array.from({ length: 8 }, (_, index) => (
-                <span
-                  key={index}
-                  className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
-                />
-              ))}
-            </div>
-            <span className="font-mono text-[10px] font-medium text-foreground/80">
-              {usage
-                ? `${usage.contextPercentage.toFixed(0)}% context`
-                : "Context —"}
-            </span>
-          </div>
-        </div>
-        <p className="session-composer__hint">Enter to send · Shift + Enter for newline</p>
+        )}
+      </div>
     </div>
   );
 };

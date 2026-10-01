@@ -128,7 +128,7 @@ describe("Marketplace", () => {
     expect(within(sidebar).getByText("Web Search")).toBeTruthy();
     expect(within(sidebar).getByRole("group", { name: "Marketplace filters" })).toBeTruthy();
     expect(within(sidebar).getByRole("link", { name: "Settings" })).toBeTruthy();
-    expect(sidebar.style.width).toBe("300px");
+    expect(sidebar.style.width).toBe("240px");
     expect(screen.getAllByRole("heading", { name: "Marketplace" })).toHaveLength(1);
     const workspace = screen.getByRole("region", { name: "Marketplace" });
     expect(workspace.parentElement?.parentElement?.classList.contains("p-6")).toBe(false);

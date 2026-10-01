@@ -63,7 +63,7 @@ describe("WorktreeRow", () => {
 
     const trigger = screen.getByRole("button", { name: "Current checkout" });
     expect(trigger.textContent).toContain("wt-1");
-    expect(trigger.textContent).toContain("feature/mvp");
+    expect(trigger.textContent).not.toContain("feature/mvp");
     expect(screen.getByText("feature/mvp")).toBeTruthy();
   });
 

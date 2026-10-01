@@ -355,7 +355,7 @@ export const CodingAgentSession = ({
             : "grid-rows-1"
         }`}
       >
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-background xl:border-b-0">
+        <section className="mx-auto flex min-h-0 w-full min-w-0 max-w-[56rem] flex-col overflow-hidden bg-background px-4 sm:px-6 xl:border-b-0">
           <div className="flex items-center justify-between bg-background px-5 py-3">
             <span className="truncate text-xs font-medium">
               {session.title}

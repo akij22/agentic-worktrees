@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AppNavigation, AppNavigationFooter } from "../../../components/AppNavigation";
-import { WORKSPACE_SIDEBAR_DEFAULT_WIDTH } from "../../../components/app-shell-layout";
+import { WORKSPACE_SIDEBAR_DEFAULT_WIDTH, WORKSPACE_SIDEBAR_MIN_WIDTH } from "../../../components/app-shell-layout";
 import { ThreadListSidebar } from "../components/ThreadListSidebar";
 import { useCodingAgentSessions } from "../hooks/useCodingAgentSessions";
 import { CodingAgentWorkspace } from "./CodingAgentWorkspace";
 import { NewThreadView } from "./NewThreadView";
 
-const THREAD_SIDEBAR_MIN_WIDTH = 240;
+const THREAD_SIDEBAR_MIN_WIDTH = WORKSPACE_SIDEBAR_MIN_WIDTH;
 const THREAD_SIDEBAR_MAX_WIDTH = 420;
 const THREAD_SIDEBAR_DEFAULT_WIDTH = WORKSPACE_SIDEBAR_DEFAULT_WIDTH;
 const THREAD_SIDEBAR_KEYBOARD_STEP = 16;

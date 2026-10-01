@@ -138,8 +138,9 @@ describe("SessionComposer layout and actions", () => {
       screen.getByRole("textbox", { name: "Message to agent" }),
     ).toBeTruthy();
     expect(
-      screen.getByText("Enter to send · Shift + Enter for newline"),
-    ).toBeTruthy();
+      screen.queryByText("Enter to send · Shift + Enter for newline"),
+    ).toBeNull();
+    expect(screen.getByLabelText("Context usage unavailable").parentElement).toBe(screen.getByRole("button", { name: "Send message" }).parentElement);
   });
 
   it("sends a draft using the labelled icon action", () => {

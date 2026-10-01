@@ -71,7 +71,10 @@
 }
 
 .session-composer__actions {
+  display: flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: 16px;
 }
 
 .session-composer__send {
@@ -84,29 +87,22 @@
   transform: translateY(1px);
 }
 
-.session-composer__metadata {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  min-width: 0;
-  padding: 10px 8px 0;
+.session-composer__context-toolbar {
+  margin: 10px 16px 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
   font-size: 11px;
-}
-
-.session-composer__hint {
-  margin: 8px 8px 0;
-  color: var(--muted-foreground);
-  font-size: 10px;
-  text-align: right;
 }
 
 @container (max-width: 420px) {
   .session-composer__surface { padding: 12px 8px 8px; border-radius: 16px; }
   .session-composer__settings { gap: 8px; }
   .session-composer__picker { max-width: 160px; }
-  .session-composer__hint { text-align: left; }
+  .session-composer__toolbar { flex-wrap: wrap; }
+  .session-composer__actions { margin-left: auto; gap: 10px; }
+  .session-composer__context-toolbar { margin-inline: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
