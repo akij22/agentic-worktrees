@@ -186,7 +186,7 @@ export interface CodingAgentAdapter {
     directory: string,
     sessionId: string,
     input: { providerId: string; modelId: string },
-  ): Promise<CodingAgentSessionUsage>;
+  ): Promise<CodingAgentSessionUsage | null>;
   getAccountUsage(
     directory: string,
     sessionId: string,

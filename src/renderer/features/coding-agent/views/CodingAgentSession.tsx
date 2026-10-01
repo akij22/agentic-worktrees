@@ -181,7 +181,7 @@ export const CodingAgentSession = ({
     const refreshUsage = async () => {
       try {
         const usage = await window.api.codingAgent.getSessionUsage({ runId });
-        if (!cancelled) setComposerUsage(usage);
+        if (!cancelled) setComposerUsage(usage ?? undefined);
       } catch {
         // Usage is supplementary UI; the status command still exposes errors.
       }
@@ -255,7 +255,7 @@ export const CodingAgentSession = ({
     setStatusPopup({ loading: true });
     try {
       const usage = await window.api.codingAgent.getSessionUsage({ runId });
-      setStatusPopup({ loading: false, usage });
+      setStatusPopup({ loading: false, usage: usage ?? undefined });
     } catch (cause) {
       setStatusPopup({
         loading: false,
@@ -273,7 +273,7 @@ export const CodingAgentSession = ({
           .getSessionUsage({ runId })
           .catch(() => undefined),
       ]);
-      setAccountUsagePopup({ loading: false, accountUsage, sessionUsage });
+      setAccountUsagePopup({ loading: false, accountUsage, sessionUsage: sessionUsage ?? undefined });
     } catch {
       setAccountUsagePopup({
         loading: false,

@@ -254,9 +254,10 @@ export interface Api {
 			runId: string;
 		}) => Promise<CodingAgentSessionSnapshotDto>;
 		markSessionViewed: (request: { runId: string }) => Promise<void>;
+		/** Returns null until the agent reports session usage. */
 		getSessionUsage: (request: {
 			runId: string;
-		}) => Promise<CodingAgentSessionUsageDto>;
+		}) => Promise<CodingAgentSessionUsageDto | null>;
 		getAccountUsage: (request: {
 			runId: string;
 		}) => Promise<CodingAgentAccountUsageDto>;
