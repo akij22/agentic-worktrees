@@ -44,6 +44,22 @@ import type {
   ResolvedCodingAgentSkill,
 } from "./types";
 
+import type { WorktreeRuntimeManager } from "./worktree-runtime-manager";
+
+let worktreeRuntimeManager: WorktreeRuntimeManager | null = null;
+
+export const configureCodingAgentRuntimeManager = (manager: WorktreeRuntimeManager | null): void => {
+  worktreeRuntimeManager = manager;
+};
+
+/** Backend deletion callers put Git removal and database cascades inside this barrier. */
+export const withCodingAgentWorktreeRemoval = async (
+  worktreeId: string, remove: () => Promise<void>,
+): Promise<void> => {
+  if (!worktreeRuntimeManager) throw new Error("Worktree runtime manager is unavailable.");
+  await worktreeRuntimeManager.stopWorktree(worktreeId, remove);
+};
+
 const execFileAsync = promisify(execFile);
 const STATUS_ACTIVATION_GRACE_MS = 2_000;
 
@@ -1549,7 +1565,13 @@ harnessKinds.forEach((kind) => {
 export const stopCodingAgents = async (): Promise<void> => {
   reconcileScheduler.clear();
   capabilityPreparedRuns.clear();
-  await Promise.all(harnessKinds.map((kind) => harnesses[kind].adapter.stop()));
+  const results = await Promise.allSettled([
+    ...(worktreeRuntimeManager ? [worktreeRuntimeManager.shutdown()] : []),
+    ...harnessKinds.map((kind) => harnesses[kind].adapter.stop()),
+  ]);
+  const failures = results.filter((result) => result.status === "rejected");
+  if (failures.length) throw new AggregateError(failures.map((result) => result.reason),
+    "Coding agent shutdown failed.");
 };
 
 export type { CodingAgentPermission };

@@ -159,6 +159,8 @@ import {
   compactAgentSession,
   configureCodingAgentCapabilityBridge,
   configureCodingAgentSkillCatalog,
+  configureCodingAgentRuntimeManager,
+  withCodingAgentWorktreeRemoval,
   createAgentSession,
   getAgentInstallationStatus,
   getAgentSessionSnapshot,
@@ -173,6 +175,8 @@ import {
   stopCodingAgents,
   subscribeToAgentEvents,
 } from "./coding-agent-service";
+
+import { WorktreeRuntimeManager } from "./worktree-runtime-manager";
 
 let sqlite: BetterSqlite3.Database;
 
@@ -989,6 +993,22 @@ describe("coding-agent service routing", () => {
         .where(eq(runs.id, "opencode-run"))
         .get()?.status,
     ).toBe("busy");
+  });
+
+  it("drains registered Worktree runtimes before deletion and stops remaining owners on exit", async () => {
+    const stopped: string[] = [];
+    const manager = new WorktreeRuntimeManager({ factory: { create: async (input) => ({
+      ...input, providerVersion: "1", stop: async () => { stopped.push(input.worktreeId); },
+    }) } });
+    configureCodingAgentRuntimeManager(manager);
+    (await manager.acquireRuntime("codex", "delete")).release();
+    (await manager.acquireRuntime("opencode", "keep")).release();
+    await withCodingAgentWorktreeRemoval("delete", async () => {
+      expect(stopped).toEqual(["delete"]);
+    });
+    await stopCodingAgents();
+    expect(stopped).toEqual(["delete", "keep"]);
+    configureCodingAgentRuntimeManager(null);
   });
 
   it("stops both harness adapters", async () => {
