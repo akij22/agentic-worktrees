@@ -151,7 +151,7 @@ export const assignmentActivitySchemaStatements = [
   )`,
   `CREATE TABLE IF NOT EXISTS resource_activity_evidence (
     id TEXT PRIMARY KEY NOT NULL, activity_id TEXT NOT NULL, boundary TEXT NOT NULL,
-    source_event_key TEXT NOT NULL, correlation_key TEXT, provider_contract TEXT NOT NULL, observed_at INTEGER NOT NULL,
+    source_event_key TEXT NOT NULL, correlation_key TEXT, provider_contract TEXT NOT NULL, observed_at INTEGER NOT NULL, canonical_digest TEXT,
     FOREIGN KEY (activity_id) REFERENCES resource_activity(id) ON DELETE CASCADE,
     UNIQUE (boundary, source_event_key)
   )`,

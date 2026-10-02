@@ -1,0 +1,1 @@
+ALTER TABLE `resource_activity_evidence` ADD `canonical_digest` text;

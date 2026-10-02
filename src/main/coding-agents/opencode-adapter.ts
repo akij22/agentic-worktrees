@@ -1,3 +1,4 @@
+import { stripCapabilityReceiptText } from "../capabilities/capability-receipt";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { join, resolve } from "node:path";
@@ -278,12 +279,12 @@ const toToolCalls = (parts: Part[]): CodingAgentToolCall[] =>
         {
           ...base,
           status: "completed" as const,
-          detail: state.output ?? "",
+          detail: stripCapabilityReceiptText(state.output ?? ""),
         },
       ];
     }
     if (state.status === "error") {
-      return [{ ...base, status: "error" as const, detail: state.error }];
+      return [{ ...base, status: "error" as const, detail: stripCapabilityReceiptText(state.error) }];
     }
     return [
       {

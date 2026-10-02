@@ -356,4 +356,59 @@ describe("CapabilityHostManager", () => {
     });
     await expect(starting).rejects.toThrow("startup timed out");
   });
+  it("forwards owned-generation observations and waits for exact cancellation acknowledgement", async () => {
+    const child = new FakeChild();
+    const observations: unknown[] = [];
+    const manager = new CapabilityHostManager({
+      catalog: testCatalog,
+      launch: () => child,
+      resolveSecret: async () => undefined,
+      onObservation: (owner, generation, event) =>
+        observations.push({ owner, generation, event }),
+    });
+    const ready = manager.ensureHost("owner", [], {}, "runtime");
+    child.emit("message", { type: "host.ready", runId: "owner", port: 43123 });
+    await ready;
+    const event = {
+      type: "entered",
+      invocationId: "11111111-1111-4111-8111-111111111111",
+      capabilityId: "test.echo",
+      capabilityVersion: "0.1.0",
+      toolName: "echo_text",
+    };
+    child.emit("message", {
+      type: "host.observation",
+      runtimeGenerationId: "stale",
+      observation: event,
+    });
+    expect(observations).toEqual([]);
+    child.emit("message", {
+      type: "host.observation",
+      runtimeGenerationId: "runtime",
+      observation: event,
+    });
+    expect(observations).toEqual([
+      { owner: "owner", generation: "runtime", event },
+    ]);
+    await expect(
+      manager.cancelInvocation("owner", "stale", event.invocationId),
+    ).resolves.toBe(false);
+    const cancelled = manager.cancelInvocation(
+      "owner",
+      "runtime",
+      event.invocationId,
+    );
+    const command = child.sent.at(-1);
+    if (command?.type !== "host.invocation.cancel")
+      throw new Error("Expected exact cancel command");
+    child.emit("message", {
+      type: "host.invocation.cancelled",
+      requestId: command.requestId,
+      runtimeGenerationId: "runtime",
+      invocationId: event.invocationId,
+      accepted: true,
+    });
+    await expect(cancelled).resolves.toBe(true);
+    await manager.stopAll();
+  });
 });

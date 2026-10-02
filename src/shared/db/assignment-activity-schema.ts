@@ -178,7 +178,7 @@ export const resourceActivity = sqliteTable("resource_activity", {
 }));
 
 export const resourceActivityEvidence = sqliteTable("resource_activity_evidence", {
-  id: text("id").primaryKey(), activityId: text("activity_id").notNull().references(() => resourceActivity.id, { onDelete: "cascade" }), boundary: text("boundary").notNull(), sourceEventKey: text("source_event_key").notNull(), correlationKey: text("correlation_key"), providerContract: text("provider_contract").notNull(), observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(),
+  id: text("id").primaryKey(), activityId: text("activity_id").notNull().references(() => resourceActivity.id, { onDelete: "cascade" }), boundary: text("boundary").notNull(), sourceEventKey: text("source_event_key").notNull(), correlationKey: text("correlation_key"), providerContract: text("provider_contract").notNull(), observedAt: integer("observed_at", { mode: "timestamp_ms" }).notNull(), canonicalDigest: text("canonical_digest"),
 }, (table) => ({ sourceUnique: uniqueIndex("resource_activity_evidence_source_unique").on(table.boundary, table.sourceEventKey) }));
 
 export const resourceActivitySessionRoutes = sqliteTable("resource_activity_session_routes", {

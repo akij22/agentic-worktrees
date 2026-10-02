@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -14,7 +14,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+} from "@modelcontextprotocol/sdk/types.js"; // eslint-disable-line import/no-unresolved
 import {
   CapabilityError,
   limitCapabilityOutput,
@@ -24,6 +24,15 @@ import {
 } from "@agentic-worktrees/capability-sdk";
 import { getHostedCapability } from "./host-registry";
 import type { CapabilityRuntimeDescriptor } from "./catalog";
+
+import type {
+  CapabilityHostOutcome,
+  CapabilityHostObservation,
+} from "./capability-receipt";
+export type {
+  CapabilityHostOutcome,
+  CapabilityHostObservation,
+} from "./capability-receipt";
 
 export interface CapabilityHostServerOptions {
   token: string;
@@ -37,6 +46,9 @@ export interface CapabilityHostServerOptions {
     descriptor: CapabilityRuntimeDescriptor,
   ) => Promise<CapabilityDefinition | undefined>;
   executionTimeoutMs?: number;
+  runtimeGenerationId?: string;
+  onObservation?(observation: CapabilityHostObservation): void;
+  onObservationError?(code: "capability_host_observation_failed"): void;
 }
 
 export interface CapabilityHostServer {
@@ -46,6 +58,7 @@ export interface CapabilityHostServer {
     settings?: Record<string, Record<string, unknown>>,
   ): Promise<string[]>;
   close(): Promise<void>;
+  cancelInvocation(runtimeGenerationId: string, invocationId: string): boolean;
 }
 
 interface ActiveTool {
@@ -94,6 +107,17 @@ function respondJson(
   response.end(JSON.stringify(value));
 }
 
+class HostBoundaryError extends CapabilityError {
+  constructor(readonly outcome: "timeout" | "cancelled") {
+    super(
+      outcome === "cancelled" ? "cancelled" : "upstream_unavailable",
+      outcome === "cancelled"
+        ? "Capability execution was cancelled."
+        : "Capability execution timed out.",
+    );
+  }
+}
+
 async function executeWithDeadline<T>(
   execute: (signal: AbortSignal) => Promise<T>,
   callerSignal: AbortSignal,
@@ -106,22 +130,15 @@ async function executeWithDeadline<T>(
     rejectBoundary = reject;
   });
   const cancel = () => {
+    rejectBoundary(new HostBoundaryError("cancelled"));
     controller.abort();
-    rejectBoundary(
-      new CapabilityError("cancelled", "Capability execution was cancelled."),
-    );
   };
   if (callerSignal.aborted) cancel();
   else callerSignal.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(() => {
     timedOut = true;
+    rejectBoundary(new HostBoundaryError("timeout"));
     controller.abort();
-    rejectBoundary(
-      new CapabilityError(
-        "upstream_unavailable",
-        "Capability execution timed out.",
-      ),
-    );
   }, timeoutMs);
   try {
     return await Promise.race([execute(controller.signal), boundary]);
@@ -145,9 +162,27 @@ export function createCapabilityHostServer(
       "Capability hosts must bind to loopback.",
     );
   }
+  const notify = (observation: CapabilityHostObservation) => {
+    try {
+      options.onObservation?.(observation);
+    } catch {
+      try {
+        if (options.onObservationError)
+          options.onObservationError("capability_host_observation_failed");
+        else console.error("capability_host_observation_failed");
+      } catch {
+        console.error("capability_host_observation_failed");
+      }
+    }
+  };
+  // Receipt transport belongs to the owned-runtime observation bridge, not legacy global hosts.
+  const receiptsEnabled = Boolean(
+    options.runtimeGenerationId || options.onObservation,
+  );
   const registry = options.registry ?? getHostedCapability;
   const validators = new AjvConstructor({ strict: true, allErrors: true });
   const activeTools = new Map<string, ActiveTool>();
+  const invocations = new Map<string, AbortController>();
   let activeSettings: Record<string, Record<string, unknown>> = {};
 
   const nodeServer = createServer(async (request, response) => {
@@ -187,7 +222,7 @@ export function createCapabilityHostServer(
         inputSchema: tool.inputSchema,
       })),
     }));
-    mcp.setRequestHandler(CallToolRequestSchema, async (call, extra) => {
+    mcp.setRequestHandler(CallToolRequestSchema, async (call) => {
       const entry = activeTools.get(call.params.name);
       if (!entry)
         return {
@@ -242,6 +277,22 @@ export function createCapabilityHostServer(
         },
         logger: { info: () => undefined, error: () => undefined },
       } satisfies Omit<CapabilityExecutionContext, "signal">;
+      const invocationId = randomUUID();
+      const observation = {
+        invocationId,
+        capabilityId: manifest.id,
+        capabilityVersion: manifest.version,
+        toolName: entry.tool.name,
+      };
+      const cancellation = new AbortController();
+      invocations.set(invocationId, cancellation);
+      notify({ ...observation, type: "entered" });
+      const finish = (outcome: CapabilityHostOutcome) => {
+        notify({ ...observation, type: "outcome", outcome });
+        return {
+          "aw.capabilityReceipt": { version: 1, invocationId, outcome },
+        };
+      };
       try {
         const result = limitCapabilityOutput(
           await executeWithDeadline(
@@ -250,17 +301,51 @@ export function createCapabilityHostServer(
                 ...contextBase,
                 signal,
               }),
-            extra.signal,
+            cancellation.signal,
             options.executionTimeoutMs ?? 30_000,
           ),
         );
-        return { content: result.content, isError: result.isError ?? false };
+        const meta = finish(result.isError ? "reported_error" : "success");
+        if (!receiptsEnabled)
+          return { content: result.content, isError: result.isError ?? false };
+        return {
+          content: [
+            ...result.content,
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                awCapabilityReceipt: meta["aw.capabilityReceipt"],
+              }),
+            },
+          ],
+          isError: result.isError ?? false,
+          _meta: meta,
+        };
       } catch (error) {
         const safe = safeError(error);
+        const meta = finish(
+          error instanceof HostBoundaryError ? error.outcome : "thrown",
+        );
+        if (!receiptsEnabled)
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: safe.message }],
+          };
         return {
           isError: true,
-          content: [{ type: "text" as const, text: safe.message }],
+          content: [
+            { type: "text" as const, text: safe.message },
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                awCapabilityReceipt: meta["aw.capabilityReceipt"],
+              }),
+            },
+          ],
+          _meta: meta,
         };
+      } finally {
+        invocations.delete(invocationId);
       }
     });
     const transport = new StreamableHTTPServerTransport({
@@ -283,6 +368,17 @@ export function createCapabilityHostServer(
   });
 
   return {
+    cancelInvocation(runtimeGenerationId, invocationId) {
+      if (
+        !options.runtimeGenerationId ||
+        runtimeGenerationId !== options.runtimeGenerationId
+      )
+        return false;
+      const active = invocations.get(invocationId);
+      if (!active || active.signal.aborted) return false;
+      active.abort();
+      return true;
+    },
     start: () =>
       new Promise<number>((resolve, reject) => {
         nodeServer.once("error", reject);

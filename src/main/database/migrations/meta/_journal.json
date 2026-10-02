@@ -120,6 +120,13 @@
       "when": 1790705579071,
       "tag": "0016_minor_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1790881540488,
+      "tag": "0017_easy_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }

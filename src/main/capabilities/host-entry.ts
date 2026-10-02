@@ -29,6 +29,17 @@ port.on("message", async (event: unknown) => {
       if (server) return;
       server = createCapabilityHostServer({
         token: candidate.token,
+        runtimeGenerationId: candidate.runtimeGenerationId,
+        onObservation: candidate.runtimeGenerationId
+          ? (observation) => {
+              if (candidate.runtimeGenerationId)
+                send({
+                  type: "host.observation",
+                  runtimeGenerationId: candidate.runtimeGenerationId,
+                  observation,
+                });
+            }
+          : undefined,
         resolveSecret(capabilityId, settingKey) {
           const requestId = randomUUID();
           return new Promise((resolve, reject) => {
@@ -62,6 +73,19 @@ port.on("message", async (event: unknown) => {
         type: "host.capabilities.applied",
         requestId: candidate.requestId,
         toolNames,
+      });
+    } else if (candidate.type === "host.invocation.cancel") {
+      const accepted =
+        server?.cancelInvocation(
+          candidate.runtimeGenerationId,
+          candidate.invocationId,
+        ) ?? false;
+      send({
+        type: "host.invocation.cancelled",
+        requestId: candidate.requestId,
+        runtimeGenerationId: candidate.runtimeGenerationId,
+        invocationId: candidate.invocationId,
+        accepted,
       });
     } else {
       const pending = secretRequests.get(candidate.requestId);

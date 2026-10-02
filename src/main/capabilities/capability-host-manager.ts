@@ -1,3 +1,4 @@
+import type { CapabilityHostObservation } from "./capability-receipt";
 import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { utilityProcess, type UtilityProcess } from "electron";
@@ -35,6 +36,11 @@ export interface CapabilityHostManagerDependencies {
     capabilityId: string,
     settingKey: string,
   ): Promise<string | undefined>;
+  onObservation?(
+    ownerId: string,
+    runtimeGenerationId: string,
+    observation: CapabilityHostObservation,
+  ): void;
   startupTimeoutMs?: number;
   updateTimeoutMs?: number;
   catalog?: CapabilityCatalog;
@@ -43,6 +49,16 @@ export interface CapabilityHostManagerDependencies {
 }
 
 interface HostRecord {
+  runtimeGenerationId?: string;
+  cancellations: Map<
+    string,
+    {
+      invocationId: string;
+      timer: ReturnType<typeof setTimeout>;
+      resolve(accepted: boolean): void;
+      reject(error: Error): void;
+    }
+  >;
   child: CapabilityUtilityProcess;
   token: string;
   connection?: CapabilityHostConnection;
@@ -108,13 +124,23 @@ export class CapabilityHostManager {
     runId: string,
     activeCapabilityIds: string[] = [],
     settings: Record<string, Record<string, unknown>> = {},
+    runtimeGenerationId?: string,
   ): Promise<CapabilityHostConnection> {
     const capabilities = runtimeDescriptors(
       this.dependencies,
       activeCapabilityIds,
     );
     const existing = this.hosts.get(runId);
-    if (existing) return existing.ready;
+    if (existing) {
+      if (
+        runtimeGenerationId &&
+        runtimeGenerationId !== existing.runtimeGenerationId
+      )
+        return Promise.reject(
+          new Error("Capability host generation mismatch."),
+        );
+      return existing.ready;
+    }
     const child = this.dependencies.launch(runId);
     let cleaned = false;
     let ownedRecord: HostRecord | undefined;
@@ -168,6 +194,8 @@ export class CapabilityHostManager {
       void ready.catch(() => undefined);
       const record: HostRecord = (ownedRecord = {
         child,
+        runtimeGenerationId,
+        cancellations: new Map(),
         token,
         ready,
         resolveReady,
@@ -198,6 +226,8 @@ export class CapabilityHostManager {
         if (!isHostToMainMessage(value)) return;
         this.handleMessage(runId, record, value);
       };
+      // Assigned after the cleanup closure is registered so synchronous launch failures can dispose safely.
+      // eslint-disable-next-line prefer-const
       let returnedMessageDisposer: (() => void) | void;
       ownedDisposers.push(() => {
         try {
@@ -207,7 +237,7 @@ export class CapabilityHostManager {
         }
       });
       returnedMessageDisposer = child.onMessage(messageListener);
-      const exitListener = (_code: number) => {
+      const exitListener = () => {
         const error = new CapabilityError(
           "internal_error",
           "Capability host stopped unexpectedly.",
@@ -218,8 +248,14 @@ export class CapabilityHostManager {
           request.reject(error);
         }
         record.pending.clear();
+        for (const cancellation of record.cancellations.values()) {
+          clearTimeout(cancellation.timer);
+          cancellation.reject(error);
+        }
+        record.cancellations.clear();
         cleanupOwnedChild(true);
       };
+      // eslint-disable-next-line prefer-const
       let returnedExitDisposer: (() => void) | void;
       ownedDisposers.push(() => {
         try {
@@ -232,6 +268,7 @@ export class CapabilityHostManager {
       child.postMessage({
         type: "host.initialize",
         runId,
+        ...(runtimeGenerationId ? { runtimeGenerationId } : {}),
         token,
         capabilities,
         settings,
@@ -293,6 +330,44 @@ export class CapabilityHostManager {
     });
   }
 
+  async cancelInvocation(
+    ownerId: string,
+    runtimeGenerationId: string,
+    invocationId: string,
+  ): Promise<boolean> {
+    const record = this.hosts.get(ownerId);
+    if (
+      !record?.connection ||
+      record.runtimeGenerationId !== runtimeGenerationId
+    )
+      return false;
+    const requestId = randomUUID();
+    return new Promise<boolean>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        record.cancellations.delete(requestId);
+        reject(new Error("Capability cancellation acknowledgement missing."));
+      }, this.dependencies.updateTimeoutMs ?? 10_000);
+      record.cancellations.set(requestId, {
+        invocationId,
+        timer,
+        resolve,
+        reject,
+      });
+      try {
+        record.child.postMessage({
+          type: "host.invocation.cancel",
+          requestId,
+          runtimeGenerationId,
+          invocationId,
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        record.cancellations.delete(requestId);
+        reject(error);
+      }
+    });
+  }
+
   resolveSecret(
     capabilityId: string,
     settingKey: string,
@@ -319,6 +394,11 @@ export class CapabilityHostManager {
       request.reject(error);
     }
     record.pending.clear();
+    for (const cancellation of record.cancellations.values()) {
+      clearTimeout(cancellation.timer);
+      cancellation.reject(error);
+    }
+    record.cancellations.clear();
     try {
       record.child.kill();
     } catch {
@@ -335,7 +415,25 @@ export class CapabilityHostManager {
     record: HostRecord,
     message: HostToMainMessage,
   ): void {
-    if (message.type === "host.ready") {
+    if (message.type === "host.observation") {
+      if (record.runtimeGenerationId === message.runtimeGenerationId)
+        this.dependencies.onObservation?.(
+          runId,
+          message.runtimeGenerationId,
+          message.observation,
+        );
+    } else if (message.type === "host.invocation.cancelled") {
+      const pending = record.cancellations.get(message.requestId);
+      if (
+        !pending ||
+        record.runtimeGenerationId !== message.runtimeGenerationId ||
+        pending.invocationId !== message.invocationId
+      )
+        return;
+      clearTimeout(pending.timer);
+      record.cancellations.delete(message.requestId);
+      pending.resolve(message.accepted);
+    } else if (message.type === "host.ready") {
       if (message.runId !== runId) return;
       if (record.startupTimer) clearTimeout(record.startupTimer);
       const connection = {
@@ -417,8 +515,13 @@ function adaptElectronUtilityProcess(
 export function createElectronCapabilityHostManager(
   resolveSecret: CapabilityHostManagerDependencies["resolveSecret"],
   catalog?: CapabilityCatalog,
+  observationOptions: Pick<
+    CapabilityHostManagerDependencies,
+    "onObservation"
+  > = {},
 ): CapabilityHostManager {
   return new CapabilityHostManager({
+    ...observationOptions,
     launch: (runId) =>
       adaptElectronUtilityProcess(
         utilityProcess.fork(path.join(__dirname, "capability-host.js"), [], {

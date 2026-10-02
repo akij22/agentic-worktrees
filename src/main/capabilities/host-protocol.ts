@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { capabilityHostObservationSchema } from "./capability-receipt";
 import type { CapabilityErrorCode } from "@agentic-worktrees/capability-sdk";
 import type { CapabilityRuntimeDescriptor } from "./catalog";
 
@@ -95,8 +96,17 @@ const capabilityErrorCodeSchema = z.enum([
 export const mainToHostMessageSchema = z.discriminatedUnion("type", [
   z
     .object({
+      type: z.literal("host.invocation.cancel"),
+      requestId: identifierSchema,
+      runtimeGenerationId: identifierSchema,
+      invocationId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("host.initialize"),
       runId: identifierSchema,
+      runtimeGenerationId: identifierSchema.optional(),
       token: z.string().min(32).max(256),
       capabilities: descriptorsSchema,
       settings: settingsSchema,
@@ -122,6 +132,22 @@ export const mainToHostMessageSchema = z.discriminatedUnion("type", [
 ]);
 
 export const hostToMainMessageSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("host.observation"),
+      runtimeGenerationId: identifierSchema,
+      observation: capabilityHostObservationSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("host.invocation.cancelled"),
+      requestId: identifierSchema,
+      runtimeGenerationId: identifierSchema,
+      invocationId: z.string().uuid(),
+      accepted: z.boolean(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal("host.ready"),
