@@ -26,7 +26,19 @@ import type {
   CodingAgentTurnInput,
 } from "./types";
 import { readOpenCodeSessionId, reserveLocalPort } from "./opencode-utils";
-import { buildOpenCodeRuntimeConfig, normalizeOpenCodeIdentifier } from "./opencode-capability-config";
+import {
+  buildOpenCodeRuntimeConfig,
+  normalizeOpenCodeIdentifier,
+} from "./opencode-capability-config";
+import {
+  OPENCODE_RUNTIME_VERSION,
+  OpenCodeRuntimeProjection,
+  type OpenCodeWorktreeRuntimeOptions,
+} from "./opencode-worktree-runtime";
+import {
+  OpenCodeResourceEvidence,
+  sanitizeOpenCodeResourceTransport,
+} from "./opencode-resource-evidence";
 
 const START_TIMEOUT_MS = 10_000;
 const HEALTH_RETRY_MS = 150;
@@ -284,7 +296,13 @@ const toToolCalls = (parts: Part[]): CodingAgentToolCall[] =>
       ];
     }
     if (state.status === "error") {
-      return [{ ...base, status: "error" as const, detail: stripCapabilityReceiptText(state.error) }];
+      return [
+        {
+          ...base,
+          status: "error" as const,
+          detail: stripCapabilityReceiptText(state.error),
+        },
+      ];
     }
     return [
       {
@@ -337,16 +355,31 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     OpenCodePermissionReplyProtocol
   >();
   private readonly listeners = new Set<(event: CodingAgentEvent) => void>();
-  private readonly capabilityConnections = new Map<string, CodingAgentCapabilityConnection>();
+  private readonly capabilityConnections = new Map<
+    string,
+    CodingAgentCapabilityConnection
+  >();
   private executablePath: string | null = null;
   private startupDirectory: string | null = null;
   private reconfiguringCapabilities = false;
   private skillCatalog: CodingAgentSkillCatalog | null = null;
+  private readonly projection?: OpenCodeRuntimeProjection;
+  private providerRead?: (path: string) => Promise<unknown>;
+  private managedUnavailable = false;
+  private readonly resourceEvidence?: OpenCodeResourceEvidence;
+  private unsubscribeHost?: () => void;
+  private readonly activeManagedSessions = new Set<string>();
 
   constructor(
     private readonly capabilityReloadTimeoutMs = 10_000,
     private readonly capabilityVerificationTimeoutMs = 10_000,
-  ) {}
+    private readonly worktreeRuntime?: OpenCodeWorktreeRuntimeOptions,
+  ) {
+    if (worktreeRuntime) {
+      this.projection = new OpenCodeRuntimeProjection(worktreeRuntime);
+      this.resourceEvidence = new OpenCodeResourceEvidence(this.projection);
+    }
+  }
 
   getStatus() {
     return {
@@ -357,6 +390,15 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   }
 
   async start(executablePath: string, cwd: string): Promise<string> {
+    this.projection?.assertDirectory(cwd);
+    try {
+      await this.projection?.prepare();
+    } catch {
+      this.managedUnavailable = true;
+      throw new Error(
+        "OpenCode immutable runtime projection could not be prepared.",
+      );
+    }
     this.executablePath = executablePath;
     this.startupDirectory = cwd;
     if (this.process && this.process.exitCode === null && this.version) {
@@ -371,14 +413,21 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       ["serve", "--hostname", "127.0.0.1", "--port", String(port)],
       {
         cwd,
-        env: {
-          ...process.env,
-          OPENCODE_SERVER_PASSWORD: password,
-          // This is loaded by OpenCode as its highest-priority runtime config.
-          // The build agent is the one selected in sendPrompt(), so its shell
-          // commands must wait for the renderer's explicit decision.
-          OPENCODE_CONFIG_CONTENT: JSON.stringify(buildOpenCodeRuntimeConfig([...this.capabilityConnections.values()], this.skillCatalog)),
-        },
+        env: this.projection
+          ? this.projection.environment(password)
+          : {
+              ...process.env,
+              OPENCODE_SERVER_PASSWORD: password,
+              // This is loaded by OpenCode as its highest-priority runtime config.
+              // The build agent is the one selected in sendPrompt(), so its shell
+              // commands must wait for the renderer's explicit decision.
+              OPENCODE_CONFIG_CONTENT: JSON.stringify(
+                buildOpenCodeRuntimeConfig(
+                  [...this.capabilityConnections.values()],
+                  this.skillCatalog,
+                ),
+              ),
+            },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       },
@@ -397,10 +446,18 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     // Drain stdout without copying provider prompts, tool inputs, or results into app logs.
     child.stdout?.on("data", () => undefined);
     child.once("error", (error) => {
-      this.error = error.message;
+      this.error = this.projection
+        ? "Owned OpenCode process startup failed."
+        : error.message;
     });
     child.once("exit", (code, signal) => {
       if (this.process === child) {
+        if (this.projection) {
+          this.managedUnavailable = true;
+          this.projection.options.onUnavailable?.(
+            this.projection.options.lineage,
+          );
+        }
         this.process = null;
         this.client = null;
         this.v2Client = null;
@@ -427,6 +484,21 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       const headers = new Headers(request.headers);
       headers.set("Authorization", authorization);
       return fetch(new Request(request, { headers }));
+    };
+    this.providerRead = async (path) => {
+      const url = new URL(path, baseUrl);
+      url.searchParams.set("directory", cwd);
+      const response = await authFetch(
+        new Request(url, {
+          signal: AbortSignal.timeout(this.capabilityVerificationTimeoutMs),
+        }),
+      );
+      if (
+        !response.ok ||
+        !response.headers.get("content-type")?.includes("application/json")
+      )
+        throw new Error("OpenCode provider schema is unavailable.");
+      return response.json();
     };
 
     this.client = createOpencodeClient({
@@ -477,11 +549,46 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     }
 
     this.version = detectedVersion;
+    if (this.worktreeRuntime && detectedVersion !== OPENCODE_RUNTIME_VERSION) {
+      await this.stop();
+      throw new Error(
+        "OpenCode provider version is not qualified for Worktree Resources.",
+      );
+    }
+    if (this.projection) {
+      try {
+        await this.verifyManagedRuntime(cwd, true);
+      } catch {
+        await this.stop();
+        throw new Error(
+          "OpenCode Worktree Resource isolation verification failed.",
+        );
+      }
+    }
     this.startEventStream();
+    if (this.projection && !this.unsubscribeHost)
+      this.unsubscribeHost =
+        this.projection.options.subscribeHostObservations?.((input) => {
+          if (
+            input.runtimeGeneration !==
+            this.projection?.options.lineage.runtimeGenerationId
+          )
+            return;
+          try {
+            this.resourceEvidence?.observeHost(input);
+          } catch {
+            this.managedUnavailable = true;
+            this.projection?.options.onUnavailable?.(
+              this.projection.options.lineage,
+            );
+          }
+        });
     return detectedVersion;
   }
 
   async stop(): Promise<void> {
+    this.unsubscribeHost?.();
+    this.unsubscribeHost = undefined;
     this.eventAbortController?.abort();
     this.eventAbortController = null;
     const child = this.process;
@@ -489,15 +596,30 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     this.client = null;
     this.v2Client = null;
     this.permissionReplyProtocols.clear();
-    if (!child || child.exitCode !== null) return;
-
+    if (!child || child.exitCode !== null || child.signalCode != null) return;
+    const waitForExit = (timeoutMs: number): Promise<boolean> =>
+      new Promise((resolve) => {
+        if (child.exitCode !== null || child.signalCode != null) {
+          resolve(true);
+          return;
+        }
+        const finish = (exited: boolean) => {
+          clearTimeout(timer);
+          child.removeListener("exit", onExit);
+          resolve(exited);
+        };
+        const onExit = () => finish(true);
+        const timer = setTimeout(() => finish(false), timeoutMs);
+        child.once("exit", onExit);
+      });
+    const gracefulExit = waitForExit(2_000);
     child.kill("SIGTERM");
-    await Promise.race([
-      new Promise<void>((resolve) => child.once("exit", () => resolve())),
-      delay(2_000).then(() => {
-        if (child.exitCode === null) child.kill("SIGKILL");
-      }),
-    ]);
+    if (await gracefulExit) return;
+    // This captured ChildProcess is the launcher-owned identity; never search by process name or port.
+    if (child.exitCode === null && child.signalCode == null)
+      child.kill("SIGKILL");
+    if (!(await waitForExit(1_000)))
+      throw new Error("Owned OpenCode process exit could not be verified.");
   }
 
   private requireClient(): ReturnType<typeof createOpencodeClient> {
@@ -530,18 +652,42 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       );
   }
 
-  async createSession(directory: string, title: string, options?: CodingAgentSessionOptions) {
-    if (options?.capabilities) this.capabilityConnections.set(options.capabilities.profileId, options.capabilities);
+  async createSession(
+    directory: string,
+    title: string,
+    options?: CodingAgentSessionOptions,
+  ) {
+    await this.verifyManagedRuntime(directory);
+    if (this.projection?.options.evidence && !options?.runId)
+      throw new Error("OpenCode application session route is required.");
+    if (options?.capabilities)
+      this.capabilityConnections.set(
+        options.capabilities.profileId,
+        options.capabilities,
+      );
     const result = await this.requireClient().session.create({
       body: { title },
       query: { directory },
       throwOnError: true,
     });
+    this.resourceEvidence?.registerSession(result.data.id, options?.runId);
     return { id: result.data.id };
   }
 
-  async getSession(directory: string, sessionId: string, options?: { capabilities?: CodingAgentCapabilityConnection }) {
-    if (options?.capabilities) this.capabilityConnections.set(options.capabilities.profileId, options.capabilities);
+  async getSession(
+    directory: string,
+    sessionId: string,
+    options?: {
+      capabilities?: CodingAgentCapabilityConnection;
+      runId?: string;
+    },
+  ) {
+    await this.verifyManagedRuntime(directory);
+    if (options?.capabilities)
+      this.capabilityConnections.set(
+        options.capabilities.profileId,
+        options.capabilities,
+      );
     const client = this.requireClient();
     const [sessionResult, statusesResult] = await Promise.all([
       client.session.get({
@@ -554,6 +700,19 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
         throwOnError: true,
       }),
     ]);
+    if (sessionResult.data.id !== sessionId)
+      throw new Error("OpenCode returned an unexpected session.");
+    const resumed =
+      this.resourceEvidence && !this.resourceEvidence.hasSession(sessionId);
+    this.resourceEvidence?.registerSession(sessionId, options?.runId);
+    if (resumed) {
+      const history = await client.session.messages({
+        path: { id: sessionId },
+        query: { directory },
+        throwOnError: true,
+      });
+      this.resourceEvidence?.seedResumeHistory(history.data, sessionId);
+    }
     return {
       id: sessionResult.data.id,
       status: toOpenCodeRunStatus(statusesResult.data[sessionId]),
@@ -564,12 +723,52 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     directory: string,
     sessionId: string,
   ): Promise<CodingAgentMessage[]> {
+    await this.verifyManagedRuntime(directory);
+    this.resourceEvidence?.assertSession(sessionId);
     const result = await this.requireClient().session.messages({
       path: { id: sessionId },
       query: { directory },
       throwOnError: true,
     });
-    return result.data.map(({ info, parts }) => toMessage(info, parts));
+    try {
+      this.resourceEvidence?.observeHistory(result.data, sessionId);
+    } catch {
+      this.managedUnavailable = true;
+      this.projection?.options.onUnavailable?.(this.projection.options.lineage);
+      throw new Error("OpenCode history evidence schema is unavailable.");
+    }
+    return result.data.map(({ info, parts }) => {
+      const message = toMessage(info, parts);
+      if (this.resourceEvidence) {
+        message.content =
+          this.resourceEvidence.displayCommand(
+            sessionId,
+            info.id,
+            info.role === "user" ? message.content : undefined,
+          ) ?? message.content;
+        message.tools = message.tools.map((tool) =>
+          tool.tool === "skill"
+            ? {
+                ...tool,
+                detail:
+                  tool.status === "error"
+                    ? "Assigned Skill loading failed."
+                    : "Assigned Skill loaded.",
+              }
+            : tool,
+        );
+      }
+      if (this.resourceEvidence) {
+        message.content = this.resourceEvidence.redactText(message.content);
+        message.reasoning = this.resourceEvidence.redactText(message.reasoning);
+        message.tools = message.tools.map((tool) => ({
+          ...tool,
+          detail: this.resourceEvidence?.redactText(tool.detail) ?? tool.detail,
+          title: this.resourceEvidence?.redactText(tool.title) ?? tool.title,
+        }));
+      }
+      return message;
+    });
   }
 
   async getDiff(
@@ -585,26 +784,65 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     return (result.data as unknown[]).map(normalizeDiff);
   }
 
-  async configureSkills(catalog: CodingAgentSkillCatalog | null): Promise<void> {
-    const changed=JSON.stringify(this.skillCatalog)!==JSON.stringify(catalog);
+  async configureSkills(
+    catalog: CodingAgentSkillCatalog | null,
+  ): Promise<void> {
+    if (this.projection)
+      throw new Error(
+        "Worktree Skill generations must be replaced through Assignment.",
+      );
+    const changed =
+      JSON.stringify(this.skillCatalog) !== JSON.stringify(catalog);
     this.skillCatalog = catalog;
     if (!changed || !this.getStatus().running) return;
-    const executablePath=this.executablePath,directory=this.startupDirectory;
-    if(!executablePath||!directory)throw new Error("OpenCode is not configured for skill synchronization.");
+    const executablePath = this.executablePath,
+      directory = this.startupDirectory;
+    if (!executablePath || !directory)
+      throw new Error("OpenCode is not configured for skill synchronization.");
     await this.stop();
-    await this.start(executablePath,directory);
-    if(catalog)await this.verifySkills(directory,catalog.expectedIds);
+    await this.start(executablePath, directory);
+    if (catalog) await this.verifySkills(directory, catalog.expectedIds);
   }
 
-  async verifySkills(directory: string, expectedIds: readonly string[]): Promise<void> {
-    if (!this.v2Client) throw new Error("OpenCode skill discovery is unavailable.");
-    const result = await this.v2Client.v2.skill.list({ location: { directory } });
-    if (!result.data) throw new Error("OpenCode returned an invalid skill catalog.");
+  async verifySkills(
+    directory: string,
+    expectedIds: readonly string[],
+  ): Promise<void> {
+    if (this.projection) {
+      if (
+        [...expectedIds].sort().join("\0") !==
+        this.projection.skills
+          .map((s) => s.name)
+          .sort()
+          .join("\0")
+      )
+        throw new Error("Assigned Skill catalog mismatch.");
+      await this.verifyManagedRuntime(directory);
+      return;
+    }
+    if (!this.v2Client)
+      throw new Error("OpenCode skill discovery is unavailable.");
+    const result = await this.v2Client.v2.skill.list({
+      location: { directory },
+    });
+    if (!result.data)
+      throw new Error("OpenCode returned an invalid skill catalog.");
     const skills = result.data.data;
     const ids = skills.map((skill) => skill.name);
     const root = this.skillCatalog?.activeRoot;
-    const pathsValid = root !== undefined && skills.every((skill) => resolve(skill.location) === resolve(join(root, skill.name, "SKILL.md")));
-    if (!pathsValid || new Set(ids).size !== ids.length || [...ids].sort().join("\0") !== [...expectedIds].sort().join("\0")) throw new Error("OpenCode skill catalog verification failed.");
+    const pathsValid =
+      root !== undefined &&
+      skills.every(
+        (skill) =>
+          resolve(skill.location) ===
+          resolve(join(root, skill.name, "SKILL.md")),
+      );
+    if (
+      !pathsValid ||
+      new Set(ids).size !== ids.length ||
+      [...ids].sort().join("\0") !== [...expectedIds].sort().join("\0")
+    )
+      throw new Error("OpenCode skill catalog verification failed.");
   }
 
   async sendPrompt(
@@ -612,31 +850,80 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     sessionId: string,
     input: CodingAgentTurnInput,
   ): Promise<void> {
-    if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "Capabilities are being applied. Try again when reload completes.");
+    await this.verifyManagedRuntime(directory);
+    this.resourceEvidence?.assertSession(sessionId);
+    if (this.projection && input.explicitSkill)
+      this.projection.resolveExplicit(input.explicitSkill);
+    if (
+      this.projection &&
+      input.capabilityProfileId &&
+      input.capabilityProfileId !== "build" &&
+      !this.projection.options.capabilities.some(
+        (c) =>
+          normalizeOpenCodeIdentifier(c.profileId) ===
+          input.capabilityProfileId,
+      )
+    )
+      throw new Error(
+        "Provider profile is not assigned to this Worktree Runtime.",
+      );
+    if (this.reconfiguringCapabilities)
+      throw new CapabilityError(
+        "agent_reload_failed",
+        "Capabilities are being applied. Try again when reload completes.",
+      );
     if (input.explicitSkill !== undefined) {
-      await this.requireClient().session.command({
-        path: { id: sessionId }, query: { directory },
-        body: { command: input.explicitSkill.id, arguments: input.explicitSkill.arguments ?? "", agent: input.capabilityProfileId || "build", model: `${input.providerId}/${input.modelId}` },
-        throwOnError: true,
-      });
+      const skill = this.projection?.resolveExplicit(input.explicitSkill);
+      const messageID = skill
+        ? `msg_${randomBytes(16).toString("hex")}`
+        : undefined;
+      if (skill && messageID)
+        this.resourceEvidence?.requestedSkill(sessionId, messageID, skill);
+      if (this.projection) this.activeManagedSessions.add(sessionId);
+      try {
+        await this.requireClient().session.command({
+          path: { id: sessionId },
+          query: { directory },
+          body: {
+            ...(messageID ? { messageID } : {}),
+            command: input.explicitSkill.id,
+            arguments: input.explicitSkill.arguments ?? "",
+            agent: input.capabilityProfileId || "build",
+            model: `${input.providerId}/${input.modelId}`,
+          },
+          throwOnError: true,
+        });
+      } catch (error) {
+        if (messageID) this.resourceEvidence?.skillFailed(sessionId, messageID);
+        throw error;
+      } finally {
+        this.activeManagedSessions.delete(sessionId);
+      }
+      if (skill) await this.listMessages(directory, sessionId);
       return;
     }
-    await this.requireClient().session.promptAsync({
-      path: { id: sessionId },
-      query: { directory },
-      body: {
-        agent: input.capabilityProfileId || "build",
-        model: {
-          providerID: input.providerId,
-          modelID: input.modelId,
-          ...(input.reasoningVariant
-            ? { variant: input.reasoningVariant }
-            : {}),
-        } as { providerID: string; modelID: string },
-        parts: [{ type: "text", text: input.content }],
-      },
-      throwOnError: true,
-    });
+    if (this.projection) this.activeManagedSessions.add(sessionId);
+    try {
+      await this.requireClient().session.promptAsync({
+        path: { id: sessionId },
+        query: { directory },
+        body: {
+          agent: input.capabilityProfileId || "build",
+          model: {
+            providerID: input.providerId,
+            modelID: input.modelId,
+            ...(input.reasoningVariant
+              ? { variant: input.reasoningVariant }
+              : {}),
+          } as { providerID: string; modelID: string },
+          parts: [{ type: "text", text: input.content }],
+        },
+        throwOnError: true,
+      });
+    } catch (error) {
+      this.activeManagedSessions.delete(sessionId);
+      throw error;
+    }
   }
 
   async reconfigureCapabilities(input: {
@@ -645,47 +932,111 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     expectedToolNamesByProfile?: Record<string, string[]>;
     absentConnections?: CodingAgentCapabilityConnection[];
   }): Promise<void> {
-    if (this.reconfiguringCapabilities) throw new CapabilityError("agent_reload_failed", "OpenCode capability reload is already in progress.");
+    if (this.projection)
+      throw new Error(
+        "Worktree Capability generations must be replaced through Assignment.",
+      );
+    if (this.reconfiguringCapabilities)
+      throw new CapabilityError(
+        "agent_reload_failed",
+        "OpenCode capability reload is already in progress.",
+      );
     this.reconfiguringCapabilities = true;
     try {
       const idleDeadline = Date.now() + this.capabilityReloadTimeoutMs;
       let sessionsIdle = false;
       while (!sessionsIdle) {
-        const snapshots = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
-        const valid = snapshots.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId);
-        if (!valid) throw new CapabilityError("agent_reload_failed", "OpenCode returned an unexpected session during capability reload.");
-        sessionsIdle = snapshots.every((snapshot) => snapshot.status === "idle");
-        if (!sessionsIdle && Date.now() >= idleDeadline) throw new CapabilityError("agent_reload_failed", "OpenCode capability reload timed out waiting for idle sessions.");
-        if (!sessionsIdle) await delay(Math.min(100, this.capabilityReloadTimeoutMs));
+        const snapshots = await Promise.all(
+          input.sessions.map((session) =>
+            this.getSession(session.directory, session.sessionId),
+          ),
+        );
+        const valid = snapshots.every(
+          (snapshot, index) => snapshot.id === input.sessions[index]?.sessionId,
+        );
+        if (!valid)
+          throw new CapabilityError(
+            "agent_reload_failed",
+            "OpenCode returned an unexpected session during capability reload.",
+          );
+        sessionsIdle = snapshots.every(
+          (snapshot) => snapshot.status === "idle",
+        );
+        if (!sessionsIdle && Date.now() >= idleDeadline)
+          throw new CapabilityError(
+            "agent_reload_failed",
+            "OpenCode capability reload timed out waiting for idle sessions.",
+          );
+        if (!sessionsIdle)
+          await delay(Math.min(100, this.capabilityReloadTimeoutMs));
       }
       const previous = [...this.capabilityConnections.values()];
       const executablePath = this.executablePath;
       const directory = this.startupDirectory;
-      if (!executablePath || !directory) throw new CapabilityError("agent_reload_failed", "OpenCode is not configured for capability reload.");
+      if (!executablePath || !directory)
+        throw new CapabilityError(
+          "agent_reload_failed",
+          "OpenCode is not configured for capability reload.",
+        );
       try {
         this.capabilityConnections.clear();
-        for (const connection of input.connections) this.capabilityConnections.set(connection.profileId, connection);
+        for (const connection of input.connections)
+          this.capabilityConnections.set(connection.profileId, connection);
         await this.stop();
         await this.start(executablePath, directory);
-        const resumed = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
-        if (!resumed.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId)) {
-          throw new CapabilityError("agent_reload_failed", "OpenCode resumed an unexpected session.");
+        const resumed = await Promise.all(
+          input.sessions.map((session) =>
+            this.getSession(session.directory, session.sessionId),
+          ),
+        );
+        if (
+          !resumed.every(
+            (snapshot, index) =>
+              snapshot.id === input.sessions[index]?.sessionId,
+          )
+        ) {
+          throw new CapabilityError(
+            "agent_reload_failed",
+            "OpenCode resumed an unexpected session.",
+          );
         }
         if (input.expectedToolNamesByProfile) {
-          await this.verifyCapabilities(input.connections, input.expectedToolNamesByProfile, input.sessions[0]?.directory ?? directory, input.absentConnections);
+          await this.verifyCapabilities(
+            input.connections,
+            input.expectedToolNamesByProfile,
+            input.sessions[0]?.directory ?? directory,
+            input.absentConnections,
+          );
         }
       } catch {
         this.capabilityConnections.clear();
-        for (const connection of previous) this.capabilityConnections.set(connection.profileId, connection);
+        for (const connection of previous)
+          this.capabilityConnections.set(connection.profileId, connection);
         await this.stop();
         try {
           await this.start(executablePath, directory);
-          const restored = await Promise.all(input.sessions.map((session) => this.getSession(session.directory, session.sessionId)));
-          if (!restored.every((snapshot, index) => snapshot.id === input.sessions[index]?.sessionId)) throw new Error("Unexpected rollback session.");
+          const restored = await Promise.all(
+            input.sessions.map((session) =>
+              this.getSession(session.directory, session.sessionId),
+            ),
+          );
+          if (
+            !restored.every(
+              (snapshot, index) =>
+                snapshot.id === input.sessions[index]?.sessionId,
+            )
+          )
+            throw new Error("Unexpected rollback session.");
         } catch {
-          throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and its previous sessions could not be restored.");
+          throw new CapabilityError(
+            "agent_reload_failed",
+            "OpenCode capability reload failed and its previous sessions could not be restored.",
+          );
         }
-        throw new CapabilityError("agent_reload_failed", "OpenCode capability reload failed and was rolled back.");
+        throw new CapabilityError(
+          "agent_reload_failed",
+          "OpenCode capability reload failed and was rolled back.",
+        );
       }
     } finally {
       this.reconfiguringCapabilities = false;
@@ -712,23 +1063,43 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           const serverName = normalizeOpenCodeIdentifier(connection.serverName);
           const profileId = normalizeOpenCodeIdentifier(connection.profileId);
           const status = mcp.data[serverName];
-          if (status?.status !== "connected" || !config.data.agent?.[profileId]) return false;
-          const expected = (expectedToolNamesByProfile[connection.profileId] ?? []).map((tool) => `${serverName}_${tool}`).sort();
-          if (!(connection.profileId in expectedToolNamesByProfile)) return true;
-          const actual = tools.data.filter((tool) => tool.startsWith(`${serverName}_`)).sort();
+          if (status?.status !== "connected" || !config.data.agent?.[profileId])
+            return false;
+          const expected = (
+            expectedToolNamesByProfile[connection.profileId] ?? []
+          )
+            .map((tool) => `${serverName}_${tool}`)
+            .sort();
+          if (!(connection.profileId in expectedToolNamesByProfile))
+            return true;
+          const actual = tools.data
+            .filter((tool) => tool.startsWith(`${serverName}_`))
+            .sort();
           return actual.join("\0") === expected.join("\0");
         });
-        const absentConnectionsVerified = absentConnections.every((connection) => {
-          const serverName = normalizeOpenCodeIdentifier(connection.serverName);
-          const profileId = normalizeOpenCodeIdentifier(connection.profileId);
-          return !mcp.data[serverName] && !config.data.agent?.[profileId] && !tools.data.some((tool) => tool.startsWith(`${serverName}_`));
-        });
+        const absentConnectionsVerified = absentConnections.every(
+          (connection) => {
+            const serverName = normalizeOpenCodeIdentifier(
+              connection.serverName,
+            );
+            const profileId = normalizeOpenCodeIdentifier(connection.profileId);
+            return (
+              !mcp.data[serverName] &&
+              !config.data.agent?.[profileId] &&
+              !tools.data.some((tool) => tool.startsWith(`${serverName}_`))
+            );
+          },
+        );
         verified = presentConnectionsVerified && absentConnectionsVerified;
         if (verified) return;
       } catch {
         // OpenCode may still be loading MCP tools after its health endpoint is ready.
       }
-      if (Date.now() >= deadline) throw new CapabilityError("agent_reload_failed", "OpenCode capability tools could not be verified.");
+      if (Date.now() >= deadline)
+        throw new CapabilityError(
+          "agent_reload_failed",
+          "OpenCode capability tools could not be verified.",
+        );
       await delay(Math.min(100, this.capabilityVerificationTimeoutMs));
     }
   }
@@ -736,7 +1107,11 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   async compact(
     directory: string,
     sessionId: string,
-    input: { providerId: string; modelId: string; capabilityProfileId?: string },
+    input: {
+      providerId: string;
+      modelId: string;
+      capabilityProfileId?: string;
+    },
   ): Promise<void> {
     await this.requireClient().session.summarize({
       path: { id: sessionId },
@@ -811,11 +1186,35 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   }
 
   async abort(directory: string, sessionId: string): Promise<void> {
+    this.projection?.assertDirectory(directory);
+    this.resourceEvidence?.assertSession(sessionId);
     await this.requireClient().session.abort({
       path: { id: sessionId },
       query: { directory },
       throwOnError: true,
     });
+    await this.resourceEvidence?.cancelSession(sessionId);
+    this.activeManagedSessions.delete(sessionId);
+  }
+
+  /** Owned-runtime lifecycle hook, invoked before the factory closes provider/host processes. */
+  async cancelOwnedWork(): Promise<void> {
+    const projection = this.projection;
+    if (!projection) return;
+    const sessions = new Set([
+      ...this.activeManagedSessions,
+      ...(this.resourceEvidence?.dispatchSessions() ?? []),
+    ]);
+    const results = await Promise.allSettled(
+      [...sessions].map((session) =>
+        this.abort(projection.options.directory, session),
+      ),
+    );
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length)
+      throw new Error(
+        "Owned OpenCode work cancellation could not be verified.",
+      );
   }
 
   async respondPermission(
@@ -866,6 +1265,59 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
     for (const listener of this.listeners) listener(event);
   }
 
+  private async verifyManagedRuntime(
+    directory: string,
+    activating = false,
+  ): Promise<void> {
+    if (!this.projection) return;
+    this.projection.assertDirectory(directory);
+    if (this.managedUnavailable)
+      throw new Error(
+        "OpenCode Worktree Runtime is unavailable after isolation failure.",
+      );
+    if (!this.providerRead || !this.process || this.process.exitCode !== null)
+      throw new Error("OpenCode Worktree Runtime is unavailable.");
+    const providerRead = this.providerRead;
+    try {
+      const [[skills, commands, config, tools, mcp], hostTools] =
+        await Promise.all([
+          Promise.all(
+            [
+              "/skill",
+              "/command",
+              "/config",
+              "/experimental/tool/ids",
+              "/mcp",
+            ].map((path) => providerRead(path)),
+          ),
+          this.projection.readHostTools(this.capabilityVerificationTimeoutMs),
+        ]);
+      const digest = await this.projection.verifyEffective({
+        skills,
+        commands,
+        config,
+        tools,
+        mcp,
+        hostTools,
+      });
+      if (activating) await this.projection.options.onVerified?.(digest);
+      else if (
+        this.projection.options.verifyAttestation &&
+        !(await this.projection.options.verifyAttestation(
+          this.projection.options.lineage,
+        ))
+      )
+        throw new Error("Runtime attestation is unavailable.");
+      await this.projection.verifyFiles();
+    } catch {
+      this.managedUnavailable = true;
+      this.projection.options.onUnavailable?.(this.projection.options.lineage);
+      throw new Error(
+        "OpenCode Worktree Resource isolation verification failed.",
+      );
+    }
+  }
+
   private startEventStream(): void {
     const client = this.requireClient();
     const controller = new AbortController();
@@ -883,7 +1335,17 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
           }
         } catch (error) {
           if (!controller.signal.aborted) {
-            this.error = error instanceof Error ? error.message : String(error);
+            this.error = this.projection
+              ? "OpenCode event stream is unavailable."
+              : error instanceof Error
+                ? error.message
+                : String(error);
+            if (this.projection) {
+              this.managedUnavailable = true;
+              this.projection.options.onUnavailable?.(
+                this.projection.options.lineage,
+              );
+            }
             this.emit({
               directory: "",
               sessionId: null,
@@ -902,6 +1364,42 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       event.payload.type,
       event.payload.properties,
     );
+    if (this.projection) {
+      // The pinned global stream sends these neutral frames without a directory.
+      if (
+        event.directory === undefined &&
+        [
+          "server.connected",
+          "server.heartbeat",
+          "models-dev.refreshed",
+        ].includes(normalized.type) &&
+        Object.keys(readRecord(normalized.properties) ?? { malformed: true })
+          .length === 0
+      )
+        return;
+      try {
+        this.projection.assertDirectory(event.directory);
+        this.resourceEvidence?.observeEvent(
+          normalized.type,
+          normalized.properties,
+        );
+        const properties = readRecord(normalized.properties);
+        if (
+          normalized.type === "session.idle" ||
+          (normalized.type === "session.status" &&
+            readRecord(properties?.status)?.type === "idle")
+        ) {
+          const sessionId = readOpenCodeSessionId(normalized.properties);
+          if (sessionId) this.activeManagedSessions.delete(sessionId);
+        }
+      } catch {
+        this.managedUnavailable = true;
+        this.projection.options.onUnavailable?.(
+          this.projection.options.lineage,
+        );
+        return;
+      }
+    }
     if (normalized.permission) {
       this.permissionReplyProtocols.set(
         normalized.permission.id,
@@ -912,7 +1410,9 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
       directory: event.directory,
       sessionId: readOpenCodeSessionId(normalized.properties),
       type: normalized.type,
-      properties: normalized.properties,
+      properties: this.resourceEvidence
+        ? this.resourceEvidence.sanitizePayload(normalized.properties)
+        : sanitizeOpenCodeResourceTransport(normalized.properties),
     });
   }
 }

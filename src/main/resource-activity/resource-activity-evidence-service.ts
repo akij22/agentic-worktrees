@@ -26,6 +26,11 @@ export interface ProviderEvidenceContract {
     lineage: ActivityLineage,
     skillRoute: string,
   ): ResourceIdentity | null;
+  /** Full model-context body digest, distinct from the immutable package identity. */
+  resolveSkillBodyDigest?(
+    lineage: ActivityLineage,
+    skillRoute: string,
+  ): string | null;
   automaticSkillContextQualified?: boolean;
   resolveHostTool?(
     lineage: ActivityLineage,
@@ -607,7 +612,10 @@ export class ResourceActivityEvidenceService {
         outcome: "load_failed",
       });
     }
-    if (!input.completeBody || input.bodyDigest !== identity.resourceDigest)
+    const expectedBodyDigest = contract.resolveSkillBodyDigest
+      ? contract.resolveSkillBodyDigest(lineage, input.skillRoute)
+      : identity.resourceDigest;
+    if (!input.completeBody || input.bodyDigest !== expectedBodyDigest)
       return this.reject(lineage, "evidence_gap", input.sourceIdentity);
     if (input.mode === "automatic" && !contract.automaticSkillContextQualified)
       return this.reject(lineage, "provider_unqualified", input.sourceIdentity);

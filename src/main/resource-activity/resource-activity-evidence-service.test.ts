@@ -65,6 +65,7 @@ describe("ResourceActivityEvidenceService", () => {
   const makeService = (
     keyVersion = 1,
     previousKeys: Record<number, Uint8Array> = {},
+    skillBodyDigest?: string,
   ) => {
     const instance = new ResourceActivityEvidenceService({
       repository: new ResourceActivityRepository(database),
@@ -85,6 +86,9 @@ describe("ResourceActivityEvidenceService", () => {
           provider: "codex",
           providerVersion: "0.154.0",
           adapterContractVersion: 1,
+          resolveSkillBodyDigest: skillBodyDigest
+            ? () => skillBodyDigest
+            : undefined,
           resolveSkill: () => ({
             resourceKind: "skill",
             resourceId: "test.skill",
@@ -436,6 +440,27 @@ describe("ResourceActivityEvidenceService", () => {
     ]);
     expect(service.getSnapshot("run").items).toHaveLength(1);
     expect(service.getSnapshot("run").items[0].id).toBe(requestId);
+  });
+
+  it("verifies Skill context against its body digest independently of the immutable package digest", () => {
+    service = makeService(1, {}, `sha256:${"b".repeat(64)}`);
+    service.registerSessionRoute(lineage, "private-session", "run");
+    service.ingestSkill({
+      lineage,
+      providerContract: "fixture/v1",
+      rawSessionId: "private-session",
+      requestIdentity: "body-request",
+      sourceIdentity: "body-context",
+      skillRoute: "owned-skill",
+      mode: "explicit",
+      type: "context",
+      receiptIdentity: "body-receipt",
+      bodyDigest: `sha256:${"b".repeat(64)}`,
+      completeBody: true,
+    });
+    expect(service.getSnapshot("run").items).toMatchObject([
+      { useState: "confirmed", resourceId: "test.skill" },
+    ]);
   });
 
   it("bounds missing host acknowledgement and leaves cancellation unproven", async () => {
