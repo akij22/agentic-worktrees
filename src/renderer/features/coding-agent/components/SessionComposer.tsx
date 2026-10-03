@@ -1,8 +1,13 @@
 import "./SessionComposer.css";
 import { ArrowUp, GitBranch, Layers3 } from "lucide-react";
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type {
-  CapabilitySummaryDto,
   CodingAgentModelDto,
   CodingAgentSessionDto,
 } from "../../../../shared/ipc/schemas";
@@ -14,10 +19,17 @@ import {
 } from "../lib/slash-commands";
 import { findActiveFileMention, insertFileMention } from "../lib/file-mentions";
 import { useFileMentionSuggestions } from "../hooks/useFileMentionSuggestions";
-import { CapabilityPicker } from "../../capabilities/components/CapabilityPicker";
+import {
+  WorktreeResourcePicker,
+  type MarketplaceResourceTarget,
+} from "../../resources/components/WorktreeResourcePicker";
+import { useWorktreeResourceAssignment } from "../../resources/hooks/useWorktreeResourceAssignment";
 import type { SkillSummaryDto } from "../../../../shared/skills/schemas";
 import { findActiveSkillCommand } from "../lib/skill-commands";
-import { isSkillSelectable, SkillCommandMenu } from "../../skills/components/SkillCommandMenu";
+import {
+  isSkillSelectable,
+  SkillCommandMenu,
+} from "../../skills/components/SkillCommandMenu";
 import { SkillInvocationChip } from "../../skills/components/SkillInvocationChip";
 
 type Props = {
@@ -36,6 +48,7 @@ type Props = {
   loadingModels: boolean;
   changingModel: boolean;
   busy: boolean;
+  preparingResources?: boolean;
   locked: boolean;
   onDraftChange: (draft: string) => void;
   onModelChange: (key: string) => void;
@@ -43,10 +56,8 @@ type Props = {
   onSend: () => void;
   onStop: () => void;
   onSlashCommand: (command: SlashCommandId) => void;
-  capabilityLibrary?: CapabilitySummaryDto[];
-  capabilityReloading?: boolean;
-  onActivateCapability?: (id: string) => Promise<unknown>;
-  onDeactivateCapability?: (id: string) => Promise<unknown>;
+  onOpenMarketplace?: (resource?: MarketplaceResourceTarget) => void;
+  onStopSession?: (runId: string) => Promise<void> | void;
   skills?: SkillSummaryDto[];
   selectedSkill?: SkillSummaryDto;
   onSkillSelect?: (skill: SkillSummaryDto) => void;
@@ -65,6 +76,7 @@ export const SessionComposer = ({
   loadingModels,
   changingModel,
   busy,
+  preparingResources = false,
   locked,
   onDraftChange,
   onModelChange,
@@ -72,12 +84,19 @@ export const SessionComposer = ({
   onSend,
   onStop,
   onSlashCommand,
-  capabilityLibrary = [],
-  capabilityReloading = false,
-  onActivateCapability,
-  onDeactivateCapability,
-  skills = [], selectedSkill, onSkillSelect, onSkillClear,
+  onOpenMarketplace,
+  onStopSession,
+  skills = [],
+  selectedSkill,
+  onSkillSelect,
+  onSkillClear,
 }: Props) => {
+  const assignment = useWorktreeResourceAssignment(
+    session.worktreeId,
+    session.agentKind,
+  );
+  const canSend =
+    !assignment.stale && Boolean(assignment.projection?.admission.canSend);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCaretRef = useRef<number | undefined>(undefined);
   const [caret, setCaret] = useState(draft.length);
@@ -85,8 +104,39 @@ export const SessionComposer = ({
   const [dismissedMentionKey, setDismissedMentionKey] = useState<string>();
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [reasoningPickerOpen, setReasoningPickerOpen] = useState(false);
-  const activeSkillCommand = selectedSkill ? undefined : findActiveSkillCommand(draft);
-  const matchingSkills = activeSkillCommand ? skills.filter(skill=>`${skill.id} ${skill.name}`.toLowerCase().includes(activeSkillCommand.query.toLowerCase())) : [];
+  const [skillNotice, setSkillNotice] = useState("");
+  const assignedSkill = (skill: SkillSummaryDto) =>
+    assignment.projection?.resources.some(
+      (item) =>
+        item.kind === "skill" &&
+        item.id === skill.id &&
+        item.version === skill.version &&
+        item.desired &&
+        item.verified &&
+        item.status === "enabled",
+    );
+  const availableSkills = canSend ? skills.filter(assignedSkill) : [];
+  useEffect(() => {
+    if (
+      selectedSkill &&
+      assignment.projection &&
+      !assignedSkill(selectedSkill)
+    ) {
+      onSkillClear?.();
+      setSkillNotice("Selected Skill is no longer available in this worktree.");
+      textareaRef.current?.focus();
+    }
+  }, [selectedSkill, assignment.projection, onSkillClear]);
+  const activeSkillCommand = selectedSkill
+    ? undefined
+    : findActiveSkillCommand(draft);
+  const matchingSkills = activeSkillCommand
+    ? availableSkills.filter((skill) =>
+        `${skill.id} ${skill.name}`
+          .toLowerCase()
+          .includes(activeSkillCommand.query.toLowerCase()),
+      )
+    : [];
   const slashCommands = activeSkillCommand ? [] : filterSlashCommands(draft);
   const detectedMention =
     slashCommands.length === 0
@@ -105,14 +155,35 @@ export const SessionComposer = ({
   });
   const filePaletteOpen = Boolean(activeMention);
   const selectableSkillIndexes = activeSkillCommand
-    ? matchingSkills.map((skill,index)=>isSkillSelectable(skill,session.agentKind)?index:-1).filter((index)=>index>=0)
+    ? matchingSkills
+        .map((skill, index) =>
+          isSkillSelectable(skill, session.agentKind) ? index : -1,
+        )
+        .filter((index) => index >= 0)
     : [];
-  const selectableCount = activeSkillCommand ? selectableSkillIndexes.length : slashCommands.length > 0 ? slashCommands.length : fileSuggestions.paths.length;
-  const selectSkill=(skill:SkillSummaryDto)=>{if(!isSkillSelectable(skill,session.agentKind))return;onSkillSelect?.(skill);onDraftChange(activeSkillCommand?.arguments??"");};
+  const selectableCount = activeSkillCommand
+    ? selectableSkillIndexes.length
+    : slashCommands.length > 0
+      ? slashCommands.length
+      : fileSuggestions.paths.length;
+  const selectSkill = (skill: SkillSummaryDto) => {
+    if (
+      !canSend ||
+      !assignedSkill(skill) ||
+      !isSkillSelectable(skill, session.agentKind)
+    )
+      return;
+    setSkillNotice("");
+    onSkillSelect?.(skill);
+    onDraftChange(activeSkillCommand?.arguments ?? "");
+  };
 
-  useEffect(
-    () => setSelectedSuggestionIndex(activeSkillCommand ? (selectableSkillIndexes[0] ?? -1) : 0),
-    [draft, fileSuggestions.paths.join("\0")],
+  useLayoutEffect(
+    () =>
+      setSelectedSuggestionIndex(
+        activeSkillCommand ? (selectableSkillIndexes[0] ?? -1) : 0,
+      ),
+    [draft, fileSuggestions.paths.join("\0"), selectableSkillIndexes.join(",")],
   );
   useEffect(() => {
     const nextCaret = pendingCaretRef.current;
@@ -145,15 +216,32 @@ export const SessionComposer = ({
         event.preventDefault();
         const direction = event.key === "ArrowDown" ? 1 : -1;
         setSelectedSuggestionIndex((current) => {
-          if(activeSkillCommand){const position=selectableSkillIndexes.indexOf(current);return selectableSkillIndexes[(Math.max(position,0)+direction+selectableSkillIndexes.length)%selectableSkillIndexes.length]??-1;}
+          if (activeSkillCommand) {
+            const position = selectableSkillIndexes.indexOf(current);
+            return (
+              selectableSkillIndexes[
+                (Math.max(position, 0) +
+                  direction +
+                  selectableSkillIndexes.length) %
+                  selectableSkillIndexes.length
+              ] ?? -1
+            );
+          }
           return (current + direction + selectableCount) % selectableCount;
         });
         return;
       }
       if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
         event.preventDefault();
-        const selectedSkillOption=matchingSkills[selectedSuggestionIndex];
-        if(activeSkillCommand&&selectedSkillOption&&isSkillSelectable(selectedSkillOption,session.agentKind)){selectSkill(selectedSkillOption);return;}
+        const selectedSkillOption = matchingSkills[selectedSuggestionIndex];
+        if (
+          activeSkillCommand &&
+          selectedSkillOption &&
+          isSkillSelectable(selectedSkillOption, session.agentKind)
+        ) {
+          selectSkill(selectedSkillOption);
+          return;
+        }
         const selectedCommand = slashCommands[selectedSuggestionIndex];
         if (selectedCommand) executeSlashCommand(selectedCommand.id);
         const selectedPath = fileSuggestions.paths[selectedSuggestionIndex];
@@ -173,7 +261,7 @@ export const SessionComposer = ({
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      onSend();
+      if (canSend && !locked && !busy) onSend();
     }
   };
   const modelOptions = models.map((model) => ({
@@ -202,11 +290,19 @@ export const SessionComposer = ({
       selectFile(selectedPath);
       return;
     }
-    onSend();
+    if (canSend && !locked && !busy) onSend();
   };
   return (
     <div className="session-composer relative bg-background px-4 pb-4 pt-2">
-      {activeSkillCommand ? <SkillCommandMenu skills={matchingSkills} selectedIndex={selectedSuggestionIndex} agentKind={session.agentKind} onHover={setSelectedSuggestionIndex} onSelect={selectSkill}/> : null}
+      {activeSkillCommand ? (
+        <SkillCommandMenu
+          skills={matchingSkills}
+          selectedIndex={selectedSuggestionIndex}
+          agentKind={session.agentKind}
+          onHover={setSelectedSuggestionIndex}
+          onSelect={selectSkill}
+        />
+      ) : null}
       {slashCommands.length > 0 ? (
         <div
           role="listbox"
@@ -252,7 +348,7 @@ export const SessionComposer = ({
             </p>
           ) : fileSuggestions.error ? (
             <p
-              className="px-3 py-2 text-xs text-destructive"
+              className="px-3 py-2 text-xs text-destructive-foreground"
               title={fileSuggestions.error}
             >
               Could not search worktree files.
@@ -289,7 +385,14 @@ export const SessionComposer = ({
         </div>
       ) : null}
       <div className="session-composer__surface">
-        {selectedSkill ? <div className="px-2 pb-2"><SkillInvocationChip skill={selectedSkill} onRemove={()=>onSkillClear?.()}/></div> : null}
+        {selectedSkill ? (
+          <div className="px-2 pb-2">
+            <SkillInvocationChip
+              skill={selectedSkill}
+              onRemove={() => onSkillClear?.()}
+            />
+          </div>
+        ) : null}
         <textarea
           ref={textareaRef}
           value={draft}
@@ -309,148 +412,202 @@ export const SessionComposer = ({
           className="session-composer__input block w-full resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-placeholder disabled:opacity-60"
         />
         <div className="session-composer__toolbar">
-          <div className="session-composer__settings" role="group" aria-label="Message configuration">
+          <div
+            className="session-composer__settings"
+            role="group"
+            aria-label="Message configuration"
+          >
             <div className="session-composer__setting">
               <span className="session-composer__label">Model</span>
-            <PickerMenu
-              ariaLabel="AI model"
-              open={modelPickerOpen}
-              onOpenChange={setModelPickerOpen}
-              options={
-                loadingModels
-                  ? [{ id: modelKey, label: "Loading models…" }]
-                  : modelOptions.length > 0
-                    ? modelOptions
-                    : [
-                        {
-                          id: `${session.providerId}::${session.modelId}`,
-                          label: session.modelId,
-                          hint: session.providerId,
-                        },
-                      ]
-              }
-              value={modelKey}
-              onChange={onModelChange}
-              display={
-                loadingModels
-                  ? "Loading models…"
-                  : selectedModel
-                    ? selectedModel.modelName
-                    : session.modelId
-              }
-              searchable
-              searchPlaceholder="Search models…"
-              emptyLabel="No matching models"
-              disabled={loadingModels || changingModel || models.length === 0}
-              triggerClassName="session-composer__picker max-w-52"
-            />
+              <PickerMenu
+                ariaLabel="AI model"
+                open={modelPickerOpen}
+                onOpenChange={setModelPickerOpen}
+                options={
+                  loadingModels
+                    ? [{ id: modelKey, label: "Loading models…" }]
+                    : modelOptions.length > 0
+                      ? modelOptions
+                      : [
+                          {
+                            id: `${session.providerId}::${session.modelId}`,
+                            label: session.modelId,
+                            hint: session.providerId,
+                          },
+                        ]
+                }
+                value={modelKey}
+                onChange={onModelChange}
+                display={
+                  loadingModels
+                    ? "Loading models…"
+                    : selectedModel
+                      ? selectedModel.modelName
+                      : session.modelId
+                }
+                searchable
+                searchPlaceholder="Search models…"
+                emptyLabel="No matching models"
+                disabled={loadingModels || changingModel || models.length === 0}
+                triggerClassName="session-composer__picker max-w-52"
+              />
             </div>
             {reasoningVariants.length > 0 ? (
               <div className="session-composer__setting">
                 <span className="session-composer__label">Reasoning</span>
-              <PickerMenu
-                ariaLabel="Reasoning level"
-                open={reasoningPickerOpen}
-                onOpenChange={setReasoningPickerOpen}
-                options={reasoningOptions}
-                value={reasoningVariant}
-                onChange={onReasoningChange}
-                display={
-                  reasoningVariant
-                    ? reasoningVariant.charAt(0).toUpperCase() +
-                      reasoningVariant.slice(1)
-                    : "Default"
-                }
-                disabled={locked}
-                triggerClassName="session-composer__picker max-w-40"
+                <PickerMenu
+                  ariaLabel="Reasoning level"
+                  open={reasoningPickerOpen}
+                  onOpenChange={setReasoningPickerOpen}
+                  options={reasoningOptions}
+                  value={reasoningVariant}
+                  onChange={onReasoningChange}
+                  display={
+                    reasoningVariant
+                      ? reasoningVariant.charAt(0).toUpperCase() +
+                        reasoningVariant.slice(1)
+                      : "Default"
+                  }
+                  disabled={locked}
+                  triggerClassName="session-composer__picker max-w-40"
+                />
+              </div>
+            ) : null}
+            <div className="session-composer__setting">
+              <WorktreeResourcePicker
+                assignment={assignment}
+                announceStatus={false}
+                onOpenMarketplace={onOpenMarketplace}
+                onStopSession={onStopSession}
               />
-              </div>
-            ) : null}
-            {capabilityLibrary.length > 0 && onActivateCapability && onDeactivateCapability ? (
-              <div className="session-composer__setting">
-                <span className="session-composer__label">Capabilities</span>
-                <CapabilityPicker runId={session.id} agentKind={session.agentKind} capabilities={capabilityLibrary} disabled={locked || capabilityReloading} onActivate={onActivateCapability} onDeactivate={onDeactivateCapability} />
-              </div>
-            ) : null}
+            </div>
           </div>
           <div className="session-composer__actions">
-          {busy ? (
-            <Button
-              className="session-composer__send"
-              type="button"
-              size="icon"
-              variant="destructive"
-              aria-label={`Stop ${session.agentName}`}
-              title={`Stop ${session.agentName}`}
-              onClick={onStop}
-            >
-              <span
-                aria-hidden="true"
-                className="size-3 rounded-[1px] bg-current"
-              />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="icon"
-              className="session-composer__send"
-              aria-label="Send message"
-              title="Send message (Enter)"
-              onClick={submit}
-              disabled={(!draft.trim() && !selectedSkill) || locked}
-            >
-              <ArrowUp className="size-4" aria-hidden="true" />
-            </Button>
-          )}
+            {busy ? (
+              <Button
+                className="session-composer__send"
+                type="button"
+                size="icon"
+                variant="destructive"
+                aria-label={`Stop ${session.agentName}`}
+                title={`Stop ${session.agentName}`}
+                onClick={onStop}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-3 rounded-[1px] bg-current"
+                />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon"
+                className="session-composer__send"
+                aria-label="Send message"
+                title="Send message (Enter)"
+                onClick={submit}
+                disabled={
+                  (!draft.trim() && !selectedSkill) || locked || !canSend
+                }
+              >
+                <ArrowUp className="size-4" aria-hidden="true" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
-        <div className="session-composer__metadata">
-          <div
-            className="flex min-w-0 items-center gap-2 text-muted-foreground"
-            title={branchName}
-          >
-            <GitBranch
-              className="size-3.5 shrink-0 text-primary/80"
-              aria-hidden="true"
-            />
-            <span className="shrink-0 uppercase tracking-[0.12em] text-[9px] font-semibold text-muted-foreground/70">
-              Branch
-            </span>
-            <span className="truncate font-mono text-foreground/80">
-              {branchName ?? "Current branch"}
-            </span>
-          </div>
-          <div
-            className="flex shrink-0 items-center gap-2"
-            aria-label={
-              usage
-                ? `Context used: ${usage.contextPercentage.toFixed(0)}%`
-                : "Context usage unavailable"
-            }
-            title={
-              usage
-                ? `${usage.contextTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
-                : "Context usage unavailable"
-            }
-          >
-            <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
-            <div className="flex gap-0.5" aria-hidden="true">
-              {Array.from({ length: 8 }, (_, index) => (
-                <span
-                  key={index}
-                  className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
-                />
-              ))}
-            </div>
-            <span className="font-mono text-[10px] font-medium text-foreground/80">
-              {usage
-                ? `${usage.contextPercentage.toFixed(0)}% context`
-                : "Context —"}
-            </span>
-          </div>
+      <div className="session-composer__metadata">
+        <div
+          className="flex min-w-0 items-center gap-2 text-muted-foreground"
+          title={branchName}
+        >
+          <GitBranch
+            className="size-3.5 shrink-0 text-primary/80"
+            aria-hidden="true"
+          />
+          <span className="shrink-0 uppercase tracking-[0.12em] text-[9px] font-semibold text-muted-foreground/70">
+            Branch
+          </span>
+          <span className="truncate font-mono text-foreground/80">
+            {branchName ?? "Current branch"}
+          </span>
         </div>
-        <p className="session-composer__hint">Enter to send · Shift + Enter for newline</p>
+        <div
+          className="flex shrink-0 items-center gap-2"
+          aria-label={
+            usage
+              ? `Context used: ${usage.contextPercentage.toFixed(0)}%`
+              : "Context usage unavailable"
+          }
+          title={
+            usage
+              ? `${usage.contextTokens.toLocaleString()} / ${usage.contextWindow.toLocaleString()} tokens`
+              : "Context usage unavailable"
+          }
+        >
+          <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
+          <div className="flex gap-0.5" aria-hidden="true">
+            {Array.from({ length: 8 }, (_, index) => (
+              <span
+                key={index}
+                className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
+              />
+            ))}
+          </div>
+          <span className="font-mono text-[10px] font-medium text-foreground/80">
+            {usage
+              ? `${usage.contextPercentage.toFixed(0)}% context`
+              : "Context —"}
+          </span>
+        </div>
+      </div>
+      <p
+        role="status"
+        aria-live="polite"
+        className="px-1 pt-1 text-xs text-muted-foreground"
+      >
+        {skillNotice ||
+          (preparingResources
+            ? "Preparing worktree resources…"
+            : assignment.stale
+              ? "Refresh worktree resources before sending."
+              : assignment.projection?.progress
+                ? `${assignment.projection.progress.step.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase())}${assignment.projection.progress.total ? ` · ${assignment.projection.progress.completed} of ${assignment.projection.progress.total}` : ""}`
+                : !canSend
+                  ? assignment.projection?.admission.message
+                  : "")}
+      </p>
+      {assignment.projection?.phase === "recovery_required" ? (
+        <p
+          key={`recovery-${assignment.projection.revision}`}
+          role="alert"
+          className="px-1 pt-1 text-xs text-destructive-foreground"
+        >
+          Resource state could not be verified. Agent actions are paused for
+          this worktree. Open Resources to recover. Conversation and history are
+          preserved.
+        </p>
+      ) : null}
+      {assignment.projection?.phase === "failed_rolled_back" ? (
+        <p
+          key={`failure-${assignment.projection.revision}`}
+          role="alert"
+          className="px-1 pt-1 text-xs text-destructive-foreground"
+        >
+          Resource changes failed. Your previous verified setup is still active.
+        </p>
+      ) : null}
+      {session.agentKind === "codex" ? (
+        <p className="px-1 pt-1 text-[11px] text-muted-foreground">
+          <span>Isolation not enforced</span> ·{" "}
+          <span>
+            Codex may access other Skills outside this worktree Assignment.
+          </span>
+        </p>
+      ) : null}
+      <p className="session-composer__hint">
+        Enter to send · Shift + Enter for newline
+      </p>
     </div>
   );
 };

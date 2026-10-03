@@ -1,7 +1,4 @@
-import type {
-  CodingAgentMessageDto,
-  CodingAgentSessionSnapshotDto,
-} from "../../../../shared/ipc/schemas";
+import type { CodingAgentMessageDto } from "../../../../shared/ipc/schemas";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEffect, useMemo, useRef } from "react";
@@ -11,6 +8,7 @@ import { AIMessage } from "./AIMessage";
 import { SessionThought } from "./SessionThought";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { CommandApprovalCard } from "./CommandApprovalCard";
+import { SessionResourceActivity } from "./SessionResourceActivity";
 import { buildSessionMessageEntries } from "../lib/session-messages";
 import type { PendingPermission } from "../types";
 
@@ -25,8 +23,7 @@ type Props = {
   onRespondPermission: (response: "once" | "always" | "reject") => void;
   onOpenFile?: (href: string) => boolean;
   children?: ReactNode;
-  capabilities?: CodingAgentSessionSnapshotDto["capabilities"];
-  skillInvocations?: CodingAgentSessionSnapshotDto["skillInvocations"];
+  runId?: string;
 };
 
 export const SessionMessages = ({
@@ -40,8 +37,7 @@ export const SessionMessages = ({
   onRespondPermission,
   onOpenFile,
   children,
-  capabilities = [],
-  skillInvocations = [],
+  runId,
 }: Props) => {
   const messagesRef = useRef<HTMLDivElement>(null);
   const hasMountedRef = useRef(false);
@@ -83,30 +79,7 @@ export const SessionMessages = ({
           Ask {agentName} to make a change in this worktree.
         </div>
       ) : null}
-      {skillInvocations.map((invocation)=><div key={`skill-${invocation.id}`} className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/25 px-3 py-2 font-mono text-[11px] text-muted-foreground"><span className={`size-1.5 rounded-full ${invocation.status==="loaded"?"bg-emerald-400":invocation.status==="failed"?"bg-destructive":"bg-warning"}`}/>{invocation.status==="loaded"?"Loaded skill":invocation.status==="failed"?"Failed skill":"Requested skill"}: {invocation.name}</div>)}
-      {capabilities
-        .filter(
-          (capability) =>
-            capability.activatedAt ||
-            capability.deactivatedAt ||
-            capability.state === "activation_failed",
-        )
-        .map((capability) => (
-          <div
-            key={`capability-${capability.id}`}
-            className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/25 px-3 py-2 font-mono text-[11px] text-muted-foreground"
-          >
-            <span
-              className={`size-1.5 rounded-full ${capability.state === "active" ? "bg-emerald-400" : capability.state === "activation_failed" ? "bg-destructive" : "bg-muted-foreground"}`}
-            />
-            {capability.name}{" "}
-            {capability.state === "active"
-              ? "activated"
-              : capability.state === "activation_failed"
-                ? "activation failed"
-                : "deactivated"}
-          </div>
-        ))}
+      {runId ? <SessionResourceActivity key={runId} runId={runId} /> : null}
       {entries.map((entry, index) => {
         if (entry.kind === "thought") {
           return (
@@ -219,7 +192,7 @@ export const SessionMessages = ({
           </div>
         </div>
       ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-sm text-destructive-foreground">{error}</p> : null}
       {children}
     </div>
   );

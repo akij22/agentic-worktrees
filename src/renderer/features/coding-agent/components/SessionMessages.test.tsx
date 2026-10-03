@@ -118,17 +118,4 @@ describe("SessionMessages", () => {
         expect(markup).toContain("text-right");
     });
 
-    it.each([
-        ["requested", "Requested skill: Security Review"],
-        ["loaded", "Loaded skill: Security Review"],
-        ["failed", "Failed skill: Security Review"],
-    ] as const)("renders honest %s skill state", (status, copy) => {
-        const markup = renderToStaticMarkup(
-            <SessionMessages agentName="Codex" messages={[]} busy={false} activity={undefined}
-                permission={undefined} error={undefined} onRespondPermission={() => undefined}
-                skillInvocations={[{ id: "inv-1", skillId: "security-review", name: "Security Review", version: "1", mode: "explicit", status, requestedAt: new Date(0).toISOString() }]} />,
-        );
-        expect(markup).toContain(copy);
-    });
-
 });

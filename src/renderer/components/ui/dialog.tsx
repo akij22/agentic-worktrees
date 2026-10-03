@@ -6,6 +6,7 @@ interface DialogProps {
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
   className?: string;
+  ariaLabel?: string;
 }
 
 export const Dialog = ({
@@ -13,6 +14,7 @@ export const Dialog = ({
   onOpenChange,
   children,
   className,
+  ariaLabel,
 }: DialogProps) => {
   React.useEffect(() => {
     if (!open) return;
@@ -30,6 +32,7 @@ export const Dialog = ({
       className="fixed inset-0 z-50 flex items-center justify-center"
       role="dialog"
       aria-modal="true"
+      aria-label={ariaLabel}
     >
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-md"

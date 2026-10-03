@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import {
   type CSSProperties,
   type ReactNode,
@@ -80,6 +81,7 @@ export const CodingAgentSession = ({
   workspaceOpen?: boolean;
   onWorkspaceOpenChange?: (open: boolean) => void;
 }) => {
+  const navigate = useNavigate();
   const sessionState = useCodingAgentSession(runId);
   const [draft, setDraft] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<SkillSummaryDto>();
@@ -321,8 +323,6 @@ export const CodingAgentSession = ({
         title={headerTitle}
         layoutActions={headerActions}
         editorError={editorError?.message}
-        capabilities={sessionState.capabilities}
-        onRemoveCapability={sessionState.deactivateCapability}
         editorAction={
           <DropdownMenu
             label="Open in editor"
@@ -365,8 +365,7 @@ export const CodingAgentSession = ({
           </div>
           <SessionMessages
             agentName={session.agentName}
-            capabilities={sessionState.capabilities}
-            skillInvocations={sessionState.snapshot?.skillInvocations}
+            runId={runId}
             messages={messages}
             busy={agentRunning}
             activity={
@@ -391,15 +390,6 @@ export const CodingAgentSession = ({
             ) : null}
           </SessionMessages>
           <div className="relative shrink-0">
-            {sessionState.capabilityReloading ? (
-              <div className="px-5 py-2 font-mono text-[11px] text-primary">
-                Applying{" "}
-                {sessionState.capabilities.find(
-                  (capability) => capability.state === "reloading",
-                )?.name ?? "capabilities"}
-                …
-              </div>
-            ) : null}
             {accountUsagePopup ? (
               <AccountUsagePopup
                 session={session}
@@ -431,19 +421,20 @@ export const CodingAgentSession = ({
               loadingModels={sessionState.loadingModels}
               changingModel={sessionState.changingModel}
               busy={agentRunning || sessionState.compacting}
-              locked={
-                composerLocked ||
-                sessionState.compacting ||
-                sessionState.capabilityReloading
-              }
-              capabilityLibrary={sessionState.capabilityLibrary}
+              preparingResources={sessionState.sending}
+              locked={composerLocked || sessionState.compacting}
               skills={sessionState.skillLibrary}
               selectedSkill={selectedSkill}
               onSkillSelect={setSelectedSkill}
               onSkillClear={() => setSelectedSkill(undefined)}
-              capabilityReloading={sessionState.capabilityReloading}
-              onActivateCapability={sessionState.activateCapability}
-              onDeactivateCapability={sessionState.deactivateCapability}
+              onOpenMarketplace={(resource) =>
+                navigate("/marketplace", { state: { runId, resource } })
+              }
+              onStopSession={async (targetRunId) => {
+                await window.api.codingAgent.abortSession({
+                  runId: targetRunId,
+                });
+              }}
               onDraftChange={setDraft}
               onModelChange={(key) => void sessionState.changeModel(key)}
               onReasoningChange={sessionState.setReasoningVariant}

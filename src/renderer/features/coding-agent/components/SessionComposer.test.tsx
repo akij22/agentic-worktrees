@@ -7,14 +7,37 @@ import {
   render,
   screen,
   within,
+  waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Api } from "../../../../shared/ipc/api";
 import type { CodingAgentSessionDto } from "../../../../shared/ipc/schemas";
+import { initialProjection } from "../../resources/components/resource-ui-test-fixtures";
 import { SessionComposer } from "./SessionComposer";
 import { SessionStatusPopup } from "./SessionStatusPopup";
+
+const assignmentApi = () => ({
+  get: async ({ agentKind }: { agentKind: "codex" | "opencode" }) => {
+    const value = initialProjection();
+    value.worktreeId = "worktree-1";
+    value.currentAgentKind = agentKind;
+    value.resources[0] = {
+      ...value.resources[0],
+      id: "security-review",
+      version: "1",
+    };
+    return { ok: true as const, value };
+  },
+  onChanged: () => () => undefined,
+});
+beforeEach(() =>
+  Object.defineProperty(window, "api", {
+    configurable: true,
+    value: { resourceAssignment: assignmentApi() },
+  }),
+);
 
 const createSession = (
   agentKind: CodingAgentSessionDto["agentKind"],
@@ -125,23 +148,56 @@ describe("SessionComposer slash commands", () => {
 describe("SessionComposer layout and actions", () => {
   it("labels configuration separately from context metadata", () => {
     render(<InteractiveComposer initialDraft="" />);
-    const configuration = screen.getByRole("group", { name: "Message configuration" });
-    expect(within(configuration).getByRole("button", { name: "AI model" })).toBeTruthy();
-    expect(within(configuration).queryByLabelText("Context usage unavailable")).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Message to agent" })).toBeTruthy();
-    expect(screen.getByText("Enter to send · Shift + Enter for newline")).toBeTruthy();
+    const configuration = screen.getByRole("group", {
+      name: "Message configuration",
+    });
+    expect(
+      within(configuration).getByRole("button", { name: "AI model" }),
+    ).toBeTruthy();
+    expect(
+      within(configuration).queryByLabelText("Context usage unavailable"),
+    ).toBeNull();
+    expect(
+      screen.getByRole("textbox", { name: "Message to agent" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Enter to send · Shift + Enter for newline"),
+    ).toBeTruthy();
   });
 
-  it("sends a draft using the labelled icon action", () => {
+  it("sends a draft using the labelled icon action", async () => {
     const send = vi.fn();
-    render(<InteractiveComposer initialDraft="Review this change" onSend={send} />);
+    render(
+      <InteractiveComposer initialDraft="Review this change" onSend={send} />,
+    );
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: "Send message" })
+          .hasAttribute("disabled"),
+      ).toBe(false),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     expect(send).toHaveBeenCalledOnce();
   });
 
-  it.each([["", false], ["Review", true]])("disables sending for empty or locked drafts", (initialDraft, locked) => {
-    render(<InteractiveComposer initialDraft={initialDraft as string} locked={locked as boolean} />);
-    expect((screen.getByRole("button", { name: "Send message" }) as HTMLButtonElement).disabled).toBe(true);
+  it.each([
+    ["", false],
+    ["Review", true],
+  ])("disables sending for empty or locked drafts", (initialDraft, locked) => {
+    render(
+      <InteractiveComposer
+        initialDraft={initialDraft as string}
+        locked={locked as boolean}
+      />,
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Send message",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
   });
 
   it("preserves the stop action while running", () => {
@@ -162,6 +218,7 @@ describe("SessionComposer file mentions", () => {
     Object.defineProperty(window, "api", {
       configurable: true,
       value: {
+        resourceAssignment: assignmentApi(),
         workspace: { files: { search } },
       } as unknown as Api,
     });
@@ -304,19 +361,206 @@ describe("SessionStatusPopup", () => {
   });
 });
 
-describe("skill commands",()=>{
- const skill={id:"security-review",name:"Security Review",description:"Review authentication",version:"1",source:"local" as const,compatibility:{codex:"supported" as const,opencode:"supported" as const},installationState:"installed" as const,automaticInvocation:true};
- it("selects a filtered skill and leaves arguments in the draft",()=>{const select=vi.fn();function Subject(){const [draft,setDraft]=useState("/skill:sec Review auth");return <SessionComposer session={createSession("codex")} draft={draft} models={[]} modelKey="provider::model" reasoningVariant="" reasoningVariants={[]} loadingModels={false} changingModel={false} busy={false} locked={false} skills={[skill]} onSkillSelect={select} onDraftChange={setDraft} onModelChange={()=>undefined} onReasoningChange={()=>undefined} onSend={()=>undefined} onStop={()=>undefined} onSlashCommand={()=>undefined}/>}render(<Subject/>);const textarea=screen.getByRole("textbox") as HTMLTextAreaElement;fireEvent.keyDown(textarea,{key:"Enter"});expect(select).toHaveBeenCalledWith(skill);expect(textarea.value).toBe("Review auth");});
- it("renders one removable controlled chip",()=>{const clear=vi.fn();render(<SessionComposer session={createSession("codex")} draft="" models={[]} modelKey="provider::model" reasoningVariant="" reasoningVariants={[]} loadingModels={false} changingModel={false} busy={false} locked={false} selectedSkill={skill} onSkillClear={clear} onDraftChange={()=>undefined} onModelChange={()=>undefined} onReasoningChange={()=>undefined} onSend={()=>undefined} onStop={()=>undefined} onSlashCommand={()=>undefined}/>);fireEvent.click(screen.getByRole("button",{name:"Remove Security Review skill"}));expect(clear).toHaveBeenCalled();});
+describe("skill commands", () => {
+  const skill = {
+    id: "security-review",
+    name: "Security Review",
+    description: "Review authentication",
+    version: "1",
+    source: "local" as const,
+    compatibility: {
+      codex: "supported" as const,
+      opencode: "supported" as const,
+    },
+    installationState: "installed" as const,
+    automaticInvocation: true,
+  };
+  it("selects a filtered skill and leaves arguments in the draft", async () => {
+    const select = vi.fn();
+    function Subject() {
+      const [draft, setDraft] = useState("/skill:sec Review auth");
+      return (
+        <SessionComposer
+          session={createSession("codex")}
+          draft={draft}
+          models={[]}
+          modelKey="provider::model"
+          reasoningVariant=""
+          reasoningVariants={[]}
+          loadingModels={false}
+          changingModel={false}
+          busy={false}
+          locked={false}
+          skills={[skill]}
+          onSkillSelect={select}
+          onDraftChange={setDraft}
+          onModelChange={() => undefined}
+          onReasoningChange={() => undefined}
+          onSend={() => undefined}
+          onStop={() => undefined}
+          onSlashCommand={() => undefined}
+        />
+      );
+    }
+    render(<Subject />);
+    await screen.findByRole("button", { name: "Resources, 1 enabled" });
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(select).toHaveBeenCalledWith(skill);
+    expect(textarea.value).toBe("Review auth");
+  });
+  it("renders one removable controlled chip", () => {
+    const clear = vi.fn();
+    render(
+      <SessionComposer
+        session={createSession("codex")}
+        draft=""
+        models={[]}
+        modelKey="provider::model"
+        reasoningVariant=""
+        reasoningVariants={[]}
+        loadingModels={false}
+        changingModel={false}
+        busy={false}
+        locked={false}
+        selectedSkill={skill}
+        onSkillClear={clear}
+        onDraftChange={() => undefined}
+        onModelChange={() => undefined}
+        onReasoningChange={() => undefined}
+        onSend={() => undefined}
+        onStop={() => undefined}
+        onSlashCommand={() => undefined}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Security Review skill" }),
+    );
+    expect(clear).toHaveBeenCalled();
+  });
 });
 
 afterEach(cleanup);
 
-describe("skill command selectability",()=>{
- const baseSkill={id:"security-review",name:"Security Review",description:"Review",version:"1",source:"local" as const,automaticInvocation:true};
- it.each([
-  ["Enter",{...baseSkill,installationState:"installed" as const,compatibility:{codex:"unsupported" as const,opencode:"supported" as const}}],
-  ["Tab",{...baseSkill,installationState:"invalid" as const,compatibility:{codex:"supported" as const,opencode:"supported" as const}}],
- ])("refuses %s selection for a disabled skill",(key,skill)=>{const selected=vi.fn();function Subject(){const [draft,setDraft]=useState("/skill:security");const [chosen,setChosen]=useState<typeof skill>();return <SessionComposer session={createSession("codex")} draft={draft} models={[]} modelKey="provider::model" reasoningVariant="" reasoningVariants={[]} loadingModels={false} changingModel={false} busy={false} locked={false} skills={[skill]} selectedSkill={chosen} onSkillSelect={(value)=>{selected(value);setChosen(skill);}} onSkillClear={()=>setChosen(undefined)} onDraftChange={setDraft} onModelChange={()=>undefined} onReasoningChange={()=>undefined} onSend={()=>undefined} onStop={()=>undefined} onSlashCommand={()=>undefined}/>;}render(<Subject/>);fireEvent.keyDown(screen.getByRole("textbox"),{key});expect(selected).not.toHaveBeenCalled();expect(screen.queryByRole("button",{name:"Remove Security Review skill"})).toBeNull();});
- it("keeps a compatible installed skill selectable with Tab",()=>{const selected=vi.fn();const skill={...baseSkill,installationState:"installed" as const,compatibility:{codex:"supported" as const,opencode:"supported" as const}};function Subject(){const [draft,setDraft]=useState("/skill:security args");const [chosen,setChosen]=useState<typeof skill>();return <SessionComposer session={createSession("codex")} draft={draft} models={[]} modelKey="provider::model" reasoningVariant="" reasoningVariants={[]} loadingModels={false} changingModel={false} busy={false} locked={false} skills={[skill]} selectedSkill={chosen} onSkillSelect={(value)=>{selected(value);setChosen(skill);}} onSkillClear={()=>setChosen(undefined)} onDraftChange={setDraft} onModelChange={()=>undefined} onReasoningChange={()=>undefined} onSend={()=>undefined} onStop={()=>undefined} onSlashCommand={()=>undefined}/>;}render(<Subject/>);fireEvent.keyDown(screen.getByRole("textbox"),{key:"Tab"});expect(selected).toHaveBeenCalledWith(skill);expect(screen.getByRole("button",{name:"Remove Security Review skill"})).toBeTruthy();});
+describe("skill command selectability", () => {
+  const baseSkill = {
+    id: "security-review",
+    name: "Security Review",
+    description: "Review",
+    version: "1",
+    source: "local" as const,
+    automaticInvocation: true,
+  };
+  it.each([
+    [
+      "Enter",
+      {
+        ...baseSkill,
+        installationState: "installed" as const,
+        compatibility: {
+          codex: "unsupported" as const,
+          opencode: "supported" as const,
+        },
+      },
+    ],
+    [
+      "Tab",
+      {
+        ...baseSkill,
+        installationState: "invalid" as const,
+        compatibility: {
+          codex: "supported" as const,
+          opencode: "supported" as const,
+        },
+      },
+    ],
+  ])("refuses %s selection for a disabled skill", (key, skill) => {
+    const selected = vi.fn();
+    function Subject() {
+      const [draft, setDraft] = useState("/skill:security");
+      const [chosen, setChosen] = useState<typeof skill>();
+      return (
+        <SessionComposer
+          session={createSession("codex")}
+          draft={draft}
+          models={[]}
+          modelKey="provider::model"
+          reasoningVariant=""
+          reasoningVariants={[]}
+          loadingModels={false}
+          changingModel={false}
+          busy={false}
+          locked={false}
+          skills={[skill]}
+          selectedSkill={chosen}
+          onSkillSelect={(value) => {
+            selected(value);
+            setChosen(skill);
+          }}
+          onSkillClear={() => setChosen(undefined)}
+          onDraftChange={setDraft}
+          onModelChange={() => undefined}
+          onReasoningChange={() => undefined}
+          onSend={() => undefined}
+          onStop={() => undefined}
+          onSlashCommand={() => undefined}
+        />
+      );
+    }
+    render(<Subject />);
+    fireEvent.keyDown(screen.getByRole("textbox"), { key });
+    expect(selected).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Remove Security Review skill" }),
+    ).toBeNull();
+  });
+  it("keeps a compatible installed skill selectable with Tab", async () => {
+    const selected = vi.fn();
+    const skill = {
+      ...baseSkill,
+      installationState: "installed" as const,
+      compatibility: {
+        codex: "supported" as const,
+        opencode: "supported" as const,
+      },
+    };
+    function Subject() {
+      const [draft, setDraft] = useState("/skill:security args");
+      const [chosen, setChosen] = useState<typeof skill>();
+      return (
+        <SessionComposer
+          session={createSession("codex")}
+          draft={draft}
+          models={[]}
+          modelKey="provider::model"
+          reasoningVariant=""
+          reasoningVariants={[]}
+          loadingModels={false}
+          changingModel={false}
+          busy={false}
+          locked={false}
+          skills={[skill]}
+          selectedSkill={chosen}
+          onSkillSelect={(value) => {
+            selected(value);
+            setChosen(skill);
+          }}
+          onSkillClear={() => setChosen(undefined)}
+          onDraftChange={setDraft}
+          onModelChange={() => undefined}
+          onReasoningChange={() => undefined}
+          onSend={() => undefined}
+          onStop={() => undefined}
+          onSlashCommand={() => undefined}
+        />
+      );
+    }
+    render(<Subject />);
+    await screen.findByRole("button", { name: "Resources, 1 enabled" });
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Tab" });
+    expect(selected).toHaveBeenCalledWith(skill);
+    expect(
+      screen.getByRole("button", { name: "Remove Security Review skill" }),
+    ).toBeTruthy();
+  });
 });

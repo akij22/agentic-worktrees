@@ -1,11 +1,12 @@
 /* Hallmark · pre-emit critique: P5 H4 E4 S5 R5 V4 · Ecosystem Index · modern-minimal */
 import { Blocks, Search } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { SkillDetail } from "../features/skills/components/SkillDetail";
 import { MarketplaceCapabilityDetail } from "../features/marketplace/components/MarketplaceCapabilityDetail";
 import { useMarketplace } from "../features/marketplace/hooks/useMarketplace";
+import { CapabilitySetupDialog } from "../features/capabilities/components/CapabilitySetupDialog";
 const filters = ["all", "capability", "skill", "installed"] as const;
 const label = {
   all: "All",
@@ -18,6 +19,46 @@ export function Marketplace() {
     runId = (location.state as { runId?: string } | null)?.runId,
     market = useMarketplace(runId),
     sourceRef = useRef<HTMLInputElement>(null);
+  const [configuring, setConfiguring] = useState(false);
+  const openedTarget = useRef<string | undefined>(undefined);
+  const navigationState: unknown = location.state;
+  const resource =
+    navigationState &&
+    typeof navigationState === "object" &&
+    "resource" in navigationState
+      ? navigationState.resource
+      : null;
+  const target =
+    resource &&
+    typeof resource === "object" &&
+    "kind" in resource &&
+    "id" in resource &&
+    (resource.kind === "capability" || resource.kind === "skill") &&
+    typeof resource.id === "string"
+      ? { kind: resource.kind, id: resource.id }
+      : null;
+  useEffect(() => {
+    if (!target || market.loading) return;
+    const key = `${location.key}:${target.kind}:${target.id}`;
+    if (openedTarget.current === key) return;
+    const item = market.items.find(
+      (item) =>
+        item.kind === target.kind &&
+        (item.kind === "skill" ? item.skill.id : item.capability.id) ===
+          target.id,
+    );
+    if (item) {
+      openedTarget.current = key;
+      void market.select(item);
+    }
+  }, [
+    location.key,
+    target?.kind,
+    target?.id,
+    market.loading,
+    market.items,
+    market.select,
+  ]);
   const inspect = () => {
     if (market.isExactSpec) void market.inspectPackage(market.query.trim());
   };
@@ -164,23 +205,45 @@ export function Marketplace() {
               }}
             />
           ) : (
-            <MarketplaceCapabilityDetail
-              capability={market.detail}
-              inspection={market.inspection}
-              progress={market.progress}
-              onInstall={() => void market.installCapability()}
-              onRequestUpdate={() => void market.requestUpdate()}
-              onUpdate={() => void market.updateCapability()}
-              removalReview={market.removalReview}
-              onRequestRemoval={() => void market.requestRemoval()}
-              onConfirmRemoval={() => void market.confirmRemoval()}
-              onCancelRemoval={() => market.cancelRemoval()}
-              onCancel={() => {
-                void market
-                  .cancelOperation()
-                  .finally(() => sourceRef.current?.focus());
-              }}
-            />
+            <>
+              {["installed", "needs_setup"].includes(
+                market.detail.installationState,
+              ) ? (
+                <Button
+                  variant="outline"
+                  className="m-4 mb-0"
+                  onClick={() => setConfiguring(true)}
+                >
+                  Configure {market.detail.name}
+                </Button>
+              ) : null}
+              <MarketplaceCapabilityDetail
+                capability={market.detail}
+                inspection={market.inspection}
+                progress={market.progress}
+                onInstall={() => void market.installCapability()}
+                onRequestUpdate={() => void market.requestUpdate()}
+                onUpdate={() => void market.updateCapability()}
+                removalReview={market.removalReview}
+                onRequestRemoval={() => void market.requestRemoval()}
+                onConfirmRemoval={() => void market.confirmRemoval()}
+                onCancelRemoval={() => market.cancelRemoval()}
+                onCancel={() => {
+                  void market
+                    .cancelOperation()
+                    .finally(() => sourceRef.current?.focus());
+                }}
+              />
+              <CapabilitySetupDialog
+                capability={market.detail}
+                open={configuring}
+                onOpenChange={setConfiguring}
+                onConfigure={async (request) => {
+                  await window.api.capabilities.configure(request);
+                  await market.refresh(true);
+                }}
+              />
+            </>
           )
         ) : (
           <div className="grid h-full place-items-center p-6 text-center text-sm text-muted-foreground">
