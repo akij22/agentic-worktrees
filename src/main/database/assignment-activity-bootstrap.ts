@@ -89,6 +89,7 @@ export const assignmentActivitySchemaStatements = [
   )`,
   `CREATE TABLE IF NOT EXISTS worktree_assignment_attempt_participants (
     attempt_id TEXT NOT NULL, agent_kind TEXT NOT NULL, runtime_generation TEXT NOT NULL,
+    prior_runtime_generation TEXT,
     provider_version TEXT NOT NULL, prior_catalog_generation_id TEXT, target_catalog_generation_id TEXT NOT NULL,
     apply_order INTEGER NOT NULL, state TEXT NOT NULL, prior_effective_state_digest TEXT,
     target_effective_state_digest TEXT NOT NULL, updated_at INTEGER NOT NULL,

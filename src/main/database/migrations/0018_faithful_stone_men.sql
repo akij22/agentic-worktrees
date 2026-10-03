@@ -1,0 +1,1 @@
+ALTER TABLE `worktree_assignment_attempt_participants` ADD `prior_runtime_generation` text;

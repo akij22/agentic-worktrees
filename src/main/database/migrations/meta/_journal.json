@@ -127,6 +127,13 @@
       "when": 1790881540488,
       "tag": "0017_easy_scarlet_spider",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1791029096620,
+      "tag": "0018_faithful_stone_men",
+      "breakpoints": true
     }
   ]
 }

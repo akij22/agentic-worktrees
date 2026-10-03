@@ -44,6 +44,28 @@ export interface WorktreeAdmissionLease {
 
 export type WorktreeAdmissionLane = "normal" | "exclusive" | "control";
 
+export class WorktreeRuntimeStartupError extends Error {
+  constructor(cause: unknown, readonly cleanupVerified: boolean) { super(cleanupVerified ? "Owned runtime activation failed." : "Owned runtime activation cleanup could not be verified.", { cause }); }
+}
+
+export interface AssignmentRuntimeReplacement {
+  readonly generation: string;
+  readonly namespaceId: string;
+  stage(): Promise<OwnedWorktreeRuntime>;
+  activate(): Promise<void>;
+  rollback(): Promise<void>;
+  discard(): Promise<void>;
+  finalize(): Promise<void>;
+}
+interface ReplacementEntry {
+  prior: RuntimeEntry;
+  candidate?: RuntimeEntry;
+  generation: string;
+  staging?: Promise<OwnedWorktreeRuntime>;
+  failed: boolean;
+  cleanupVerified: boolean;
+}
+
 interface RuntimeEntry {
   runtime: OwnedWorktreeRuntime;
   leaseCount: number;
@@ -116,6 +138,7 @@ const runtimeKey = (agentKind: CodingAgentKind, worktreeId: string): string =>
   `${agentKind}\0${worktreeId}`;
 
 export class WorktreeRuntimeManager {
+  private readonly replacements = new Map<string, ReplacementEntry>();
   private readonly runtimes = new Map<string, RuntimeEntry>();
   private readonly startControllers = new Map<string, AbortController>();
   private readonly acquiring = new Map<string, number>();
@@ -199,6 +222,24 @@ export class WorktreeRuntimeManager {
     };
   }
 
+  /** A lifecycle snapshot for Assignment coordination; never starts a runtime. */
+  inspectWorktree(worktreeId: string): {
+    runtimes: readonly OwnedWorktreeRuntime[];
+    busy: boolean;
+    fingerprint: string;
+    blockers: readonly ("active_turn" | "queued_follow_up" | "runtime_transition")[];
+  } {
+    const entries = [...this.runtimes.entries()].filter(([, entry]) => entry.runtime.worktreeId === worktreeId);
+    const runtimes = entries.map(([, entry]) => entry.runtime).sort((a, b) => a.agentKind.localeCompare(b.agentKind));
+    const unresolvedReplacement = [...this.replacements.values()].some(entry => entry.prior.runtime.worktreeId === worktreeId && entry.failed && !entry.cleanupVerified && !entry.candidate);
+    const busy = unresolvedReplacement || entries.some(([, entry]) => entry.turnActive || entry.turnWaiters.length > 0 || !!entry.stopping)
+      || [...this.starts.keys(), ...this.acquiring.keys()].some(key => key.endsWith(`\0${worktreeId}`));
+    const blockers = new Set<"active_turn" | "queued_follow_up" | "runtime_transition">();
+    for (const [, entry] of entries) { if (entry.turnActive) blockers.add("active_turn"); if (entry.turnWaiters.length) blockers.add("queued_follow_up"); if (entry.stopping) blockers.add("runtime_transition"); }
+    if (busy && blockers.size === 0 || (this.admissionGates.get(worktreeId)?.readers ?? 0) > 0 && blockers.size === 0) blockers.add("runtime_transition");
+    return { runtimes, busy, blockers: [...blockers], fingerprint: JSON.stringify(entries.map(([key, entry]) => [key, entry.runtime.generation, entry.turnActive, entry.turnWaiters.length, !!entry.stopping, entry.quarantineReason]).sort()) };
+  }
+
   async acquireControlRuntime(agentKind: CodingAgentKind, worktreeId: string,
     runtimeGeneration: string): Promise<WorktreeRuntimeLease> {
     const key = runtimeKey(agentKind, worktreeId);
@@ -217,6 +258,75 @@ export class WorktreeRuntimeManager {
       this.scheduleIdle(key, entry);
       void this.pumpCapacity();
     } };
+  }
+
+  /** Retire an exact owned participant while the Assignment writer holds admission. */
+  async retireAssignmentRuntime(agentKind: CodingAgentKind, worktreeId: string, runtimeGeneration: string): Promise<void> {
+    if (!this.admissionGates.get(worktreeId)?.writer) throw new Error("Assignment retirement requires exclusive admission.");
+    const key = runtimeKey(agentKind, worktreeId), entry = this.runtimes.get(key);
+    if (!entry || entry.runtime.generation !== runtimeGeneration || entry.leaseCount || entry.turnActive) throw new Error("Assignment runtime cannot be safely retired.");
+    await entry.runtime.cancelOwnedWork?.(); await this.stopEntry(key, entry);
+    const replacement = this.replacements.get(key);
+    if (replacement) {
+      if (replacement.staging) await replacement.staging;
+      for (const owned of [replacement.prior, replacement.candidate]) if (owned && owned !== entry) await this.stopEntry(key, owned);
+      this.replacements.delete(key);
+    }
+  }
+
+  async recoverAssignmentReplacements(worktreeId: string): Promise<void> {
+    if (!this.admissionGates.get(worktreeId)?.writer) throw new Error("Replacement recovery requires exclusive admission.");
+    for (const [key, replacement] of this.replacements) {
+      if (replacement.prior.runtime.worktreeId !== worktreeId) continue;
+      if (replacement.staging) { try { await replacement.staging; } catch (error) { if (!replacement.cleanupVerified && !replacement.candidate) throw error; } }
+      for (const owned of [replacement.candidate, replacement.prior]) if (owned) { if (owned.leaseCount || owned.turnActive) throw new Error("Replacement recovery still has owned work."); await owned.runtime.cancelOwnedWork?.(); await this.stopEntry(key, owned); }
+      this.replacements.delete(key);
+    }
+  }
+
+  /** Reserve one temporary owned candidate for an existing slot; ordinary capacity stays closed. */
+  reserveAssignmentReplacement(agentKind: CodingAgentKind, worktreeId: string, priorGeneration: string): AssignmentRuntimeReplacement {
+    const key = runtimeKey(agentKind, worktreeId), prior = this.runtimes.get(key);
+    const requireWriter = () => { if (!this.admissionGates.get(worktreeId)?.writer || this.shuttingDown) throw new Error("Replacement requires owned exclusive Assignment admission."); };
+    requireWriter();
+    if (!prior || prior.runtime.generation !== priorGeneration || prior.turnActive || prior.stopping || this.replacements.has(key)) throw new Error("Replacement prior generation is unavailable.");
+    const ordinal = (this.generationByKey.get(key) ?? 0) + 1; this.generationByKey.set(key, ordinal);
+    const generation = `${this.generationEpoch}:${agentKind}:${worktreeId}:${ordinal}`, namespaceId = randomUUID();
+    const entry: ReplacementEntry = { prior, generation, failed: false, cleanupVerified: true }; this.replacements.set(key, entry);
+    const stage = (): Promise<OwnedWorktreeRuntime> => {
+      requireWriter(); if (entry.staging) return entry.staging;
+      entry.staging = (async () => {
+        // A replacement is bounded to one extra process per existing owned slot. It cannot
+        // consume the rollback candidate or wait for its own ordinary capacity to free.
+        this.reservedStarts += 1;
+        this.reservedStartsByProvider.set(agentKind, (this.reservedStartsByProvider.get(agentKind) ?? 0) + 1);
+        try {
+          const runtime = await this.options.factory.create({ agentKind, worktreeId, generation, namespaceId });
+          if (runtime.agentKind !== agentKind || runtime.worktreeId !== worktreeId || runtime.generation !== generation || runtime.providerVersion !== prior.runtime.providerVersion) throw new Error("Replacement factory ownership or version mismatch.");
+          entry.candidate = { runtime, leaseCount: 0, lastReleasedAt: this.now(), turnActive: false, turnWaiters: [], quarantineReason: null };
+          return runtime;
+        } catch (error) { entry.failed = true; entry.cleanupVerified = error instanceof WorktreeRuntimeStartupError && error.cleanupVerified; throw error; }
+        finally { this.reservedStarts -= 1; this.reservedStartsByProvider.set(agentKind, (this.reservedStartsByProvider.get(agentKind) ?? 1) - 1); }
+      })(); return entry.staging;
+    };
+    const discard = async () => {
+      if (entry.staging) { try { await entry.staging; } catch { entry.failed = true; } }
+      const wasActive = this.runtimes.get(key) === entry.candidate;
+      if (entry.candidate) await this.stopEntry(key, entry.candidate);
+      else if (entry.failed && !entry.cleanupVerified) throw new Error("Replacement startup ownership could not be verified.");
+      if (wasActive && !this.runtimes.has(key)) this.runtimes.set(key, prior);
+      this.replacements.delete(key);
+    };
+    return { generation, namespaceId, stage,
+      activate: async () => { requireWriter(); if (!entry.candidate || entry.failed || this.runtimes.get(key) !== prior) throw new Error("Replacement is not staged against its prior generation."); this.runtimes.set(key, entry.candidate); },
+      rollback: async () => { requireWriter(); await discard(); if (this.runtimes.get(key) !== prior || prior.quarantineReason || prior.stopping) throw new Error("Replacement prior generation is no longer verified."); },
+      discard: async () => { requireWriter(); if (!this.replacements.has(key)) return; if (this.runtimes.get(key) === entry.candidate) throw new Error("An active replacement requires rollback or finalization."); await discard(); },
+      finalize: async () => { requireWriter(); if (!entry.candidate || this.runtimes.get(key) !== entry.candidate) throw new Error("Replacement cannot finalize before activation."); await this.stopEntry(key, prior); this.replacements.delete(key); },
+    };
+  }
+  ownsAssignmentReplacement(agentKind: CodingAgentKind, worktreeId: string, priorGeneration: string, targetGeneration: string): boolean {
+    const entry = this.replacements.get(runtimeKey(agentKind, worktreeId));
+    return !!entry && !entry.failed && !entry.prior.quarantineReason && !entry.candidate?.quarantineReason && entry.prior.runtime.generation === priorGeneration && entry.generation === targetGeneration;
   }
 
   async recoverRuntime(agentKind: CodingAgentKind, worktreeId: string,
@@ -273,8 +383,16 @@ export class WorktreeRuntimeManager {
       for (const waiter of gate.queue.splice(0)) waiter.reject(new Error("Runtime manager is shutting down."));
     }
     await Promise.allSettled([...this.starts.values()]);
+    const replacementErrors: unknown[] = [];
+    for (const [key, replacement] of this.replacements) {
+      if (replacement.staging) { try { await replacement.staging; } catch (error) { if (!replacement.cleanupVerified) replacementErrors.push(error); } }
+      const owned = [replacement.prior, replacement.candidate].filter((entry): entry is RuntimeEntry => !!entry);
+      for (const entry of owned) { try { await this.stopEntry(key, entry); } catch (error) { replacementErrors.push(error); } }
+      if (!replacementErrors.length) this.replacements.delete(key);
+    }
     const entries = [...this.runtimes.entries()];
     await this.stopEntries(entries);
+    if (replacementErrors.length) throw new AggregateError(replacementErrors, "Replacement shutdown could not verify every owned process.");
     for (const [key, entry] of entries) {
       if (this.runtimes.get(key) === entry) this.runtimes.delete(key);
     }
@@ -295,6 +413,12 @@ export class WorktreeRuntimeManager {
       admission = await this.acquireAdmission(worktreeId, "exclusive");
       await Promise.allSettled((["codex", "opencode"] as const).map((kind) =>
         this.starts.get(runtimeKey(kind, worktreeId))));
+      for (const [key, replacement] of this.replacements) {
+        if (replacement.prior.runtime.worktreeId !== worktreeId) continue;
+        if (replacement.staging) await replacement.staging;
+        for (const owned of [replacement.prior, replacement.candidate]) if (owned) { if (owned.leaseCount) throw new Error("Replacement still holds an owned lease."); await this.stopEntry(key, owned); }
+        this.replacements.delete(key);
+      }
       const entries = [...this.runtimes.entries()].filter(
         ([, entry]) => entry.runtime.worktreeId === worktreeId,
       );
@@ -462,6 +586,9 @@ export class WorktreeRuntimeManager {
     runtimeGeneration: string,
   ): void {
     const key = runtimeKey(agentKind, worktreeId);
+    const replacement = this.replacements.get(key);
+    if (replacement?.prior.runtime.generation === runtimeGeneration) replacement.prior.quarantineReason = "process_exit";
+    if (replacement?.generation === runtimeGeneration) { replacement.failed = true; if (replacement.candidate) replacement.candidate.quarantineReason = "process_exit"; }
     const entry = this.runtimes.get(key);
     if (!entry || entry.runtime.generation !== runtimeGeneration) return;
     clearTimeout(entry.idleTimer);

@@ -8,6 +8,8 @@ type TableInfoRow = {
 };
 
 export const applyDatabaseUpgrades = (sqlite: BetterSqlite3.Database): void => {
+  const participantColumns = sqlite.prepare("PRAGMA table_info(worktree_assignment_attempt_participants)").all() as TableInfoRow[];
+  if (participantColumns.length > 0 && !participantColumns.some(column => column.name === "prior_runtime_generation")) sqlite.exec("ALTER TABLE worktree_assignment_attempt_participants ADD COLUMN prior_runtime_generation TEXT");
   const evidenceColumns = sqlite.prepare("PRAGMA table_info(resource_activity_evidence)").all() as TableInfoRow[];
   if (evidenceColumns.length > 0 && !evidenceColumns.some(({ name }) => name === "canonical_digest")) {
     sqlite.exec("ALTER TABLE resource_activity_evidence ADD COLUMN canonical_digest TEXT");

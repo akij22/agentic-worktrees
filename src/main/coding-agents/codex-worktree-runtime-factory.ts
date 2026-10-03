@@ -1,3 +1,4 @@
+import { WorktreeRuntimeStartupError } from "./worktree-runtime-manager";
 import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -117,7 +118,7 @@ export class CodexWorktreeRuntimeFactory implements WorktreeRuntimeFactory {
         throw new Error(
           "Owned Codex activation cleanup could not be verified.",
         );
-      throw error;
+      throw new WorktreeRuntimeStartupError(error, true);
     }
     const key = `${input.worktreeId}\0${input.generation}`;
     const runtime: OwnedCodexRuntime = {
