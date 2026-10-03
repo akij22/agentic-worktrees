@@ -33,7 +33,8 @@
     "smoke:skills": "node scripts/skill-smoke/run.mjs",
     "smoke:skills:codex": "node scripts/skill-smoke/run.mjs --provider codex",
     "smoke:skills:opencode": "node scripts/skill-smoke/run.mjs --provider opencode",
-    "qualify:opencode-resources": "node scripts/opencode-runtime/qualify.mjs"
+    "qualify:opencode-resources": "node scripts/opencode-runtime/qualify.mjs",
+    "qualify:codex-resources": "node scripts/codex-runtime/qualify.mjs"
   },
   "keywords": [],
   "author": {

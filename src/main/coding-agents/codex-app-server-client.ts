@@ -49,6 +49,7 @@ export class CodexAppServerClient {
   private readonly listeners = new Set<
     (message: CodexIncomingMessage) => void
   >();
+  private onUnexpectedExit?: () => void;
   private nextRequestId = 1;
   private initialized = false;
   private stoppingChild: ChildProcessWithoutNullStreams | null = null;
@@ -77,7 +78,7 @@ export class CodexAppServerClient {
       ) as ChildProcessWithoutNullStreams,
   ) {}
 
-  async start(executablePath: string, cwd: string): Promise<void> {
+  async start(executablePath: string, cwd: string, launch?: { env?: NodeJS.ProcessEnv; args?: string[]; onUnexpectedExit?: () => void }): Promise<void> {
     if (this.process) {
       throw new Error('Codex app-server is already running');
     }
@@ -94,7 +95,9 @@ export class CodexAppServerClient {
 
     let childProcess: ChildProcessWithoutNullStreams | null = null;
     try {
-      const spawned = this.spawnCodex(executablePath, ['app-server'], {
+      this.onUnexpectedExit = launch?.onUnexpectedExit;
+      const spawned = this.spawnCodex(executablePath, [...(launch?.args ?? []), 'app-server'], {
+        ...(launch?.env ? { env: launch.env } : {}),
         cwd,
         shell: false,
         stdio: 'pipe',
@@ -382,12 +385,14 @@ export class CodexAppServerClient {
       this.stoppingChild = null;
     }
     this.rejectPending(failure ?? new Error('Codex app-server stopped'));
-
+    const onExit = this.onUnexpectedExit;
+    this.onUnexpectedExit = undefined;
     if (terminateChild) {
       void this.reapChild(childProcess);
     } else {
       this.closePipes(childProcess);
     }
+    if (failure) onExit?.();
   }
 
   private async stopChild(
