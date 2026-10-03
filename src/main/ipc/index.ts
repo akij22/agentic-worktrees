@@ -1,3 +1,5 @@
+import { registerResourceIpcHandlers } from "./resource-ipc";
+export { configureResourceIpc, publishResourceActivity } from "./resource-ipc";
 import {
 	BrowserWindow,
 	dialog,
@@ -700,6 +702,14 @@ const invokeMarketplace = (
 };
 
 export const registerIpcHandlers = (): void => {
+	registerResourceIpcHandlers(ipcMain, () =>
+		BrowserWindow.getAllWindows()
+			.filter(window => !window.isDestroyed() && !window.webContents.isDestroyed())
+			.map(window => ({
+				id: window.webContents.id,
+				send: (channel, payload) => window.webContents.send(channel, payload),
+			})),
+	);
 	ipcMain.handle(IPC_CHANNELS.SKILL_LIST,()=>skillHandlers().list());
 	ipcMain.handle(IPC_CHANNELS.SKILL_GET,(_event,raw)=>skillHandlers().get(raw));
 	ipcMain.handle(IPC_CHANNELS.SKILL_INSTALL,(_event,raw)=>skillHandlers().install(raw));

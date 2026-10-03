@@ -1,4 +1,12 @@
 export const IPC_CHANNELS = {
+	RESOURCE_ASSIGNMENT_GET: "resource-assignment:get",
+	RESOURCE_ASSIGNMENT_SET: "resource-assignment:set",
+	RESOURCE_ASSIGNMENT_RETRY: "resource-assignment:retry",
+	RESOURCE_ASSIGNMENT_CANCEL_PENDING: "resource-assignment:cancel-pending",
+	RESOURCE_ASSIGNMENT_RECOVER: "resource-assignment:recover",
+	RESOURCE_ASSIGNMENT_CHANGED: "resource-assignment:changed",
+	RESOURCE_ACTIVITY_LIST: "resource-activity:list",
+	RESOURCE_ACTIVITY_CHANGED: "resource-activity:changed",
 	GITHUB_AUTH_STATUS: "github:auth-status",
 	GITHUB_AUTH_START: "github:auth-start",
 	GITHUB_AUTH_COMPLETE: "github:auth-complete",

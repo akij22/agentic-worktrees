@@ -1,3 +1,4 @@
+import { createResourcePreloadApi } from "./preload-resources";
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "./shared/ipc/channels";
 import type { Api } from "./shared/ipc/api";
@@ -33,6 +34,7 @@ import {
 import { skillDetailSchema, skillSummarySchema } from "./shared/skills/schemas";
 
 const api: Api = {
+	...createResourcePreloadApi(ipcRenderer),
 	github: {
 		auth: {
 			getStatus: async () =>

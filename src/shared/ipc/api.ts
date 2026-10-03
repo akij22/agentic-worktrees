@@ -1,3 +1,18 @@
+import type {
+	AssignmentGetRequest,
+	AssignmentSetDesiredRequest,
+	AssignmentRevisionRequest,
+	AssignmentRecoverRequest,
+	AssignmentProjectionDto,
+	AssignmentChangedEventDto,
+	AssignmentIpcResult,
+} from "../assignments/schemas";
+import type {
+	ResourceActivityListRequest,
+	SessionResourceActivitySnapshot,
+	SessionResourceActivityChangedEvent,
+	ResourceActivityIpcResult,
+} from "../resource-activity/schemas";
 import type { Repository, Worktree } from "../db/schema";
 import type {
 	BranchDto,
@@ -49,6 +64,24 @@ import type {
 import type { SkillDetailDto, SkillSummaryDto } from "../skills/schemas";
 
 export interface Api {
+	resourceAssignment: {
+		get: (request: AssignmentGetRequest) => Promise<AssignmentIpcResult<AssignmentProjectionDto>>;
+		setDesired: (request: AssignmentSetDesiredRequest) => Promise<AssignmentIpcResult<AssignmentProjectionDto>>;
+		retry: (request: AssignmentRevisionRequest) => Promise<AssignmentIpcResult<AssignmentProjectionDto>>;
+		cancelPending: (request: AssignmentRevisionRequest) => Promise<AssignmentIpcResult<AssignmentProjectionDto>>;
+		recover: (request: AssignmentRecoverRequest) => Promise<AssignmentIpcResult<AssignmentProjectionDto>>;
+		onChanged: (
+			listener: (event: AssignmentChangedEventDto) => void,
+			onInvalid?: () => void,
+		) => () => void;
+	};
+	resourceActivity: {
+		list: (request: ResourceActivityListRequest) => Promise<ResourceActivityIpcResult<SessionResourceActivitySnapshot>>;
+		onChanged: (
+			listener: (event: SessionResourceActivityChangedEvent) => void,
+			onInvalid?: () => void,
+		) => () => void;
+	};
 	github: {
 		auth: {
 			getStatus: () => Promise<GitHubAuthStatusDto>;
