@@ -9,7 +9,7 @@ Default UI and CLI application startup now own transactional Assignment cutover,
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | Passed. |
-| `npm test` | 199 files passed, one skipped; 1,517 tests passed, 14 provider gates skipped in the ordinary run. |
+| `npm test` | 199 files passed, one skipped; 1,518 tests passed, 14 provider gates skipped in the ordinary run. |
 | Pinned-provider run below | Three files, 56 tests passed, zero skipped; exercises all 14 provider gates. |
 | `npm run lint` | Zero errors, 35 nonfatal warnings. |
 | `npm run package` | Passed on macOS arm64, including both native dependencies and production main/preload/renderer builds. |
@@ -45,6 +45,12 @@ The normative source is [the approved specification](../specifications/worktree-
 | Native/package/privacy and rollback | macOS arm64 package passes; key-loss/rotation and transactional recovery cases pass; procedures below cover offline operational rollback. |
 
 Durable **activity storage and Resource IPC** exclude raw provider IDs/events, bodies, prompts, outputs, credentials and private paths. Existing private coding-session metadata needed for verified routing remains confined to the main-process domain; this is not a claim that every application database table contains only activity DTOs.
+
+## Existing-chat resume regression
+
+Post-fix verification: 1,518 ordinary tests passed, typecheck and packaging passed, and lint retains zero errors/35 warnings. The repeated pinned-provider run passed 55 tests with one OpenCode Skill timeout; that exact gate passed on its focused rerun (2.02 seconds). This intermittent timeout is retained as a qualification reliability limitation, rather than reported as a clean combined rerun.
+
+Manual testing exposed an omitted case: a pre-cutover provider thread may be absent from the new owned provider namespace. Live resume then rejected the entire snapshot, hiding the already saved conversation. The snapshot API now returns persisted messages/diffs with a bounded unavailable-runtime notice when Resource admission/resume fails. It does not grant admission or infer Resource use. The chat renders that notice and suppresses automatic live model/usage requests while unavailable. A default-application regression launches the real synthetic provider protocol with a missing legacy thread; a rendered-chat regression checks transcript visibility, the notice and absence of supplementary live requests. Existing provider history is not copied into owned namespaces by this fix; start a new chat to exercise the managed runtime when a legacy thread cannot resume.
 
 ## Operational recovery and rollback
 
@@ -130,3 +136,11 @@ The provider pins are strict; a different installed version requires renewed qua
 | `src/preload.test.ts` | Verify rejected Send and successful void admission responses. |
 | `src/preload.ts` | Decode create/read/send/abort/compact results while preserving the renderer-facing API. |
 | `src/renderer/pages/Dashboard.tsx` | Correct mixed indentation only; preserve existing UI behavior. |
+
+Files added to the final release fix's review scope:
+
+| File | Purpose |
+| --- | --- |
+| `src/renderer/features/coding-agent/hooks/useCodingAgentSession.ts` | Skip live model discovery when a saved session is unavailable, and reconsider when status changes. |
+| `src/renderer/features/coding-agent/views/CodingAgentSession.tsx` | Render the persisted unavailable-runtime notice and stop automatic usage polling for unavailable sessions. |
+| `src/renderer/features/coding-agent/views/CodingAgentSession.resources.test.tsx` | Verify saved transcript visibility, the notice and absence of model/usage requests through the rendered chat. |

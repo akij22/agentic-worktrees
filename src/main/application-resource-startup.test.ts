@@ -55,6 +55,7 @@ vi.mock("electron", async () => {
 });
 import {
   createAgentSession,
+  getAgentSessionSnapshot,
   sendAgentMessage,
   sendAgentSkill,
   abortAgentSession,
@@ -422,6 +423,31 @@ it("binds Resource owners, drains turns and compaction before global changes, an
     getSqlite().exec(
       "UPDATE coding_agent_installations SET enabled=1 WHERE id='codex'",
     );
+    // A pre-cutover thread is absent from the owned provider namespace.
+    // Viewing its durable transcript must not require successful live admission.
+    getSqlite().exec(`
+      INSERT INTO runs (id,repository_id,worktree_id,title,prompt,status,output_status,created_at,updated_at)
+      VALUES ('legacy-run','repo','wt','Saved legacy chat','','idle','idle',1,1);
+      INSERT INTO coding_agent_sessions (run_id,installation_id,external_session_id,provider_id,model_id,created_at,updated_at)
+      VALUES ('legacy-run','codex','missing-pre-cutover-thread','openai','fixture',1,1);
+      INSERT INTO run_messages (id,run_id,sequence,role,message_type,content,created_at,completed_at)
+      VALUES ('legacy-message','legacy-run',1,'user','text','Saved conversation',1,1);
+    `);
+    const archived = await getAgentSessionSnapshot("legacy-run");
+    expect(archived.session).toMatchObject({
+      id: "legacy-run",
+      status: "unavailable",
+      errorMessage:
+        "The agent runtime could not resume this session. Saved messages are still available.",
+    });
+    expect(archived.messages).toEqual([
+      expect.objectContaining({
+        id: "legacy-message",
+        content: "Saved conversation",
+      }),
+    ]);
+    expect(archived.capabilities).toEqual([]);
+    expect(archived.skillInvocations).toEqual([]);
     await services.stop();
     expect(hostProcesses.live.size).toBe(0);
     await services.stop();

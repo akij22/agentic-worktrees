@@ -178,7 +178,7 @@ export const CodingAgentSession = ({
     setComposerUsage(undefined);
   }, [runId]);
   useEffect(() => {
-    if (!sessionState.snapshot) return;
+    if (!sessionState.snapshot || sessionState.snapshot.session.status === "unavailable") return;
     let cancelled = false;
     const refreshUsage = async () => {
       try {
@@ -196,6 +196,7 @@ export const CodingAgentSession = ({
     };
   }, [
     runId,
+    sessionState.snapshot?.session.status,
     sessionState.snapshot?.session.modelId,
     sessionState.snapshot?.session.providerId,
   ]);
@@ -375,7 +376,7 @@ export const CodingAgentSession = ({
               sessionState.compacting ? "Compacting context..." : undefined
             }
             permission={sessionState.permission}
-            error={sessionState.error}
+            error={sessionState.error ?? session.errorMessage ?? undefined}
             onRespondPermission={(response) =>
               void sessionState.respondPermission(response)
             }

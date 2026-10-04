@@ -1247,10 +1247,61 @@ const reconcileAgentSessionUnlocked = async (runId: string): Promise<void> => {
   }
 };
 
-export const getAgentSessionSnapshot = (
+export const getAgentSessionSnapshot = async (
   runId: string,
-): Promise<AgentSessionSnapshot> =>
-  withSessionReadLock(runId, () => getAgentSessionSnapshotUnlocked(runId));
+): Promise<AgentSessionSnapshot> => {
+  // Authenticate/resolve the durable run before handling live-admission failure.
+  getSessionRecord(runId);
+  try {
+    return await withSessionReadLock(runId, () =>
+      getAgentSessionSnapshotUnlocked(runId),
+    );
+  } catch (error) {
+    if (!resourceAuthorityRequired) throw error;
+    console.error("coding_agent_session_resume_unavailable");
+    setRunStatus(
+      runId,
+      "unavailable",
+      "The agent runtime could not resume this session. Saved messages are still available.",
+    );
+    return getPersistedAgentSessionSnapshot(runId);
+  }
+};
+
+const getPersistedAgentSessionSnapshot = (runId: string): AgentSessionSnapshot => {
+  return {
+    session: toSummary(getSessionRecord(runId)),
+    context: getStoredContext(getSessionRecord(runId).run.worktreeId),
+    messages: getDatabase()
+      .select()
+      .from(runMessages)
+      .where(eq(runMessages.runId, runId))
+      .orderBy(runMessages.sequence)
+      .all()
+      .map((message) => ({
+        id: message.id,
+        role:
+          message.role === "user"
+            ? ("user" as const)
+            : ("assistant" as const),
+        content: message.content,
+        reasoning:
+          reasoningByRun
+            .get(runId)
+            ?.get(message.id.slice(runId.length + 1)) ?? "",
+        tools:
+          toolsByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ??
+          [],
+        createdAt: message.createdAt.getTime(),
+        completedAt: message.completedAt?.getTime() ?? null,
+      })),
+    diff: getPersistedSessionDiffs(runId),
+    turnDiff: [],
+    capabilities: [],
+    capabilityReloading: false,
+    skillInvocations: [],
+  };
+};
 
 const getAgentSessionSnapshotUnlocked = async (
   runId: string,
@@ -1263,39 +1314,7 @@ const getAgentSessionSnapshotUnlocked = async (
       "unavailable",
       "The worktree for this session is no longer available.",
     );
-    row = getSessionRecord(runId);
-    return {
-      session: toSummary(row),
-      context: storedContext,
-      messages: getDatabase()
-        .select()
-        .from(runMessages)
-        .where(eq(runMessages.runId, runId))
-        .orderBy(runMessages.sequence)
-        .all()
-        .map((message) => ({
-          id: message.id,
-          role:
-            message.role === "user"
-              ? ("user" as const)
-              : ("assistant" as const),
-          content: message.content,
-          reasoning:
-            reasoningByRun
-              .get(runId)
-              ?.get(message.id.slice(runId.length + 1)) ?? "",
-          tools:
-            toolsByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ??
-            [],
-          createdAt: message.createdAt.getTime(),
-          completedAt: message.completedAt?.getTime() ?? null,
-        })),
-      diff: getPersistedSessionDiffs(runId),
-      turnDiff: [],
-      capabilities: capabilityBridge?.listSessionCapabilities(runId) ?? [],
-      capabilityReloading: false,
-      skillInvocations: skillInvocationSource?.(runId) ?? [],
-    };
+    return getPersistedAgentSessionSnapshot(runId);
   }
   await reconcileAgentSessionUnlocked(runId);
   row = getSessionRecord(runId);
