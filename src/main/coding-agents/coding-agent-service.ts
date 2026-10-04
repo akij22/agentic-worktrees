@@ -6,6 +6,7 @@ import { app } from "electron";
 import { desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDatabase } from "../database/client";
+import { skillInvocationRequestSchema, type SkillInvocationRequest } from "../../shared/skills/schemas";
 import {
   codingAgentInstallations,
   codingAgentSessionDiffs,
@@ -43,6 +44,30 @@ import type {
   CodingAgentSkillCatalog,
   ResolvedCodingAgentSkill,
 } from "./types";
+
+import type { WorktreeRuntimeManager } from "./worktree-runtime-manager";
+
+import type { ApplicationResourceRuntime } from "../application-resource-runtime";
+let resourceRuntime: ApplicationResourceRuntime|null = null;
+let resourceAuthorityRequired = false;
+export const isResourceAuthorityRequired = ():boolean => resourceAuthorityRequired;
+export function configureCodingAgentResourceRuntime(runtime: ApplicationResourceRuntime|null,cutover:boolean):void {
+  resourceRuntime=runtime;resourceAuthorityRequired=cutover;worktreeRuntimeManager=runtime?.manager ?? null;
+}
+let worktreeRuntimeManager: WorktreeRuntimeManager | null = null;
+
+export const configureCodingAgentRuntimeManager = (manager: WorktreeRuntimeManager | null): void => {
+  worktreeRuntimeManager = manager;
+};
+
+/** Backend deletion callers put Git removal and database cascades inside this barrier. */
+export const withCodingAgentWorktreeRemoval = async (
+  worktreeId: string, remove: () => Promise<void>,
+): Promise<void> => {
+  if (!worktreeRuntimeManager) throw new Error("Worktree runtime manager is unavailable.");
+  if(resourceRuntime)await resourceRuntime.assignment.removeWorktree(worktreeId,remove);
+  else await worktreeRuntimeManager.stopWorktree(worktreeId, remove);
+};
 
 const execFileAsync = promisify(execFile);
 const STATUS_ACTIVATION_GRACE_MS = 2_000;
@@ -172,6 +197,7 @@ export interface AgentUiEvent {
 }
 
 interface CodingAgentHarness {
+  managed?: boolean;
   installationId: CodingAgentKind;
   name: string;
   adapter: CodingAgentAdapter;
@@ -353,12 +379,17 @@ const getHarness = (kind: string): CodingAgentHarness => {
 const getHarnessForInstallation = (installation: {
   id: string;
   kind: string;
-}): CodingAgentHarness => {
+}, worktreeId?: string): CodingAgentHarness => {
   const harness = getHarness(installation.kind);
   if (installation.id !== harness.installationId) {
     throw new Error(
       `Coding-agent installation identity mismatch: ${installation.id}`,
     );
+  }
+  if (worktreeId && resourceAuthorityRequired) {
+    const owned = resourceRuntime?.manager.inspectWorktree(worktreeId).runtimes.find(runtime=>runtime.agentKind === harness.installationId);
+    if (!owned || !resourceRuntime) throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+    return {...harness,managed:true,adapter:resourceRuntime.adapter(harness.installationId,worktreeId,owned.generation)};
   }
   return harness;
 };
@@ -628,6 +659,7 @@ const ensureStarted = async (harness: CodingAgentHarness): Promise<void> => {
   }
   getHarnessForInstallation(installation);
   const runtime = harness.adapter.getStatus();
+  if(harness.managed && !runtime.running) throw Object.assign(new Error("Owned runtime is unavailable."),{code:"runtime_unavailable"});
   if (runtime.running && runtime.version) return;
   const startupPromise = startupPromises.get(harness.installationId);
   if (startupPromise) return startupPromise;
@@ -778,20 +810,20 @@ export const listAgentWorktrees = async (): Promise<AgentWorktreeContext[]> => {
 
 export const listAgentModels = async (
   runId: string,
-): Promise<CodingAgentModel[]> => {
+): Promise<CodingAgentModel[]> => withSessionReadLock(runId,async () => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   await ensureStarted(harness);
   return harness.adapter.listModels(context.worktree.path);
-};
+});
 
 export const getAgentSessionUsage = async (
   runId: string,
-): Promise<CodingAgentSessionUsage | null> => {
+): Promise<CodingAgentSessionUsage | null> => withSessionReadLock(runId,async () => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   await ensureStarted(harness);
   return harness.adapter.getUsage(
     context.worktree.path,
@@ -801,14 +833,14 @@ export const getAgentSessionUsage = async (
       modelId: row.agent.modelId,
     },
   );
-};
+});
 
 export const getAgentAccountUsage = async (
   runId: string,
-): Promise<CodingAgentAccountUsage> => {
+): Promise<CodingAgentAccountUsage> => withSessionReadLock(runId,async () => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   await ensureStarted(harness);
   return harness.adapter.getAccountUsage(
     context.worktree.path,
@@ -818,7 +850,7 @@ export const getAgentAccountUsage = async (
       modelId: row.agent.modelId,
     },
   );
-};
+});
 
 export const listAgentSessions = (
   worktreeId?: string,
@@ -871,6 +903,27 @@ export const createAgentSession = async (input: {
     throw new Error(`${harness.name} is not configured.`);
   }
   getHarnessForInstallation(installation);
+  if (resourceAuthorityRequired) {
+    if (!resourceRuntime) throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+    const runtime = resourceRuntime;
+    const runId = nanoid();
+    await runtime.withSession({...input,runId,operation:"create"},async adapter=>{
+      const models=await adapter.listModels(context.worktree.path);
+      const model=models.find(item=>item.isDefault) ?? models[0];
+      if(!model) throw new Error("No qualified provider model is available.");
+      const now=new Date();
+      getDatabase().insert(runs).values({id:runId,repositoryId:context.repository.id,worktreeId:input.worktreeId,title:input.title,prompt:"",status:"idle",command:null,outputStatus:"idle",createdAt:now,updatedAt:now}).run();
+      try {
+        const session=await adapter.createSession(context.worktree.path,input.title,{modelId:model.modelId,runId});
+        getDatabase().transaction(tx=>{
+          tx.insert(codingAgentSessions).values({runId,installationId:installation.id,externalSessionId:session.id,providerId:model.providerId,modelId:model.modelId,createdAt:now,updatedAt:now}).run();
+          tx.update(worktrees).set({activeRunId:runId,updatedAt:now}).where(eq(worktrees.id,input.worktreeId)).run();
+        });
+        return session;
+      } catch(error) {getDatabase().delete(runs).where(eq(runs.id,runId)).run();throw error;}
+    });
+    return toSummary(getSessionRecord(runId));
+  }
   const runId = nanoid();
   capabilityBridge?.inheritWorktreeCapabilities(input.worktreeId, runId);
   const capabilityConnection =
@@ -979,6 +1032,15 @@ const withSessionReadLock = async <T>(
   runId: string,
   operation: () => Promise<T>,
 ): Promise<T> => {
+  if (resourceAuthorityRequired) {
+    if(!resourceRuntime) throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+    const row=getSessionRecord(runId), context=getStoredContext(row.run.worktreeId);
+    if(!existsSync(context.worktree.path)) return operation();
+    return resourceRuntime.withSession({worktreeId:row.run.worktreeId,agentKind:getHarness(row.installation.kind).installationId,runId,operation:"resume",externalSessionId:row.agent.externalSessionId},async adapter=>{
+      if(!resourceRuntime?.isTurnActive(runId))await adapter.getSession(context.worktree.path,row.agent.externalSessionId,{runId});
+      return {id:row.agent.externalSessionId,value:await operation()};
+    }).then(result=>result.value);
+  }
   const key = getHarnessForInstallation(
     getSessionRecord(runId).installation,
   ).installationId;
@@ -1083,7 +1145,7 @@ export const setAgentSessionModel = async (input: {
 }): Promise<AgentSessionSummary> => {
   const row = getSessionRecord(input.runId);
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   await ensureStarted(harness);
   const availableModels = await harness.adapter.listModels(
     context.worktree.path,
@@ -1117,7 +1179,7 @@ const reconcileAgentSessionUnlocked = async (runId: string): Promise<void> => {
   try {
     const row = getSessionRecord(runId);
     const context = getContext(row.run.worktreeId);
-    const harness = getHarnessForInstallation(row.installation);
+    const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
     await ensureStarted(harness);
     const needsCapabilityConnection = sessionNeedsCapabilityConnection(runId);
     const capabilityConnection =
@@ -1192,10 +1254,61 @@ const reconcileAgentSessionUnlocked = async (runId: string): Promise<void> => {
   }
 };
 
-export const getAgentSessionSnapshot = (
+export const getAgentSessionSnapshot = async (
   runId: string,
-): Promise<AgentSessionSnapshot> =>
-  withSessionReadLock(runId, () => getAgentSessionSnapshotUnlocked(runId));
+): Promise<AgentSessionSnapshot> => {
+  // Authenticate/resolve the durable run before handling live-admission failure.
+  getSessionRecord(runId);
+  try {
+    return await withSessionReadLock(runId, () =>
+      getAgentSessionSnapshotUnlocked(runId),
+    );
+  } catch (error) {
+    if (!resourceAuthorityRequired) throw error;
+    console.error("coding_agent_session_resume_unavailable");
+    setRunStatus(
+      runId,
+      "unavailable",
+      "The agent runtime could not resume this session. Saved messages are still available.",
+    );
+    return getPersistedAgentSessionSnapshot(runId);
+  }
+};
+
+const getPersistedAgentSessionSnapshot = (runId: string): AgentSessionSnapshot => {
+  return {
+    session: toSummary(getSessionRecord(runId)),
+    context: getStoredContext(getSessionRecord(runId).run.worktreeId),
+    messages: getDatabase()
+      .select()
+      .from(runMessages)
+      .where(eq(runMessages.runId, runId))
+      .orderBy(runMessages.sequence)
+      .all()
+      .map((message) => ({
+        id: message.id,
+        role:
+          message.role === "user"
+            ? ("user" as const)
+            : ("assistant" as const),
+        content: message.content,
+        reasoning:
+          reasoningByRun
+            .get(runId)
+            ?.get(message.id.slice(runId.length + 1)) ?? "",
+        tools:
+          toolsByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ??
+          [],
+        createdAt: message.createdAt.getTime(),
+        completedAt: message.completedAt?.getTime() ?? null,
+      })),
+    diff: getPersistedSessionDiffs(runId),
+    turnDiff: [],
+    capabilities: [],
+    capabilityReloading: false,
+    skillInvocations: [],
+  };
+};
 
 const getAgentSessionSnapshotUnlocked = async (
   runId: string,
@@ -1208,44 +1321,12 @@ const getAgentSessionSnapshotUnlocked = async (
       "unavailable",
       "The worktree for this session is no longer available.",
     );
-    row = getSessionRecord(runId);
-    return {
-      session: toSummary(row),
-      context: storedContext,
-      messages: getDatabase()
-        .select()
-        .from(runMessages)
-        .where(eq(runMessages.runId, runId))
-        .orderBy(runMessages.sequence)
-        .all()
-        .map((message) => ({
-          id: message.id,
-          role:
-            message.role === "user"
-              ? ("user" as const)
-              : ("assistant" as const),
-          content: message.content,
-          reasoning:
-            reasoningByRun
-              .get(runId)
-              ?.get(message.id.slice(runId.length + 1)) ?? "",
-          tools:
-            toolsByRun.get(runId)?.get(message.id.slice(runId.length + 1)) ??
-            [],
-          createdAt: message.createdAt.getTime(),
-          completedAt: message.completedAt?.getTime() ?? null,
-        })),
-      diff: getPersistedSessionDiffs(runId),
-      turnDiff: [],
-      capabilities: capabilityBridge?.listSessionCapabilities(runId) ?? [],
-      capabilityReloading: false,
-      skillInvocations: skillInvocationSource?.(runId) ?? [],
-    };
+    return getPersistedAgentSessionSnapshot(runId);
   }
   await reconcileAgentSessionUnlocked(runId);
   row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   const storedMessages = getDatabase()
     .select()
     .from(runMessages)
@@ -1311,6 +1392,12 @@ const getAgentSessionSnapshotUnlocked = async (
 export type CodingAgentMessageTurn =
   | { content: string }
   | { explicitSkill: ResolvedCodingAgentSkill };
+/** Resolve the exact selected Skill inside the admitted immutable runtime; legacy request tables stay read-only. */
+export const sendAgentSkill = async(runId:string,raw:SkillInvocationRequest,reasoningVariant?:string):Promise<void> => {
+  const request=skillInvocationRequestSchema.parse(raw);
+  if(!resourceAuthorityRequired)throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"resource_unavailable"});
+  await sendAgentMessage(runId,{explicitSkill:{id:request.skillId,name:request.skillId,version:request.version,path:"",arguments:request.arguments}},reasoningVariant);
+};
 export const sendAgentMessage = async (
   runId: string,
   turn: string | CodingAgentMessageTurn,
@@ -1324,8 +1411,18 @@ export const sendAgentMessage = async (
       : (normalizedTurn.explicitSkill.arguments ??
         `/skill:${normalizedTurn.explicitSkill.id}`);
   const row = getSessionRecord(runId);
+  if(resourceAuthorityRequired) {
+    if(!resourceRuntime) throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+    const runtime=resourceRuntime, kind=getHarness(row.installation.kind).installationId;
+    await withSessionReadLock(runId,async()=>undefined);
+    await runtime.submitTurn({worktreeId:row.run.worktreeId,agentKind:kind,runId,externalSessionId:row.agent.externalSessionId},{...normalizedTurn,providerId:row.agent.providerId,modelId:row.agent.modelId,reasoningVariant});
+    if(!row.run.prompt)getDatabase().update(runs).set({prompt:visibleContent,updatedAt:new Date()}).where(eq(runs.id,runId)).run();
+    setRunStatus(runId,runtime.isTurnActive(runId) ? "busy" : "idle",null);
+    scheduleReconcile(runId);
+    return;
+  }
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   if (capabilityBridge?.isReloading(runId))
     throw new Error(
       "Capabilities are being applied. Try again when reload completes.",
@@ -1390,8 +1487,17 @@ export const sendAgentMessage = async (
 
 export const compactAgentSession = async (runId: string): Promise<void> => {
   const row = getSessionRecord(runId);
+  if(resourceAuthorityRequired) {
+    if(!resourceRuntime)throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+    const runtime=resourceRuntime;
+    await withSessionReadLock(runId,async()=>undefined);
+    await runtime.compact({worktreeId:row.run.worktreeId,agentKind:getHarness(row.installation.kind).installationId,runId,externalSessionId:row.agent.externalSessionId},{providerId:row.agent.providerId,modelId:row.agent.modelId});
+    setRunStatus(runId,runtime.isTurnActive(runId) ? "busy" : "idle",null);
+    scheduleReconcile(runId);
+    return;
+  }
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   await ensureStarted(harness);
   setRunStatus(runId, "busy", null);
   const activeCapabilityProfileId =
@@ -1428,8 +1534,12 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
 
 export const abortAgentSession = async (runId: string): Promise<void> => {
   const row = getSessionRecord(runId);
+  if(resourceAuthorityRequired) {
+    if(!resourceRuntime)throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+    await resourceRuntime.abort(runId);setRunStatus(runId,"idle",null);return;
+  }
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   setRunStatus(runId, "aborting", null);
   try {
     await harness.adapter.abort(
@@ -1454,7 +1564,7 @@ export const respondToAgentPermission = async (
 ): Promise<void> => {
   const row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
-  const harness = getHarnessForInstallation(row.installation);
+  const harness = getHarnessForInstallation(row.installation,row.run.worktreeId);
   await harness.adapter.respondPermission(
     context.worktree.path,
     row.agent.externalSessionId,
@@ -1549,6 +1659,15 @@ const handleAdapterEvent = (
   emit({ runId, type: event.type, payload: event.properties });
 };
 
+export function handleOwnedCodingAgentEvent(kind:CodingAgentKind,worktreeId:string,generation:string,event:CodingAgentEvent):void {
+  if(!resourceRuntime?.manager.inspectWorktree(worktreeId).runtimes.some(runtime=>runtime.agentKind === kind && runtime.generation === generation))return;
+  if(event.sessionId) {
+    const runId=findRunIdForExternalSession(kind,event.sessionId);
+    if(!runId || getSessionRecord(runId).run.worktreeId !== worktreeId)return;
+  }
+  handleAdapterEvent(kind,event);
+}
+
 harnessKinds.forEach((kind) => {
   harnesses[kind].adapter.subscribe((event) => handleAdapterEvent(kind, event));
 });
@@ -1556,7 +1675,13 @@ harnessKinds.forEach((kind) => {
 export const stopCodingAgents = async (): Promise<void> => {
   reconcileScheduler.clear();
   capabilityPreparedRuns.clear();
-  await Promise.all(harnessKinds.map((kind) => harnesses[kind].adapter.stop()));
+  const results = await Promise.allSettled([
+    ...(resourceRuntime ? [resourceRuntime.stop()] : worktreeRuntimeManager ? [worktreeRuntimeManager.shutdown()] : []),
+    ...harnessKinds.map((kind) => harnesses[kind].adapter.stop()),
+  ]);
+  const failures = results.filter((result) => result.status === "rejected");
+  if (failures.length) throw new AggregateError(failures.map((result) => result.reason),
+    "Coding agent shutdown failed.");
 };
 
 export type { CodingAgentPermission };

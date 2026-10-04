@@ -99,6 +99,13 @@
       "when": 1790708483080,
       "tag": "0013_first_monster_badoon",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1791147783400,
+      "tag": "0014_unknown_firelord",
+      "breakpoints": true
     }
   ]
 }

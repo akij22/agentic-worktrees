@@ -1,3 +1,5 @@
+import { createResourcePreloadApi, invokeCodingAgentAdmission } from "./preload-resources";
+import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "./shared/ipc/channels";
 import type { Api } from "./shared/ipc/api";
@@ -8,6 +10,14 @@ import {
 	worktreeCapabilityStateSchema,
 	capabilitySummarySchema,
 	codingAgentSessionSnapshotSchema,
+  codingAgentSessionSchema,
+  codingAgentSessionCreateRequestSchema,
+  codingAgentSessionGetRequestSchema,
+  codingAgentSessionSendRequestSchema,
+  codingAgentSessionAbortRequestSchema,
+  codingAgentSessionCompactRequestSchema,
+  codingAgentSessionModelUpdateSchema,
+  codingAgentPermissionResponseSchema,
 	githubAuthStatusSchema,
 	githubDeviceChallengeSchema,
 	githubListBranchesResponseSchema,
@@ -34,6 +44,7 @@ import {
 import { skillDetailSchema, skillSummarySchema } from "./shared/skills/schemas";
 
 const api: Api = {
+	...createResourcePreloadApi(ipcRenderer),
 	github: {
 		auth: {
 			getStatus: async () =>
@@ -283,27 +294,29 @@ const api: Api = {
 		listSessions: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_LIST, request ?? {}),
 		createSession: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_CREATE, request),
+			invokeCodingAgentAdmission(ipcRenderer,IPC_CHANNELS.CODING_AGENT_SESSION_CREATE,request,codingAgentSessionCreateRequestSchema,codingAgentSessionSchema),
 		setSessionModel: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE, request),
+			invokeCodingAgentAdmission(ipcRenderer,IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE,request,codingAgentSessionModelUpdateSchema,codingAgentSessionSchema),
 		getSession: async (request) =>
-			codingAgentSessionSnapshotSchema.parse(
-				await ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_GET, request),
-			),
+			invokeCodingAgentAdmission(ipcRenderer,IPC_CHANNELS.CODING_AGENT_SESSION_GET,request,codingAgentSessionGetRequestSchema,codingAgentSessionSnapshotSchema),
 		markSessionViewed: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED, request),
 		getSessionUsage: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_USAGE, request),
 		getAccountUsage: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_ACCOUNT_USAGE, request),
-		sendMessage: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_SEND, request),
-		compactSession: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT, request),
-		abortSession: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_ABORT, request),
-		respondPermission: (request) =>
-			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND, request),
+		sendMessage: async (request) => {
+      await invokeCodingAgentAdmission(ipcRenderer,IPC_CHANNELS.CODING_AGENT_SESSION_SEND,request,codingAgentSessionSendRequestSchema,z.null());
+    },
+    compactSession: async (request) => {
+      await invokeCodingAgentAdmission(ipcRenderer,IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT,request,codingAgentSessionCompactRequestSchema,z.null());
+    },
+    abortSession: async (request) => {
+      await invokeCodingAgentAdmission(ipcRenderer,IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,request,codingAgentSessionAbortRequestSchema,z.null());
+    },
+		respondPermission: async (request) => {
+      await invokeCodingAgentAdmission(ipcRenderer,IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND,request,codingAgentPermissionResponseSchema,z.null());
+    },
 		onEvent: (listener) => {
 			const handler = (_event: Electron.IpcRendererEvent, payload: unknown) =>
 				listener(payload as Parameters<typeof listener>[0]);

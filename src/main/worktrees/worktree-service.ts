@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { getDatabase } from '../database/client';
+import { getDatabase, getSqlite } from '../database/client';
+import { ResourceCutover } from '../database/resource-cutover';
 import {
   worktrees,
   type Repository,
@@ -67,10 +68,11 @@ export const createWorktree = async (
     setRepositoryCloneStatus(repo.id, 'cloned', created.sourcePath) ?? repo;
 
   const db = getDatabase();
-  const worktree = db
+  const worktreeId = nanoid();
+  const worktree = new ResourceCutover(getSqlite()).writeWorktree(worktreeId, () => db
     .insert(worktrees)
     .values({
-      id: nanoid(),
+      id: worktreeId,
       repositoryId: repo.id,
       name: worktreeName,
       path: created.path,
@@ -83,7 +85,7 @@ export const createWorktree = async (
       updatedAt: now,
     })
     .returning()
-    .get();
+    .get());
 
   return { worktree, repository: updatedRepo };
 };

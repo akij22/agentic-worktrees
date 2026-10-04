@@ -50,7 +50,7 @@ async function boundedResponse(response: Response): Promise<string> {
   if (Number.isFinite(length) && length > MAX_BYTES) throw new Error("catalog_unavailable");
   if (!response.body) { const text = await response.text(); if (Buffer.byteLength(text) > MAX_BYTES) throw new Error("catalog_unavailable"); return text; }
   const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
-  while (true) { const { done, value } = await reader.read(); if (done) break; size += value.byteLength; if (size > MAX_BYTES) { await reader.cancel(); throw new Error("catalog_unavailable"); } chunks.push(value); }
+  for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.byteLength; if (size > MAX_BYTES) { await reader.cancel(); throw new Error("catalog_unavailable"); } chunks.push(value); }
   return Buffer.concat(chunks).toString("utf8");
 }
 

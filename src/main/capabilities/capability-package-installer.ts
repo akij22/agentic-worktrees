@@ -1,3 +1,4 @@
+import type { CapabilityResourceOwner } from "./capability-resource-owner";
 import { randomUUID } from "node:crypto";
 import { updateRecoverySchema, type UpdateRecovery } from "../../shared/packages/update-recovery";
 import type { CapabilityUpdateConfiguration } from "./capability-update-configuration";
@@ -39,6 +40,7 @@ const realFileSystem: InstallerFileSystem = {
   },
 };
 export interface InstallerHooks {
+  resourceOwner?():CapabilityResourceOwner|undefined;
   verifyCommittedPath?: (path: string, expectedDigest: string) => Promise<void>;
   refreshCatalog?: () => Promise<void>;
   fs?: InstallerFileSystem;
@@ -96,7 +98,7 @@ export class CapabilityPackageInstaller {
     const recovery = await this.prepareUpdateRecovery(inspected, configuration);
     try {
       const current = await this.commitFresh(inspected, verification, configuration, assertSessionsCurrent);
-      this.repository.advanceUpdateRecovery(recovery.operationId, recovery.ownerToken, "committed");
+      if(!this.hooks.resourceOwner?.())this.repository.advanceUpdateRecovery(recovery.operationId, recovery.ownerToken, "committed");
       const commit = Object.freeze({ operationId: recovery.operationId, ownerToken: recovery.ownerToken, previous, current });
       this.updates.set(commit, { pointer, configuration: before,
         expectedConfiguration: this.capabilityRepository.snapshotInstalledConfiguration(previous.itemId),
@@ -175,7 +177,10 @@ export class CapabilityPackageInstaller {
     let destinationExisted = false; let destinationDigest: string | undefined; let destinationOwnedByAttempt = false;
     const readOptional = async (path: string) => { try { return await fs.readFile(path); } catch (error) { if (isEnoent(error)) return undefined; throw error; } };
     const statOptional = async (path: string) => { try { return await fs.stat(path); } catch (error) { if (isEnoent(error)) return undefined; throw error; } };
-    try {
+    const owner=this.hooks.resourceOwner?.();
+    let record:ManagedPackageInstallationRecord|undefined;
+    let rollbackPromise:Promise<void>|undefined;
+    const stage=async()=>{
       operationSnapshot = this.repository.snapshotOperation(s.operationId); if (!operationSnapshot) throw new Error("package_install_failed");
       if (verification.contentDigest !== s.contentDigest || verification.capabilityId !== capabilityId || verification.version !== s.resolvedVersion) throw new Error("package_verification_failed");
       previousInstallation = this.repository.getByPackageName(s.packageName); previousConfiguration = this.capabilityRepository.snapshotInstalledConfiguration(capabilityId); expectedUpdateInstallation = previousInstallation; expectedUpdateConfiguration = previousConfiguration;
@@ -195,12 +200,14 @@ export class CapabilityPackageInstaller {
       expectedPointer = Buffer.from(JSON.stringify(data));
       await fs.syncDirectory(dirname(pointer));
       await assertSessionsCurrent?.();
-      const record = this.runInTransaction(() => { if (!updateStateMatches()) throw new Error("package_update_failed"); if (configuration) this.capabilityRepository.saveConfiguration({ capabilityId, version: s.resolvedVersion, permissionDigest: inspected.permissionDigest, configured: configuration.configured }, configuration.settings); else if (!preserveExistingConfiguration) this.capabilityRepository.initializeInstalledConfiguration(inspected.descriptor.manifest, inspected.permissionDigest); return this.repository.commitInstallation(s.operationId, { packageName: s.packageName, itemKind: "capability", itemId: capabilityId, requestedSpec: s.requestedSpec, activeVersion: s.resolvedVersion, activeIntegrity: s.integrity, activeContentDigest: s.contentDigest, trust: inspected.trust, reviewStatus: inspected.reviewStatus, permissionDigest: inspected.permissionDigest, state: "installed" }); });
-      expectedUpdateInstallation = record; expectedUpdateConfiguration = this.capabilityRepository.snapshotInstalledConfiguration(capabilityId);
-      await this.hooks.refreshCatalog?.();
-      if (!updateStateMatches()) throw new Error("package_update_failed");
-      return record;
-    } catch (cause) {
+    };
+    const commit=()=>{
+      record = this.runInTransaction(() => { if (!updateStateMatches()) throw new Error("package_update_failed"); if (configuration) this.capabilityRepository.saveConfiguration({ capabilityId, version: s.resolvedVersion, permissionDigest: inspected.permissionDigest, configured: configuration.configured }, configuration.settings); else if (!preserveExistingConfiguration) this.capabilityRepository.initializeInstalledConfiguration(inspected.descriptor.manifest, inspected.permissionDigest); return this.repository.commitInstallation(s.operationId, { packageName: s.packageName, itemKind: "capability", itemId: capabilityId, requestedSpec: s.requestedSpec, activeVersion: s.resolvedVersion, activeIntegrity: s.integrity, activeContentDigest: s.contentDigest, trust: inspected.trust, reviewStatus: inspected.reviewStatus, permissionDigest: inspected.permissionDigest, state: "installed" }); });
+      expectedUpdateInstallation=record;expectedUpdateConfiguration=this.capabilityRepository.snapshotInstalledConfiguration(capabilityId);
+      const recovery=this.repository.listUpdateRecoveries().find(row=>row.operationId === s.operationId);
+      if(owner && recovery)this.repository.advanceUpdateRecovery(recovery.operationId,recovery.ownerToken,"cleanup_pending");
+    };
+    const rollback=()=>rollbackPromise ??= (async()=>{
       if (configuration && snapshotsComplete && (!updateStateMatches() || !(await updatePointerMatches()))) {
         console.error("package_update_rollback_conflict");
         throw new Error("package_update_failed");
@@ -217,7 +224,25 @@ export class CapabilityPackageInstaller {
         try { this.runInTransaction(() => { this.repository.markInstallationInvalid({ packageName: s.packageName, itemKind: "capability", itemId: capabilityId, requestedSpec: s.requestedSpec, activeVersion: s.resolvedVersion, activeIntegrity: s.integrity, activeContentDigest: s.contentDigest, trust: inspected.trust, reviewStatus: inspected.reviewStatus, permissionDigest: inspected.permissionDigest, state: "invalid" }, "package_install_failed"); this.repository.failOperationCoherently(s.operationId, "package_install_failed"); }); } catch { /* startup reconciliation still has the original operation */ }
         (this.hooks.logger ?? ((code) => console.error(code)))("package_install_cleanup_failed");
       }
-      const message = cause instanceof Error && cause.message === "package_verification_failed" ? "package_verification_failed" : "package_install_failed"; throw new Error(message);
+      if(cleanupFailed)throw new Error("package_install_cleanup_failed");
+      if(owner)await this.hooks.refreshCatalog?.();
+    })();
+    const finalize=async()=>{await this.hooks.refreshCatalog?.();if(!updateStateMatches())throw new Error("package_update_failed");};
+    try {
+      if(owner)await owner.publish(inspected,configuration,{stage,commit,rollback,finalize});
+      else {await stage();commit();await finalize();}
+      if(!record)throw new Error("package_install_failed");
+      return record;
+    } catch(cause) {
+      // A committed Assignment cannot be undone by restoring only the package row.
+      if(owner && record && JSON.stringify(this.repository.getByPackageName(s.packageName))===JSON.stringify(record)) {
+        this.repository.markInstallationInvalid({...record,activeVersion:s.resolvedVersion,activeIntegrity:s.integrity,activeContentDigest:s.contentDigest,permissionDigest:inspected.permissionDigest,state:"invalid"},"package_install_failed");
+        throw new Error("package_install_failed");
+      }
+      try {await rollback();} catch {console.error("package_install_cleanup_failed");}
+      const message=cause instanceof Error && cause.message === "package_verification_failed" ? "package_verification_failed" : "package_install_failed";
+      throw new Error(message);
+
     }
   }
 }

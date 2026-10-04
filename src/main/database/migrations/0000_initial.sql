@@ -17,13 +17,17 @@ CREATE TABLE `repositories` (
   `updated_at` integer NOT NULL,
   `last_synced_at` integer
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX `repositories_github_repo_id_unique`
   ON `repositories` (`github_repo_id`);
+--> statement-breakpoint
 CREATE UNIQUE INDEX `repositories_full_name_unique`
   ON `repositories` (`full_name`);
+--> statement-breakpoint
 CREATE UNIQUE INDEX `repositories_local_root_path_unique`
   ON `repositories` (`local_root_path`);
+--> statement-breakpoint
 
 CREATE TABLE `worktrees` (
   `id` text PRIMARY KEY NOT NULL,
@@ -40,11 +44,14 @@ CREATE TABLE `worktrees` (
   `last_synced_at` integer,
   FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE restrict ON UPDATE no action
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX `worktrees_path_unique`
   ON `worktrees` (`path`);
+--> statement-breakpoint
 CREATE INDEX `worktrees_repository_id_idx`
   ON `worktrees` (`repository_id`);
+--> statement-breakpoint
 
 CREATE TABLE `runs` (
   `id` text PRIMARY KEY NOT NULL,
@@ -67,13 +74,17 @@ CREATE TABLE `runs` (
   FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE restrict ON UPDATE no action,
   FOREIGN KEY (`worktree_id`) REFERENCES `worktrees`(`id`) ON DELETE restrict ON UPDATE no action
 );
+--> statement-breakpoint
 
 CREATE INDEX `runs_repository_id_idx`
   ON `runs` (`repository_id`);
+--> statement-breakpoint
 CREATE INDEX `runs_worktree_id_idx`
   ON `runs` (`worktree_id`);
+--> statement-breakpoint
 CREATE INDEX `runs_status_idx`
   ON `runs` (`status`);
+--> statement-breakpoint
 
 CREATE TABLE `run_output_events` (
   `id` text PRIMARY KEY NOT NULL,
@@ -85,11 +96,14 @@ CREATE TABLE `run_output_events` (
   `created_at` integer NOT NULL,
   FOREIGN KEY (`run_id`) REFERENCES `runs`(`id`) ON DELETE cascade ON UPDATE no action
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX `run_output_events_run_sequence_unique`
   ON `run_output_events` (`run_id`, `sequence`);
+--> statement-breakpoint
 CREATE INDEX `run_output_events_run_sequence_idx`
   ON `run_output_events` (`run_id`, `sequence`);
+--> statement-breakpoint
 
 CREATE TABLE `run_messages` (
   `id` text PRIMARY KEY NOT NULL,
@@ -102,8 +116,10 @@ CREATE TABLE `run_messages` (
   `completed_at` integer,
   FOREIGN KEY (`run_id`) REFERENCES `runs`(`id`) ON DELETE cascade ON UPDATE no action
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX `run_messages_run_sequence_unique`
   ON `run_messages` (`run_id`, `sequence`);
+--> statement-breakpoint
 CREATE INDEX `run_messages_run_sequence_idx`
   ON `run_messages` (`run_id`, `sequence`);

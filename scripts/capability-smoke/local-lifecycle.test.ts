@@ -47,7 +47,7 @@ describe("local Web Search package lifecycle", () => {
 
   it("cleans its temporary layout even after a lifecycle assertion failure", async () => {
     const harness = await createHarness();
-    harness.service.update = async () => {};
+    harness.service.update = async () => undefined;
     try {
       await expect(runLocalWebSearchLifecycle(harness.service, harness.fixtures)).rejects.toThrow("Update did not preserve settings");
     } finally {
