@@ -110,8 +110,8 @@ export class CodexWorktreeRuntimeFactory implements WorktreeRuntimeFactory {
         adapter.stop(),
         Promise.resolve().then(() => stopOwnedHosts?.()),
         Promise.resolve().then(() => {
+          // Failed activation has not admitted a session or persisted an attestation.
           options.onUnavailable?.(options.lineage);
-          options.evidence?.retireRuntime(options.lineage);
         }),
       ]);
       if (cleanup.some((result) => result.status === "rejected"))

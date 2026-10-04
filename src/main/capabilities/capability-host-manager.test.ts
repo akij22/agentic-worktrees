@@ -412,3 +412,31 @@ describe("CapabilityHostManager", () => {
     await manager.stopAll();
   });
 });
+
+it("does not report owned host shutdown until the exact utility process exits",async()=>{
+  const child=new FakeChild();
+  const manager=new CapabilityHostManager({launch:()=>child,resolveSecret:async()=>undefined});
+  const ready=manager.ensureHost("owned",[],{},"generation");
+  child.emit("message",{type:"host.ready",runId:"owned",port:3333});
+  await ready;
+  let stopped=false;
+  const stopping=manager.stopOwnedHost("owned","generation").then(()=>{stopped=true;});
+  await Promise.resolve();expect(stopped).toBe(false);
+  child.emit("exit",0);await stopping;expect(stopped).toBe(true);
+});
+
+it("does not finish failed owned startup until the exact child exits",async()=>{
+  const child=new FakeChild();
+  child.postMessage=()=>{throw new Error("Synthetic initialization failure");};
+  const manager=new CapabilityHostManager({catalog:testCatalog,launch:()=>child,resolveSecret:async()=>undefined});
+  let finished=false;
+  const starting=manager.ensureHost("owned",[],{},"generation").catch(error=>{finished=true;throw error;});
+  const rejected=expect(starting).rejects.toThrow("Capability host failed to start");
+  await new Promise<void>(resolve=>setImmediate(resolve));
+  expect(finished).toBe(false);
+  expect(child.killCalls).toBe(1);
+  child.emit("exit",0);
+  await rejected;
+  expect(child.listenerCount("message")).toBe(0);
+  expect(child.listenerCount("exit")).toBe(0);
+});

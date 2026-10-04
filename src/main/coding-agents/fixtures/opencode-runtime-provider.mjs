@@ -34,9 +34,10 @@ const server=createServer(async(req,res)=>{
  else if(/^\/session\/[^/]+$/.test(url.pathname))data=sessions.get(url.pathname.split('/')[2])?.info||{id:url.pathname.split('/')[2]};
  else if(url.pathname.endsWith('/message'))data=history;
  else if(url.pathname.endsWith('/command')||url.pathname.endsWith('/prompt_async')){
-  if(fixture.injectCommand&&url.pathname.endsWith('/command')) {const cmd=(await commands()).find(c=>c.name===input.command);history.push({info:{id:input.messageID,sessionID:url.pathname.split('/')[2],role:'user',time:{created:1}},parts:[{id:'user-part',type:'text',sessionID:url.pathname.split('/')[2],messageID:input.messageID,text:cmd.template}]});}
+  if(fixture.injectCommand&&url.pathname.endsWith('/command')) {const cmd=(await commands()).find(c=>c.name===input.command);history.push({info:{id:input.messageID,sessionID:url.pathname.split('/')[2],role:'user',time:{created:1}},parts:[{id:'user-part',type:'text',sessionID:url.pathname.split('/')[2],messageID:input.messageID,text:(cmd.template+(input.arguments?.trim()?"\n\n"+input.arguments:"")).trim()}]});}
   for(const event of fixture.events||[])for(const stream of streams)stream.write('data: '+JSON.stringify({directory:process.cwd(),payload:event})+'\n\n');
   data={info:{id:'reply',sessionID:url.pathname.split('/')[2]},parts:fixture.commandParts||[]};
+  if(fixture.exitAfterPrompt)setTimeout(()=>process.exit(0),20);
  }
  else data=true;
  res.end(JSON.stringify(data));

@@ -81,6 +81,8 @@ export interface ResolvedCodingAgentSkill {
   id: string;
   name: string;
   path: string;
+  /** Required by authoritative Assignment admission; legacy adapter callers may omit it. */
+  version?: string;
   arguments?: string;
 }
 

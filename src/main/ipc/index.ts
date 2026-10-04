@@ -1,4 +1,4 @@
-import { registerResourceIpcHandlers } from "./resource-ipc";
+import { invokeResourceAdmission, registerResourceIpcHandlers } from "./resource-ipc";
 export { configureResourceIpc, publishResourceActivity } from "./resource-ipc";
 import {
 	BrowserWindow,
@@ -95,6 +95,7 @@ import {
 	autoDiscoverAgent,
 	configureAgent,
 	createAgentSession,
+	isResourceAuthorityRequired,
 	getAgentInstallationStatus,
 	getAgentAccountUsage,
 	getAgentSessionSnapshot,
@@ -105,6 +106,7 @@ import {
 	markAgentSessionViewed,
 	respondToAgentPermission,
 	sendAgentMessage,
+  sendAgentSkill,
 	setAgentSessionModel,
 	subscribeToAgentEvents,
 } from "../coding-agents/coding-agent-service";
@@ -501,24 +503,19 @@ const handleCodingAgentSessionList = async (
 };
 
 const handleCodingAgentSessionCreate = async (
-	_event: IpcMainInvokeEvent,
+	event: IpcMainInvokeEvent,
 	rawRequest: unknown,
-) =>
-	createAgentSession(codingAgentSessionCreateRequestSchema.parse(rawRequest));
+) => invokeResourceAdmission(event,rawRequest,codingAgentSessionCreateRequestSchema,isResourceAuthorityRequired(),requireAuthenticated(createAgentSession));
 
 const handleCodingAgentSessionModelUpdate = async (
-	_event: IpcMainInvokeEvent,
-	rawRequest: unknown,
-) =>
-	setAgentSessionModel(codingAgentSessionModelUpdateSchema.parse(rawRequest));
+  event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => invokeResourceAdmission(event,rawRequest,codingAgentSessionModelUpdateSchema,isResourceAuthorityRequired(),requireAuthenticated(setAgentSessionModel));
 
 const handleCodingAgentSessionGet = async (
-	_event: IpcMainInvokeEvent,
+	event: IpcMainInvokeEvent,
 	rawRequest: unknown,
-) => {
-	const request = codingAgentSessionGetRequestSchema.parse(rawRequest);
-	return getAgentSessionSnapshot(request.runId);
-};
+) => invokeResourceAdmission(event,rawRequest,codingAgentSessionGetRequestSchema,isResourceAuthorityRequired(),requireAuthenticated(request=>getAgentSessionSnapshot(request.runId)));
 
 const handleCodingAgentSessionViewed = async (
 	_event: IpcMainInvokeEvent,
@@ -553,44 +550,41 @@ const handleCodingAgentAccountUsage = async (
 };
 
 const handleCodingAgentSessionSend = async (
-	_event: IpcMainInvokeEvent,
+	event: IpcMainInvokeEvent,
 	rawRequest: unknown,
-) => {
-	const request = codingAgentSessionSendRequestSchema.parse(rawRequest);
+) => invokeResourceAdmission(event,rawRequest,codingAgentSessionSendRequestSchema,isResourceAuthorityRequired(),requireAuthenticated(async request=>{
 	if (request.skillInvocation !== undefined) {
-		await requireSkillService().invokeSkill({...request.skillInvocation,runId:request.runId,...(request.reasoningVariant?{reasoningVariant:request.reasoningVariant}:{})});
+    if(isResourceAuthorityRequired())await sendAgentSkill(request.runId,request.skillInvocation,request.reasoningVariant);
+    else await requireSkillService().invokeSkill({...request.skillInvocation,runId:request.runId,...(request.reasoningVariant?{reasoningVariant:request.reasoningVariant}:{})});
 	} else {
 		await sendAgentMessage(request.runId,{content:request.content},request.reasoningVariant);
 	}
-};
+	return null;
+}));
 
 const handleCodingAgentSessionAbort = async (
-	_event: IpcMainInvokeEvent,
-	rawRequest: unknown,
-) => {
-	const request = codingAgentSessionAbortRequestSchema.parse(rawRequest);
-	await abortAgentSession(request.runId);
-};
+  event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => invokeResourceAdmission(event,rawRequest,codingAgentSessionAbortRequestSchema,isResourceAuthorityRequired(),requireAuthenticated(async request=>{
+  await abortAgentSession(request.runId);
+  return null;
+}));
 
 const handleCodingAgentSessionCompact = async (
-	_event: IpcMainInvokeEvent,
-	rawRequest: unknown,
-) => {
-	const request = codingAgentSessionCompactRequestSchema.parse(rawRequest);
-	await compactAgentSession(request.runId);
-};
+  event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => invokeResourceAdmission(event,rawRequest,codingAgentSessionCompactRequestSchema,isResourceAuthorityRequired(),requireAuthenticated(async request=>{
+  await compactAgentSession(request.runId);
+  return null;
+}));
 
 const handleCodingAgentPermissionRespond = async (
-	_event: IpcMainInvokeEvent,
-	rawRequest: unknown,
-) => {
-	const request = codingAgentPermissionResponseSchema.parse(rawRequest);
-	await respondToAgentPermission(
-		request.runId,
-		request.permissionId,
-		request.response,
-	);
-};
+  event: IpcMainInvokeEvent,
+  rawRequest: unknown,
+) => invokeResourceAdmission(event,rawRequest,codingAgentPermissionResponseSchema,isResourceAuthorityRequired(),requireAuthenticated(async request=>{
+  await respondToAgentPermission(request.runId,request.permissionId,request.response);
+  return null;
+}));
 
 const handleIntelligenceSnapshotGet = (
 	_event: IpcMainInvokeEvent,
@@ -877,15 +871,15 @@ export const registerIpcHandlers = (): void => {
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_CREATE,
-		requireAuthenticated(handleCodingAgentSessionCreate),
+		handleCodingAgentSessionCreate,
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE,
-		requireAuthenticated(handleCodingAgentSessionModelUpdate),
+		handleCodingAgentSessionModelUpdate,
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_GET,
-		requireAuthenticated(handleCodingAgentSessionGet),
+		handleCodingAgentSessionGet,
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_VIEWED,
@@ -901,19 +895,19 @@ export const registerIpcHandlers = (): void => {
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_SEND,
-		requireAuthenticated(handleCodingAgentSessionSend),
+		handleCodingAgentSessionSend,
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT,
-		requireAuthenticated(handleCodingAgentSessionCompact),
+		handleCodingAgentSessionCompact,
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,
-		requireAuthenticated(handleCodingAgentSessionAbort),
+		handleCodingAgentSessionAbort,
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND,
-		requireAuthenticated(handleCodingAgentPermissionRespond),
+		handleCodingAgentPermissionRespond,
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.INTELLIGENCE_REPOSITORIES,

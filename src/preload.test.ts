@@ -12,6 +12,15 @@ const removeRequest={inspectionId:"remove-i",packageName:"@agentic-worktrees/web
 const update={packageName:"@agentic-worktrees/web-search",capabilityId:"agentic-worktrees.web-search",currentVersion:"1.0.0",candidateVersion:"1.1.0",downgrade:false,activeRunCount:0};
 const inspection={inspectionId:"i",packageName:"@agentic-worktrees/web-search",requestedSpec:"@agentic-worktrees/web-search",resolvedVersion:"1.0.0",integrity:"sha",contentDigest:"digest",trust:"official",reviewStatus:"official-reviewed",releaseNotes:"",capability:detail,permissionDigest:"p",expiresAt:"2026-09-02T00:00:00.000Z"};
 
+it("decodes typed session admission failures and preserves the public Send API",async()=>{
+ vi.resetModules();vi.mocked(ipcRenderer.invoke).mockReset();await import("./preload");
+ const api=(mocks.api as Api).codingAgent;
+ vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({ok:false,error:{code:"assignment_waiting_for_idle",message:"Waiting for active sessions before applying resource changes.",retryable:false}});
+ await expect(api.sendMessage({runId:"run",content:"Keep this draft"})).rejects.toMatchObject({code:"assignment_waiting_for_idle",message:"Waiting for active sessions before applying resource changes."});
+ vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({ok:true,value:null});
+ await expect(api.sendMessage({runId:"run",content:"Accepted"})).resolves.toBeUndefined();
+});
+
 describe("marketplace preload",()=>{let api:Api["marketplace"];beforeEach(async()=>{vi.resetModules();mocks.listeners.clear();mocks.remove.mockClear();vi.mocked(ipcRenderer.invoke).mockReset();await import("./preload");api=(mocks.api as Api).marketplace;});
  it("maps every operation with exact payloads and valid returned values",async()=>{
   vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([]);await expect(api.list()).resolves.toEqual([]);expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.MARKETPLACE_LIST,{});

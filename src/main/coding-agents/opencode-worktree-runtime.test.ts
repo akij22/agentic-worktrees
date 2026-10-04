@@ -33,6 +33,7 @@ import {
   type OpenCodeOwnedHostObservation,
   type OpenCodeWorktreeRuntimeOptions,
 } from "./opencode-worktree-runtime";
+import { localResponsesFixture } from "./fixtures/codex-local-responses-fixture";
 import { validateSkillPackage } from "../skills/skill-validation";
 
 const pinnedBinary = process.env.AW_OPENCODE_QUALIFICATION_BINARY;
@@ -42,8 +43,10 @@ function qualificationBinary(): string {
   return pinnedBinary;
 }
 const adapters: OpenCodeAdapter[] = [];
+const models:Awaited<ReturnType<typeof localResponsesFixture>>[]=[];
 afterEach(async () => {
   await Promise.all(adapters.splice(0).map((adapter) => adapter.stop()));
+  await Promise.all(models.splice(0).map(model=>model.close()));
 });
 async function setup(version = "1.18.30") {
   const root = await realpath(
@@ -844,6 +847,8 @@ describe("OpenCode Worktree Runtime admission", () => {
         skill = await assignedSkill(f.root, "alpha"),
         options = managedOptions(f);
       options.skills = [skill];
+      const model=await localResponsesFixture(undefined,[null,{name:"skill",arguments:JSON.stringify({name:"alpha"})},null]);models.push(model);
+      options.modelProvider={id:"qualification",name:"Local qualification",baseUrl:model.baseUrl};
       const evidence = evidenceFor(options);
       options.evidence = evidence;
       const adapter = new OpenCodeAdapter(1000, 10000, options);
@@ -852,11 +857,11 @@ describe("OpenCode Worktree Runtime admission", () => {
       const session = await adapter.createSession(
         f.directory,
         "synthetic context qualification",
-        { modelId: "big-pickle", runId: "run" },
+        { modelId: "qualification", runId: "run" },
       );
       await adapter.sendPrompt(f.directory, session.id, {
-        providerId: "opencode",
-        modelId: "big-pickle",
+        providerId: "qualification",
+        modelId: "qualification",
         explicitSkill: {
           id: "alpha",
           name: "alpha",
@@ -873,8 +878,8 @@ describe("OpenCode Worktree Runtime admission", () => {
         ]),
       );
       await adapter.sendPrompt(f.directory, session.id, {
-        providerId: "opencode",
-        modelId: "big-pickle",
+        providerId: "qualification",
+        modelId: "qualification",
         content:
           "Use the builtin skill tool to load alpha exactly once, then reply SAFE_alpha. Do not call other tools or change files.",
       });
@@ -997,6 +1002,7 @@ describe("OpenCode Worktree Runtime admission", () => {
       explicitSkill: {
         id: "alpha",
         name: "alpha",
+        arguments: "Inert additional instruction.",
         path: join(options.namespaceRoot, "projection/alpha/SKILL.md"),
       },
     });
@@ -1029,6 +1035,8 @@ describe("OpenCode Worktree Runtime admission", () => {
         "thrown",
         "timeout",
       ] as const;
+      const model=await localResponsesFixture(undefined,outcomes.flatMap(mode=>[{name:`owned_receipt_${mode}`,arguments:"{}"},null]));models.push(model);
+      options.modelProvider={id:"qualification",name:"Local qualification",baseUrl:model.baseUrl};
       const capability = defineCapability({
         manifest: {
           id: "test.receipt",
@@ -1131,12 +1139,12 @@ describe("OpenCode Worktree Runtime admission", () => {
           const session = await adapter.createSession(
             f.directory,
             `synthetic ${mode}`,
-            { modelId: "big-pickle", runId: "run" },
+            { modelId: "qualification", runId: "run" },
           );
           dispatchSessionId = session.id;
           await adapter.sendPrompt(f.directory, session.id, {
-            providerId: "opencode",
-            modelId: "big-pickle",
+            providerId: "qualification",
+            modelId: "qualification",
             capabilityProfileId: "profile",
             content: `Call owned_receipt_${mode} exactly once with an empty object. Do not retry or call any other tool. Then reply DONE.`,
           });

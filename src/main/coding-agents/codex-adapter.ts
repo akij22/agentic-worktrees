@@ -679,6 +679,9 @@ export class CodexAdapter implements CodingAgentAdapter {
     await this.requestProvider<unknown>("thread/compact/start", {
       threadId: sessionId,
     });
+    // Compaction acknowledgements do not carry the turn ID required by interrupt.
+    // Read owned history so Stop targets the provider's actual active turn.
+    if (this.projection) await this.refreshThread(sessionId);
   }
 
   async getUsage(

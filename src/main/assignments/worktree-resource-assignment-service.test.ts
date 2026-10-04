@@ -593,8 +593,9 @@ it("rolls back a global update before any Worktree receives a new revision", asy
     });
   await f.manager.shutdown();
 });
-it("removes Worktree Assignment state after owned runtime shutdown", async () => {
+it("removes Worktree Assignment state and retained runs after owned runtime shutdown", async () => {
   const f = await liveFixture();
+  f.db.exec("INSERT INTO runs (id,repository_id,worktree_id,title,prompt,status,output_status,last_sequence,created_at,updated_at) VALUES ('retained-run','repo','wt','t','','idle','idle',0,1,1)");
   await f.service.setDesired({
     worktreeId: "wt",
     expectedRevision: "0",
@@ -1317,4 +1318,57 @@ it("supersedes a pre-effect global target with a fresh immutable operation", asy
   const replacement = f.service.startDistribution({ kind: "skill", id: "review", targetVersion: "3" }); await new Promise<void>(resolve => setImmediate(resolve));
   reader.release(); expect(await oldResult).toMatchObject({ code: "operation_cancelled" }); await replacement.completion;
   expect(await f.service.get("wt")).toMatchObject({ phase: "stable", revision: "2", resources: [{ version: "3" }] }); await f.manager.shutdown();
+});
+
+it("rejects an explicit Resource when its verified generation changes while admission prepares", async () => {
+  const f = fixture();
+  await f.service.reconcileStartup();
+  await f.service.setDesired({worktreeId:"wt",expectedRevision:"0",resources:[{kind:"skill",id:"review",version:"1"}]});
+  await f.service.waitForReconciliation("wt");
+  let resume!:()=>void, entered!:()=>void;
+  const preparing=new Promise<void>(resolve=>{entered=resolve;});
+  const paused=new Promise<void>(resolve=>{resume=resolve;});
+  const service=new WorktreeResourceAssignmentService({sqlite:f.db,runtimeManager:f.manager,
+    resources:{resolve:async()=>skill,prepare:async()=>{entered();await paused;}},
+    providers:{prepare:async()=>{throw new Error("No provider may receive a stale explicit Resource.");}}});
+  const admission=service.withTurnAdmission({worktreeId:"wt",agentKind:"codex",runId:"run",externalSessionId:"session",explicitResources:[{kind:"skill",id:"review",version:"1"}]},async()=>{throw new Error("A stale explicit Resource was admitted.");});
+  const rejected=expect(admission).rejects.toMatchObject({code:"resource_unavailable"});
+  await preparing;
+  await f.service.setDesired({worktreeId:"wt",expectedRevision:"1",resources:[]});
+  await f.service.waitForReconciliation("wt");
+  resume();
+  await rejected;
+  await f.manager.shutdown();
+});
+
+it.each(["waiting_for_idle","applying","recovery_required","busy"] as const)("removes a Worktree safely from %s without losing the shutdown barrier",async phase=>{
+  const f=await liveFixture(phase === "recovery_required" ? "verify:opencode" : null);
+  let reader:Awaited<ReturnType<typeof f.manager.acquireAdmission>>|undefined;
+  let heldTurn:Promise<void>|undefined;
+  const terminal=deferred(),turnEntered=deferred();
+  if(phase === "waiting_for_idle")reader=await f.manager.acquireAdmission("wt","normal");
+  if(phase === "applying")f.pause();
+  if(phase === "recovery_required")f.failRollback();
+  if(phase !== "busy") {
+    await f.service.setDesired({worktreeId:"wt",expectedRevision:"0",resources:[{kind:"skill",id:"review",version:"1"}]});
+    if(phase === "applying")await f.entered.promise;
+    else if(phase === "recovery_required")await f.service.waitForReconciliation("wt");
+    expect((await f.service.get("wt")).phase).toBe(phase);
+  } else {
+    await f.service.withSessionAdmission({worktreeId:"wt",agentKind:"codex",runId:"run",operation:"create"},async lease=>{
+      f.manager.registerSessionRoute({worktreeId:"wt",agentKind:"codex",runId:"run",externalSessionId:"session",runtimeGeneration:lease.runtime.generation,assignmentGenerationId:lease.assignmentGenerationId,catalogGenerationId:lease.catalogGenerationId});
+    });
+    heldTurn=f.service.withTurnAdmission({worktreeId:"wt",agentKind:"codex",runId:"run",externalSessionId:"session"},async()=>{turnEntered.resolve();await terminal.promise;});
+    await turnEntered.promise;
+    expect(f.manager.inspectWorktree("wt").busy).toBe(true);
+  }
+  let externalRemoval=false;
+  const removal=f.service.removeWorktree("wt",async()=>{expect(f.manager.inspectWorktree("wt").runtimes).toHaveLength(0);externalRemoval=true;});
+  await new Promise<void>(resolve=>setImmediate(resolve));
+  if(phase === "waiting_for_idle" || phase === "applying" || phase === "busy")expect(externalRemoval).toBe(false);
+  reader?.release();f.proceed.resolve();terminal.resolve();await heldTurn;
+  await removal;
+  expect(externalRemoval).toBe(true);
+  await expect(f.service.get("wt")).rejects.toMatchObject({code:"worktree_removing"});
+  await f.manager.shutdown();
 });

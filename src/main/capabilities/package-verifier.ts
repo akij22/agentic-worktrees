@@ -16,10 +16,9 @@ export class DisposableCapabilityPackageVerifier implements CapabilityPackageVer
     const requestId = randomUUID(), child = this.dependencies.launch(requestId);
     return new Promise((resolve, reject) => {
       let settled = false;
-      let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (error?: Error, result?: CapabilityExecutableVerification) => { if (settled) return; settled = true; if (timer) clearTimeout(timer); signal.removeEventListener("abort", cancelled); try { child.kill(); } catch { /* cleanup is best effort */ } error ? reject(error) : resolve(result!); };
       const cancelled = () => finish(signal.reason instanceof Error ? signal.reason : new Error("Capability verification cancelled"));
-      timer = setTimeout(() => finish(new Error("Capability verification timed out")), this.dependencies.timeoutMs ?? 10_000);
+      const timer = setTimeout(() => finish(new Error("Capability verification timed out")), this.dependencies.timeoutMs ?? 10_000);
       try {
         signal.addEventListener("abort", cancelled, { once: true });
         child.onExit(() => finish(new Error("Capability verifier stopped unexpectedly")));

@@ -141,6 +141,7 @@ export class CapabilityHostManager {
         );
       return existing.ready;
     }
+    const ownedToken = runtimeGenerationId ? (this.dependencies.createToken?.() ?? randomBytes(32).toString("base64url")) : undefined;
     const child = this.dependencies.launch(runId);
     let cleaned = false;
     let ownedRecord: HostRecord | undefined;
@@ -182,7 +183,7 @@ export class CapabilityHostManager {
       }
     };
     try {
-      const token =
+      const token = ownedToken ??
         this.dependencies.createToken?.() ??
         randomBytes(32).toString("base64url");
       let resolveReady!: (connection: CapabilityHostConnection) => void;
@@ -212,10 +213,11 @@ export class CapabilityHostManager {
               "Capability host startup timed out.",
             ),
           );
-          this.stopHost(runId);
+          if(!runtimeGenerationId)this.stopHost(runId);
         }
       }, this.dependencies.startupTimeoutMs ?? 10_000);
       this.hosts.set(runId, record);
+      if(runtimeGenerationId)record.ready=ready.catch(async error=>{await this.stopOwnedHost(runId,runtimeGenerationId);throw error;});
 
       const messageListener = (raw: unknown) => {
         if (this.hosts.get(runId) !== record) return;
@@ -273,15 +275,15 @@ export class CapabilityHostManager {
         capabilities,
         settings,
       });
-      return ready;
+      return record.ready;
     } catch {
+      const error=new CapabilityError("internal_error","Capability host failed to start.");
+      if(runtimeGenerationId && ownedRecord) {
+        ownedRecord.rejectReady(error);
+        return ownedRecord.ready;
+      }
       cleanupOwnedChild();
-      return Promise.reject(
-        new CapabilityError(
-          "internal_error",
-          "Capability host failed to start.",
-        ),
-      );
+      return Promise.reject(error);
     }
   }
 
@@ -373,6 +375,20 @@ export class CapabilityHostManager {
     settingKey: string,
   ): Promise<string | undefined> {
     return this.dependencies.resolveSecret(capabilityId, settingKey);
+  }
+
+  async stopOwnedHost(ownerId:string,runtimeGenerationId:string):Promise<void> {
+    const record=this.hosts.get(ownerId);
+    if(!record)return;
+    if(record.runtimeGenerationId !== runtimeGenerationId)throw new Error("Owned host generation mismatch.");
+    let dispose:()=>void = () => undefined;
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    const exited=new Promise<void>((resolve,reject)=>{
+      dispose=record.child.onExit(()=>resolve()) ?? (() => undefined);
+      timer=setTimeout(()=>reject(new Error("Owned host exit could not be verified.")),5_000);
+      try {if(!record.child.kill())reject(new Error("Owned host shutdown was rejected."));} catch {reject(new Error("Owned host shutdown failed."));}
+    });
+    try {await exited;this.stopHost(ownerId);} finally {clearTimeout(timer);dispose?.();}
   }
 
   stopHost(runId: string): void {
@@ -519,14 +535,17 @@ export function createElectronCapabilityHostManager(
     CapabilityHostManagerDependencies,
     "onObservation"
   > = {},
+  hostBundlePath = path.join(__dirname, "capability-host.js"),
+  environment?:Readonly<NodeJS.ProcessEnv>,
 ): CapabilityHostManager {
   return new CapabilityHostManager({
     ...observationOptions,
     launch: (runId) =>
       adaptElectronUtilityProcess(
-        utilityProcess.fork(path.join(__dirname, "capability-host.js"), [], {
+        utilityProcess.fork(hostBundlePath, [], {
           serviceName: `Agentic Worktrees Capability Host ${runId}`,
           stdio: "pipe",
+          ...(environment ? {env:{...environment}} : {}),
         }),
       ),
     resolveSecret,

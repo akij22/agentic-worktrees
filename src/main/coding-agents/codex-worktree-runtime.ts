@@ -451,7 +451,7 @@ export function createCodexEvidenceContract(
 ): ProviderEvidenceContract {
   const snapshot = structuredClone({
     lineage: options.lineage,
-    skills: options.skills,
+    skills: options.skills.map(skill=>({identity:skill.identity,name:skill.name,bodyDigest:skill.files.find(file=>file.relativePath === "SKILL.md")?.content ? codexBodyDigest(skill.files.find(file=>file.relativePath === "SKILL.md")?.content ?? "") : null})),
     tools: options.capabilityTools,
   });
   const matches = (lineage: ActivityLineage) =>
@@ -477,11 +477,6 @@ export function createCodexEvidenceContract(
     resolveTool: (l, s, t) => tool(l, s, t)?.identity ?? null,
     resolveHostTool: (l, s, t) => tool(l, s, t)?.hostToolName ?? null,
     resolveSkill: (l, s) => skill(l, s)?.identity ?? null,
-    resolveSkillBodyDigest: (l, s) => {
-      const body = skill(l, s)?.files.find(
-        (f) => f.relativePath === "SKILL.md",
-      )?.content;
-      return body ? codexBodyDigest(body) : null;
-    },
+    resolveSkillBodyDigest: (l, s) => skill(l,s)?.bodyDigest ?? null,
   };
 }

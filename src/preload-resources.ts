@@ -10,6 +10,25 @@ type RendererPort = Pick<
   Electron.IpcRenderer,
   "invoke" | "on" | "removeListener"
 >;
+export class ResourceAdmissionError extends Error {
+  readonly code:assignment.AssignmentErrorCode;
+  readonly retryable:boolean;
+  readonly current?:assignment.AssignmentProjectionDto;
+  constructor(error:assignment.AssignmentIpcError) {
+    super(error.message);this.name="ResourceAdmissionError";this.code=error.code;this.retryable=error.retryable;this.current=error.current;
+  }
+}
+export async function invokeCodingAgentAdmission<Request,Value>(port:Pick<RendererPort,"invoke">,channel:IpcChannel,raw:Request,requestSchema:z.ZodType<Request>,valueSchema:z.ZodType<Value>):Promise<Value> {
+  const request=isBoundedResourcePayload(raw,1_048_576) ? requestSchema.safeParse(raw) : null;
+  if(!request?.success)throw new ResourceAdmissionError({code:"assignment_invalid_resource",message:"Invalid agent request.",retryable:false});
+  let result:assignment.AssignmentIpcResult<Value>;
+  try {
+    const response:unknown=await port.invoke(channel,request.data);
+    result=assignment.assignmentIpcResultSchema(valueSchema).parse(response);
+  } catch {throw new ResourceAdmissionError({code:"internal_error",message:"The agent action could not be completed. Try again.",retryable:true});}
+  if(!result.ok)throw new ResourceAdmissionError(result.error);
+  return result.value;
+}
 const assignmentFailure = (
   invalid = false,
 ): assignment.AssignmentIpcResult<assignment.AssignmentProjectionDto> => ({

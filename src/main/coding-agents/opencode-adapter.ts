@@ -878,7 +878,7 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
         ? `msg_${randomBytes(16).toString("hex")}`
         : undefined;
       if (skill && messageID)
-        this.resourceEvidence?.requestedSkill(sessionId, messageID, skill);
+        this.resourceEvidence?.requestedSkill(sessionId, messageID, skill, input.explicitSkill.arguments);
       if (this.projection) this.activeManagedSessions.add(sessionId);
       try {
         await this.requireClient().session.command({

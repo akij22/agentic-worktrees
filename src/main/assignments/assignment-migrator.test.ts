@@ -81,4 +81,14 @@ describe("AssignmentMigrator", () => {
     expect(sqlite.prepare("SELECT count(*) count FROM worktree_assignments").get()).toEqual({ count: 0 });
     expect(sqlite.prepare("SELECT failure_code failureCode FROM worktree_assignment_migrations").get()).toEqual({ failureCode: "migration_capability_transitional" });
   });
+  it("rejects broken legacy run references globally before cutover", () => {
+    sqlite.exec(`INSERT INTO capability_installations (capability_id,version,permission_digest,configured,created_at,updated_at) VALUES ('search','1','permission',1,1,1)`);
+    sqlite.pragma("foreign_keys = OFF");
+    sqlite.exec(`INSERT INTO session_capabilities (id,run_id,capability_id,version,status,created_at,updated_at)
+      VALUES ('orphan','missing-run','search','1','active',1,1)`);
+    sqlite.pragma("foreign_keys = ON");
+    expect(() => new AssignmentMigrator(sqlite).runInitialMigration()).toThrow(/migration_reference_invalid/);
+    expect(sqlite.prepare("SELECT count(*) count FROM worktree_assignments").get()).toEqual({ count: 0 });
+  });
+
 });

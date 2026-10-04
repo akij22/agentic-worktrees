@@ -13,7 +13,9 @@ if (process.argv.includes("--version")) {
   console.log(`codex-cli ${fixture.version}`);
   process.exit(0);
 }
-const threads = new Map();
+const threadStore=join(process.env.CODEX_HOME || process.cwd(),"synthetic-threads.json");
+const threads = new Map(JSON.parse(await readFile(threadStore,"utf8").catch(()=>"[]")));
+const persistThreads=()=>writeFile(threadStore,JSON.stringify([...threads]));
 let roots = [];
 let managedServers = [];
 await writeFile(
@@ -43,6 +45,7 @@ lineReader.on("line", async (line) => {
   const p = request.params || {};
   let result = {};
   if (request.method === "initialize") result = { userAgent: "codex/0.154.0" };
+  else if (request.method === "model/list") result={data:[{id:"fixture",model:"fixture",displayName:"Fixture",hidden:false,supportedReasoningEfforts:[],isDefault:true}],nextCursor:null};
   else if (request.method === "config/read")
     result = {
       config: JSON.parse(process.env.AW_CODEX_CONFIG || "{}"),
@@ -79,6 +82,7 @@ lineReader.on("line", async (line) => {
       path: null,
     };
     threads.set(id, thread);
+    await persistThreads();
     result = { thread };
   } else if (
     request.method === "thread/read" ||
@@ -86,11 +90,30 @@ lineReader.on("line", async (line) => {
   )
     result = { thread: fixture.thread || threads.get(p.threadId) };
   else if (request.method === "turn/start") {
+    const thread=threads.get(p.threadId);
+    if(thread){thread.status={type:"active"};thread.turns=[{id:"turn-1",status:"inProgress",items:[],error:null,startedAt:1,completedAt:null}];}
+    await persistThreads();
     result = {
       turn: { id: "turn-1", status: "inProgress", items: [], error: null },
     };
     for (const event of fixture.events || [])
       process.stdout.write(JSON.stringify(event) + "\n");
+  }
+  if (request.method === "thread/compact/start" && fixture.compactionDelayMs) {
+    const thread=threads.get(p.threadId);
+    if(thread){thread.status={type:"active"};thread.turns=[{id:"compact-1",status:"inProgress",items:[],error:null,startedAt:1,completedAt:null}];}
+    await persistThreads();
+    setTimeout(async()=>{
+      if(thread?.turns[0]?.status !== "inProgress")return;
+      if(thread){thread.status={type:"idle"};thread.turns=[{id:"compact-1",status:"completed",items:[],error:null,startedAt:1,completedAt:2}];}
+      await persistThreads();
+      process.stdout.write(JSON.stringify({method:"turn/completed",params:{threadId:p.threadId,turn:{id:"compact-1",status:"completed",items:[],error:null,startedAt:1,completedAt:2}}})+"\n");
+    },fixture.compactionDelayMs);
+  }
+  if (request.method === "turn/interrupt" && fixture.completeOnInterrupt) {
+    const thread=threads.get(p.threadId);if(thread){thread.status={type:"idle"};thread.turns=[{id:p.turnId,status:"interrupted",items:[],error:null,startedAt:1,completedAt:2}];}
+    await persistThreads();
+    process.stdout.write(JSON.stringify({method:"turn/completed",params:{threadId:p.threadId,turn:{id:p.turnId,status:"interrupted",items:[],error:null,startedAt:1,completedAt:2}}}) + "\n");
   }
   process.stdout.write(JSON.stringify({ id: request.id, result }) + "\n");
   if (request.method === "thread/start" && fixture.exitAfterThreadStart)

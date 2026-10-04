@@ -143,15 +143,7 @@ export class AssignmentCoordinatorStore extends AssignmentRepository {
     );
   }
   transaction<T>(operation: () => T): T {
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
-      const result = operation();
-      this.database.exec("COMMIT");
-      return result;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
+    return this.database.transaction(operation).immediate();
   }
   targetParticipants(
     attemptId: string,
@@ -305,6 +297,10 @@ export class AssignmentCoordinatorStore extends AssignmentRepository {
         this.database
           .prepare(`DELETE FROM ${table} WHERE worktree_id=?`)
           .run(worktreeId);
+      // Existing business tables deliberately restrict Worktree deletion.
+      // Remove only this Worktree's derived records and runs after owned shutdown.
+      this.database.prepare("DELETE FROM intelligence_worktrees WHERE worktree_id=?").run(worktreeId);
+      this.database.prepare("DELETE FROM runs WHERE worktree_id=?").run(worktreeId);
       const result = this.database
         .prepare("DELETE FROM worktrees WHERE id=?")
         .run(worktreeId);
@@ -500,6 +496,8 @@ export class AssignmentCoordinatorStore extends AssignmentRepository {
     });
   }
   private insertVersion(resource: ResourceIdentity, now: number): string {
+    const existing=this.database.prepare("SELECT id FROM resource_versions WHERE resource_kind=? AND resource_id=? AND version=? AND content_digest=? AND security_digest=?").get(resource.kind,resource.id,resource.version,resource.contentDigest,resource.securityDigest) as {id:string}|undefined;
+    if(existing)return existing.id;
     const versionId = `rv:${assignmentDigest({ kind: resource.kind, id: resource.id, version: resource.version, contentDigest: resource.contentDigest, securityDigest: resource.securityDigest }).slice(7)}`;
     this.database
       .prepare(

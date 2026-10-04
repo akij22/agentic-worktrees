@@ -58,6 +58,7 @@ vi.mock("electron", () => {
 
     readonly loadURL = vi.fn();
     readonly loadFile = vi.fn();
+    readonly once = vi.fn();
 
     constructor() {
       mocks.windows.push(this);

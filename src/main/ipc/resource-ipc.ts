@@ -1,4 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
+import type { z } from "zod";
+import { assignmentErrorCodeSchema, type AssignmentIpcResult } from "../../shared/assignments";
 import { IPC_CHANNELS, type IpcChannel } from "../../shared/ipc/channels";
 import { isBoundedResourcePayload } from "../../shared/ipc/resource-wire";
 import { assignmentChangedEventSchema } from "../../shared/assignments/schemas";
@@ -91,6 +93,34 @@ let bindings: ResourceIpcBindings | null = null;
 let unsubscribe: (() => void) | null = null;
 let windowList: () => ResourceIpcWindow[] = () => [];
 let publisher: ReturnType<typeof createResourceIpcPublisher> | null = null;
+/** Authorize admission against exact main-owned Worktree/run records and return bounded public failures. */
+export async function invokeResourceAdmission<Request extends {worktreeId?:string;runId?:string},Value>(
+  event:IpcMainInvokeEvent,raw:unknown,schema:z.ZodType<Request>,required:boolean,operation:(request:Request)=>Promise<Value>,
+):Promise<AssignmentIpcResult<Value>> {
+  const parsed=isBoundedResourcePayload(raw,1_048_576) ? schema.safeParse(raw) : null;
+  if(!parsed?.success)return assignmentWireFailure("assignment_invalid_resource");
+  const current=bindings;
+  let worktreeId:string|null=null;
+  if(required) {
+    if(!current)return assignmentWireFailure("runtime_unavailable");
+    if(event.sender.isDestroyed() || event.senderFrame!==event.sender.mainFrame || !current.access.isTrustedSender(event.sender.id))return assignmentWireFailure("resource_unavailable");
+    worktreeId=parsed.data.worktreeId ?? (parsed.data.runId ? current.access.getRunWorktree(parsed.data.runId) : null);
+    if(!worktreeId || !current.access.canAccessWorktree(event.sender.id,worktreeId) || (parsed.data.runId && !current.access.canAccessRun(event.sender.id,parsed.data.runId,worktreeId)))return assignmentWireFailure("resource_unavailable");
+  }
+  try {
+    const value=await operation(parsed.data);
+    if(required && (bindings!==current || !current?.access.isTrustedSender(event.sender.id)))return assignmentWireFailure("resource_unavailable");
+    return {ok:true,value};
+  } catch(error) {
+    const code=assignmentErrorCodeSchema.safeParse(error && typeof error === "object" && "code" in error ? error.code : null);
+    let projection;
+    if(current && worktreeId) {
+      try {projection=sanitizeAssignmentProjection(await current.assignment.get(worktreeId));} catch {console.error("resource_admission_projection_unavailable");}
+    }
+    console.error("resource_admission_rejected");
+    return assignmentWireFailure(code.success ? code.data : "internal_error",projection);
+  }
+}
 export function configureResourceIpc(next: ResourceIpcBindings | null): void {
   unsubscribe?.();
   unsubscribe = null;
