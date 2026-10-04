@@ -81,6 +81,8 @@ export interface ResolvedCodingAgentSkill {
   id: string;
   name: string;
   path: string;
+  /** Required by authoritative Assignment admission; legacy adapter callers may omit it. */
+  version?: string;
   arguments?: string;
 }
 
@@ -95,6 +97,8 @@ export type CodingAgentTurnInput = {
 );
 
 export interface CodingAgentSessionOptions {
+  /** Main-process application route; never a provider identifier. */
+  runId?: string;
   modelId: string;
   capabilities?: CodingAgentCapabilityConnection;
 }
@@ -139,7 +143,10 @@ export interface CodingAgentAdapter {
   getSession(
     directory: string,
     sessionId: string,
-    options?: { capabilities?: CodingAgentCapabilityConnection },
+    options?: {
+      capabilities?: CodingAgentCapabilityConnection;
+      runId?: string;
+    },
   ): Promise<{
     id: string;
     status?: "idle" | "busy" | "error";
@@ -161,10 +168,17 @@ export interface CodingAgentAdapter {
   compact(
     directory: string,
     sessionId: string,
-    input: { providerId: string; modelId: string; capabilityProfileId?: string },
+    input: {
+      providerId: string;
+      modelId: string;
+      capabilityProfileId?: string;
+    },
   ): Promise<void>;
   configureSkills?(catalog: CodingAgentSkillCatalog | null): Promise<void>;
-  verifySkills?(directory: string, expectedIds: readonly string[]): Promise<void>;
+  verifySkills?(
+    directory: string,
+    expectedIds: readonly string[],
+  ): Promise<void>;
   refreshCapabilities?(
     directory: string,
     sessionId: string,

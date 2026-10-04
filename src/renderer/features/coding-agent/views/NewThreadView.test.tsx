@@ -11,6 +11,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import type { CodingAgentInstallationStatusDto } from "../../../../shared/ipc/schemas";
+import { initialProjection } from "../../resources/components/resource-ui-test-fixtures";
 import { NewThreadView } from "./NewThreadView";
 
 const context = {
@@ -111,6 +112,10 @@ beforeEach(() => {
   Object.defineProperty(window, "api", {
     configurable: true,
     value: {
+      resourceAssignment: {
+        get: async ({worktreeId,agentKind}: {worktreeId:string;agentKind:"codex"|"opencode"}) => ({ok:true,value:{...initialProjection(),worktreeId,currentAgentKind:agentKind,resources:[]}}),
+        onChanged: () => () => undefined,
+      },
       codingAgent: { createSession, sendMessage },
       capabilities: {
         listWorktree,
@@ -126,15 +131,14 @@ afterEach(() => {
 });
 
 describe("NewThreadView", () => {
-  it("groups workspace, branch and capabilities beneath the composer", () => {
+  it("preserves workspace context and exposes one Resources control", async () => {
     renderLanding();
     const toolbar = screen.getByRole("group", { name: "Workspace context" });
     expect(within(toolbar).getByRole("button", { name: "Current checkout" })).toBeTruthy();
     expect(within(toolbar).getByText("feat/codex-ui")).toBeTruthy();
     expect(screen.getAllByText("feat/codex-ui")).toHaveLength(1);
-    const capabilities = within(toolbar).getByRole("button", { name: /Capabilities/ });
-    fireEvent.click(capabilities);
-    expect(capabilities.getAttribute("aria-expanded")).toBe("true");
+    expect(await screen.findByRole("button", {name: "Resources, 0 enabled"})).toBeTruthy();
+    expect(screen.queryByRole("button", {name: /Capabilities/})).toBeNull();
     const surface = screen.getByRole("textbox", { name: "Message to agent" }).closest(".session-composer__surface");
     expect(surface?.nextElementSibling).toBe(toolbar);
     expect(screen.queryByText("Enter to send · Shift + Enter for newline")).toBeNull();
@@ -166,6 +170,7 @@ describe("NewThreadView", () => {
         target: { value: "Make the sidebar denser" },
       },
     );
+    await waitFor(() => expect(screen.getByRole("button", {name: "Send message"}).hasAttribute("disabled")).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
@@ -201,6 +206,7 @@ describe("NewThreadView", () => {
         target: { value: "Continue" },
       },
     );
+    await waitFor(() => expect(screen.getByRole("button", {name: "Send message"}).hasAttribute("disabled")).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() =>
@@ -231,6 +237,7 @@ describe("NewThreadView", () => {
         target: { value: "Continue" },
       },
     );
+    await waitFor(() => expect(screen.getByRole("button", {name: "Send message"}).hasAttribute("disabled")).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
@@ -256,6 +263,7 @@ describe("NewThreadView", () => {
         target: { value: "Make the sidebar denser" },
       },
     );
+    await waitFor(() => expect(screen.getByRole("button", {name: "Send message"}).hasAttribute("disabled")).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() =>
@@ -279,6 +287,7 @@ describe("NewThreadView", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
       target: { value: "  Search the codebase  " },
     });
+    await screen.findByRole("button", {name:"Resources, 0 enabled"});
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Message to agent" }), { key: "Enter" });
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
       runId: "run-new", content: "Search the codebase",
@@ -295,10 +304,12 @@ describe("NewThreadView", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
       target: { value: "Search the codebase" },
     });
+    await waitFor(() => expect(screen.getByRole("button", {name: "Send message"}).hasAttribute("disabled")).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Message submission failed."));
     expect(locationProbe).not.toHaveBeenCalledWith("/chat/wt-1/run-new");
     expect((screen.getByRole("textbox", { name: "Message to agent" }) as HTMLTextAreaElement).value).toBe("Search the codebase");
+    await waitFor(() => expect(screen.getByRole("button", {name: "Send message"}).hasAttribute("disabled")).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await waitFor(() => expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"));
     expect(createSession).toHaveBeenCalledTimes(1);
@@ -325,6 +336,7 @@ describe("NewThreadView", () => {
         target: { value: "Continue" },
       },
     );
+    await waitFor(() => expect(screen.getByRole("button", {name: "Send message"}).hasAttribute("disabled")).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));

@@ -1,8 +1,11 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { DatabaseAssignmentMigrationCatalog } from "./assignments/database-assignment-migration-catalog";
+import { ApplicationResourceCatalog } from "./assignments/application-resource-catalog";
 import { initDatabase } from "./database";
 import {
   applyCodingAgentCapabilities,
-  autoDiscoverAgent,
   configureCodingAgentCapabilityBridge,
   configureCodingAgentSkillCatalog,
   configureCodingAgentSkillInvocationSource,
@@ -10,6 +13,8 @@ import {
   getAgentInstallationStatus,
   getCodingAgentCapabilitySession,
   stopCodingAgents,
+  configureCodingAgentResourceRuntime,
+  handleOwnedCodingAgentEvent,
 } from "./coding-agents/coding-agent-service";
 import { CapabilityRepository } from "./capabilities/capability-repository";
 import { createElectronCapabilityCredentialStore } from "./capabilities/capability-credential-store";
@@ -31,7 +36,14 @@ import { SkillRepository } from "./skills/skill-repository";
 import { SkillService } from "./skills/skill-service";
 import { createSkillStorageLayout } from "./skills/skill-installer";
 import { CapabilityDistributionService } from "./capabilities/capability-distribution-service";
+import { ResourceCutover } from "./database/resource-cutover";
+import { ApplicationResourceRuntime } from "./application-resource-runtime";
+import { ApplicationResourceAccess, configureApplicationResourceAccess } from "./application-resource-access";
+import { getResourceEvidenceConfiguration, getResourceRuntimeEnvironment } from "./config/env";
 
+
+let currentCapabilityCatalog: import("./capabilities/catalog").CapabilityCatalog|null = null;
+let currentResources: ApplicationResourceRuntime|null = null;
 let currentUserDataPath = "";
 let currentMode: "ui" | "cli" = "ui";
 let capabilityDistributionService: CapabilityDistributionService | null = null;
@@ -43,9 +55,17 @@ const initializeSkills = (): SkillService => {
   const service = new SkillService({
     repository,
     layout,
+    resourceOwner:()=>{
+      if(currentResources) {
+        const runtime=currentResources;
+        return {remove:(id,commitResource)=>runtime.assignment.distribute({kind:"skill",id,targetVersion:null,commitResource}),install:(transaction,commit)=>runtime.installSkill(transaction.validated,{stage:async()=>{await transaction.commit();},commit,rollback:()=>transaction.rollback({keepPackage:true})})};
+      }
+      if(getSqlite().prepare("SELECT 1 FROM worktree_assignment_migrations WHERE migration_key='worktree-resource-release-v1' AND status='verified'").get())throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+      return undefined;
+    },
     runtime: {
       syncCatalog: async (catalog) =>
-        configureCodingAgentSkillCatalog(
+        currentResources ? undefined : configureCodingAgentSkillCatalog(
           catalog
             ? {
                 activeRoot: catalog.activeRoot,
@@ -100,6 +120,7 @@ const initializeCapabilities = async (): Promise<CapabilityService> => {
     packageRepository,
   );
   const catalog = createCapabilityCatalog(installedCatalog);
+  currentCapabilityCatalog=catalog;
   try {
     await catalog.refresh();
   } catch {
@@ -220,6 +241,14 @@ const initializeCapabilities = async (): Promise<CapabilityService> => {
       getCodingAgentCapabilitySession(runId).idle,
   };
   const service = new CapabilityService({
+    resourceOwner:()=>{
+      if(currentResources) {
+        const runtime=currentResources;
+        return {configure:(entry,settings,commit)=>runtime.configureCapability(entry,settings,commit)};
+      }
+      if(getSqlite().prepare("SELECT 1 FROM worktree_assignment_migrations WHERE migration_key='worktree-resource-release-v1' AND status='verified'").get())throw Object.assign(new Error("Worktree Resources are unavailable."),{code:"runtime_unavailable"});
+      return undefined;
+    },
     repository,
     credentials,
     hosts,
@@ -280,6 +309,11 @@ const initializeCapabilities = async (): Promise<CapabilityService> => {
     capabilityRepository: repository,
     installedCatalog,
     sessionCoordinator: service,
+    resourceOwner:()=>{
+      if(currentResources)return currentResources.packageResourceOwner();
+      if(getSqlite().prepare("SELECT 1 FROM worktree_assignment_migrations WHERE migration_key='worktree-resource-release-v1' AND status='verified'").get())throw new Error("package_update_failed");
+      return undefined;
+    },
     credentials,
     verifier: createElectronCapabilityPackageVerifier(),
     packageLock,
@@ -292,18 +326,21 @@ export interface ApplicationServices {
   distributionService: CapabilityDistributionService;
   webSearchMigration: WebSearchMigration;
   skillService?: SkillService;
+  resources?: ApplicationResourceRuntime;
   stop(): Promise<void>;
 }
 
 export async function createApplicationServices(input: {
   userDataPath: string;
   mode: "ui" | "cli";
+  resourceHostBundlePath?:string;
 }): Promise<ApplicationServices> {
   currentUserDataPath = input.userDataPath;
   currentMode = input.mode;
   const { configureDatabaseUserDataPath } = await import("./database/client");
   configureDatabaseUserDataPath(input.userDataPath);
   initDatabase();
+  const sqlite = getSqlite();
   const capabilityService = await initializeCapabilities();
   if (!capabilityDistributionService || !currentWebSearchMigration)
     throw new Error("capability_startup_unavailable");
@@ -314,13 +351,60 @@ export async function createApplicationServices(input: {
     configureCapabilityIpc(capabilityService);
     if (skillService) configureSkillIpc(skillService);
   }
+  let resources: ApplicationResourceRuntime|undefined;
+  let resourceAuthorityRequired = false;
+  {
+    const {configureResourceIpc,publishResourceActivity} = await import("./ipc");
+    const evidence = getResourceEvidenceConfiguration();
+    if (evidence) {
+      try {
+        await capabilityService.reconcileCapabilities();
+        const hostBundle=await readFile(input.resourceHostBundlePath ?? path.join(__dirname,"capability-host.js")).catch(()=>null);
+        const bundledDigest=hostBundle ? "sha256:"+createHash("sha256").update(hostBundle).digest("hex") : undefined;
+        const migrationCatalog=new DatabaseAssignmentMigrationCatalog(sqlite,currentCapabilityCatalog ?? undefined,()=>bundledDigest);
+        new ResourceCutover(sqlite,migrationCatalog,evidence).run();
+        resources = new ApplicationResourceRuntime({sqlite,resources:new ApplicationResourceCatalog(sqlite,input.userDataPath,migrationCatalog,currentCapabilityCatalog ?? undefined),userDataPath:input.userDataPath,environment:getResourceRuntimeEnvironment(),...evidence,
+          capabilityHosts:currentCapabilityCatalog ? {catalog:currentCapabilityCatalog,repository:new CapabilityRepository(sqlite),resolveSecret:(id,key)=>capabilityService.resolveSecret(id,key),bundlePath:input.resourceHostBundlePath} : undefined,
+          executable:kind=>{
+            const installation=getAgentInstallationStatus().installations.find(item=>item.kind === kind && item.configured);
+            if (!installation?.executablePath) throw new Error("runtime_unavailable");
+            return installation.executablePath;
+          },onActivityChanged:input.mode === "ui" ? publishResourceActivity : undefined,onEvent:handleOwnedCodingAgentEvent,
+        });
+        if(input.mode === "ui") {
+          const access = new ApplicationResourceAccess(sqlite);
+          configureApplicationResourceAccess(access);
+          configureResourceIpc({assignment:resources.assignment,activity:resources.activity,access});
+        }
+        await resources.start();
+        currentResources=resources;
+        configureCodingAgentCapabilityBridge(null);
+        configureCodingAgentSkillInvocationSource(null);
+      } catch {
+        configureResourceIpc(null);configureApplicationResourceAccess(null);
+        await resources?.stop();resources=undefined;
+        console.error("resource_startup_unavailable");
+      }
+    } else console.error("resource_evidence_key_unavailable");
+    const cutover = Boolean(sqlite.prepare("SELECT 1 FROM worktree_assignment_migrations WHERE migration_key='worktree-resource-release-v1' AND status='verified'").get());
+    resourceAuthorityRequired=cutover;
+    configureCodingAgentResourceRuntime(resources ?? null,cutover);
+  }
+  let stopping: Promise<void>|undefined;
   return {
     capabilityService,
     distributionService,
     webSearchMigration: currentWebSearchMigration,
     ...(skillService ? { skillService } : {}),
-    stop: async () => {
-      await capabilityService.stopCapabilities();
-    },
+    ...(resources ? {resources} : {}),
+    stop: () => stopping ??= (async () => {
+      const {configureResourceIpc} = await import("./ipc");
+      configureResourceIpc(null);configureApplicationResourceAccess(null);
+      try {await stopCodingAgents();} finally {
+        currentResources=null;
+        configureCodingAgentResourceRuntime(null,resourceAuthorityRequired);
+        await capabilityService.stopCapabilities();
+      }
+    })(),
   };
 }

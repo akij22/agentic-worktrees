@@ -3,7 +3,8 @@ import path from "node:path";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { simpleGit } from "simple-git";
 import { repositories, worktrees } from "../../shared/db/schema";
-import { getDatabase } from "../database/client";
+import { getDatabase, getSqlite } from "../database/client";
+import { ResourceCutover } from "../database/resource-cutover";
 
 export interface AgentWorktreeContext {
 	worktree: typeof worktrees.$inferSelect;
@@ -75,7 +76,7 @@ const persistPrimaryWorkspace = (
 	const database = getDatabase();
 	const now = new Date();
 	const id = getPrimaryWorkspaceId(repository.id);
-	database
+	new ResourceCutover(getSqlite()).writeWorktree(id,()=>database
 		.insert(worktrees)
 		.values({
 			id,
@@ -105,7 +106,7 @@ const persistPrimaryWorkspace = (
 				lastSyncedAt: now,
 			},
 		})
-		.run();
+		.run());
 
 	const worktree = database
 		.select()

@@ -7,14 +7,37 @@ import {
   render,
   screen,
   within,
+  waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Api } from "../../../../shared/ipc/api";
 import type { CodingAgentSessionDto } from "../../../../shared/ipc/schemas";
+import { initialProjection } from "../../resources/components/resource-ui-test-fixtures";
 import { SessionComposer } from "./SessionComposer";
 import { SessionStatusPopup } from "./SessionStatusPopup";
+
+const assignmentApi = () => ({
+  get: async ({ agentKind }: { agentKind: "codex" | "opencode" }) => {
+    const value = initialProjection();
+    value.worktreeId = "worktree-1";
+    value.currentAgentKind = agentKind;
+    value.resources[0] = {
+      ...value.resources[0],
+      id: "security-review",
+      version: "1",
+    };
+    return { ok: true as const, value };
+  },
+  onChanged: () => () => undefined,
+});
+beforeEach(() =>
+  Object.defineProperty(window, "api", {
+    configurable: true,
+    value: { resourceAssignment: assignmentApi() },
+  }),
+);
 
 const createSession = (
   agentKind: CodingAgentSessionDto["agentKind"],
@@ -143,10 +166,17 @@ describe("SessionComposer layout and actions", () => {
     expect(screen.getByLabelText("Context usage unavailable").parentElement).toBe(screen.getByRole("button", { name: "Send message" }).parentElement);
   });
 
-  it("sends a draft using the labelled icon action", () => {
+  it("sends a draft using the labelled icon action", async () => {
     const send = vi.fn();
     render(
       <InteractiveComposer initialDraft="Review this change" onSend={send} />,
+    );
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: "Send message" })
+          .hasAttribute("disabled"),
+      ).toBe(false),
     );
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     expect(send).toHaveBeenCalledOnce();
@@ -189,6 +219,7 @@ describe("SessionComposer file mentions", () => {
     Object.defineProperty(window, "api", {
       configurable: true,
       value: {
+        resourceAssignment: assignmentApi(),
         workspace: { files: { search } },
       } as unknown as Api,
     });
@@ -372,7 +403,7 @@ describe("skill commands", () => {
     installationState: "installed" as const,
     automaticInvocation: true,
   };
-  it("selects a filtered skill and leaves arguments in the draft", () => {
+  it("selects a filtered skill and leaves arguments in the draft", async () => {
     const select = vi.fn();
     function Subject() {
       const [draft, setDraft] = useState("/skill:sec Review auth");
@@ -400,6 +431,7 @@ describe("skill commands", () => {
       );
     }
     render(<Subject />);
+    await screen.findByRole("button", { name: "Resources, 1 enabled" });
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     fireEvent.keyDown(textarea, { key: "Enter" });
     expect(select).toHaveBeenCalledWith(skill);
@@ -510,7 +542,7 @@ describe("skill command selectability", () => {
       screen.queryByRole("button", { name: "Remove Security Review skill" }),
     ).toBeNull();
   });
-  it("keeps a compatible installed skill selectable with Tab", () => {
+  it("keeps a compatible installed skill selectable with Tab", async () => {
     const selected = vi.fn();
     const skill = {
       ...baseSkill,
@@ -552,6 +584,7 @@ describe("skill command selectability", () => {
       );
     }
     render(<Subject />);
+    await screen.findByRole("button", { name: "Resources, 1 enabled" });
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Tab" });
     expect(selected).toHaveBeenCalledWith(skill);
     expect(

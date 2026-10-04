@@ -1,23 +1,8 @@
+import type { CapabilityResourceOwner } from "./capability-resource-owner";
 import { randomUUID } from "node:crypto";
 import { CapabilityRemovalInstaller } from "./capability-removal-installer";
 import { CapabilityRemovalService } from "./capability-removal-service";
-import type { PackageRemovalInspectRequest, PackageRemoveRequest, CapabilityRemovalInspection } from "../../shared/packages/schemas";
-import { gt, lt, valid } from "semver";
-import npa from "npm-package-arg";
-import { InstalledCapabilityCatalog } from "./installed-catalog";
-import {
-  planCapabilityUpdateConfiguration,
-  type CapabilityUpdateConfiguration,
-} from "./capability-update-configuration";
-import type { CapabilitySessionPackageCoordinator } from "./capability-session-package-coordinator";
-import type { CapabilityCredentialStore } from "./capability-credential-store";
-import { NpmPackageMetadata } from "../packages/npm-metadata";
-import {
-  capabilityDetailSchema,
-  type CapabilitySummaryDto,
-  type CapabilityDetailDto,
-} from "../../shared/capabilities/schemas";
-import {
+import { type PackageRemovalInspectRequest, type PackageRemoveRequest, type CapabilityRemovalInspection,
   capabilityUpdateSchema,
   packageNameSchema,
   type CapabilityUpdateDto,
@@ -34,6 +19,21 @@ import {
   type PackageInspectRequest,
   type PackageInstallRequest,
 } from "../../shared/packages/schemas";
+import { gt, lt, valid } from "semver";
+import npa from "npm-package-arg";
+import { InstalledCapabilityCatalog } from "./installed-catalog";
+import {
+  planCapabilityUpdateConfiguration,
+  type CapabilityUpdateConfiguration,
+} from "./capability-update-configuration";
+import type { CapabilitySessionPackageCoordinator } from "./capability-session-package-coordinator";
+import type { CapabilityCredentialStore } from "./capability-credential-store";
+import { NpmPackageMetadata } from "../packages/npm-metadata";
+import {
+  capabilityDetailSchema,
+  type CapabilitySummaryDto,
+  type CapabilityDetailDto,
+} from "../../shared/capabilities/schemas";
 import {
   NpmPackageAcquirer,
   type StagedNpmPackage,
@@ -124,6 +124,7 @@ export class CapabilityDistributionService {
       metadata?: Pick<NpmPackageMetadata, "resolve">;
       installedCatalog?: Pick<InstalledCapabilityCatalog, "get" | "list" | "refresh">;
       sessionCoordinator?: CapabilitySessionPackageCoordinator;
+      resourceOwner?():CapabilityResourceOwner|undefined;
       credentials?: Pick<CapabilityCredentialStore, "removeSecret">;
       inspector?: CapabilityPackageInspector;
       verifier: CapabilityPackageVerifier;
@@ -155,7 +156,7 @@ export class CapabilityDistributionService {
         this.repository,
         this.capabilityRepository,
         <T>(work: () => T) => getSqlite().transaction(work)(),
-        { refreshCatalog: () => this.installedCatalog.refresh() },
+        { refreshCatalog: () => this.installedCatalog.refresh(),resourceOwner:deps.resourceOwner },
       );
     this.registry = new ConsentLeaseRegistry({
       lock: this.lock,
@@ -164,8 +165,8 @@ export class CapabilityDistributionService {
     });
     this.removal = new CapabilityRemovalService({
       repository: this.repository, capabilities: this.capabilityRepository, catalog: this.installedCatalog,
-      coordinator: deps.sessionCoordinator, credentials: deps.credentials, registry: this.registry,
-      installer: deps.removalInstaller ?? new CapabilityRemovalInstaller(deps.layout, this.repository, this.capabilityRepository, <T>(work: () => T) => getSqlite().transaction(work)(), { refreshCatalog: () => this.installedCatalog.refresh() }),
+      coordinator: deps.sessionCoordinator, resourceOwner:deps.resourceOwner, credentials: deps.credentials, registry: this.registry,
+      installer: deps.removalInstaller ?? new CapabilityRemovalInstaller(deps.layout, this.repository, this.capabilityRepository, <T>(work: () => T) => getSqlite().transaction(work)(), { refreshCatalog: () => this.installedCatalog.refresh(),resourceOwner:deps.resourceOwner }),
       emit: (id, stage, status, extra) => this.emit(id, stage, status, extra),
     });
   }
@@ -275,7 +276,7 @@ export class CapabilityDistributionService {
               : {}),
             downgrade: false,
             requiresReview: true,
-            activeRunCount: this.capabilityRepository
+            activeRunCount: this.deps.resourceOwner?.()?.activeRuns(installation.itemId).length ?? this.capabilityRepository
               .listSessionCapabilitiesByCapabilityId(installation.itemId)
               .filter((record) => record.status === "active").length,
           }),
@@ -517,7 +518,7 @@ export class CapabilityDistributionService {
             ),
             requiresReview: false,
             activeRunCount:
-              this.capabilityRepository.listActiveRunsByCapabilityId(
+              this.deps.resourceOwner?.()?.activeRuns(priorInstallation.itemId).length ?? this.capabilityRepository.listActiveRunsByCapabilityId(
                 priorInstallation.itemId,
               ).length,
           });
@@ -623,6 +624,7 @@ export class CapabilityDistributionService {
         if (request.intent === "update") {
           const accepted = packageUpdateRequestSchema.parse(payload);
           const coordinator = this.deps.sessionCoordinator;
+          const resourceOwner=this.deps.resourceOwner?.();
           if (
             !coordinator ||
             !priorInstallation?.activeVersion ||
@@ -637,17 +639,17 @@ export class CapabilityDistributionService {
             throw new Error("package_update_failed");
           const sessionBefore =
             this.capabilityRepository.snapshotSessionCapabilities(capabilityId);
-          const runIds = [...coordinator.listActiveRuns(capabilityId)];
+          const runIds = [...(resourceOwner?.activeRuns(capabilityId) ?? coordinator.listActiveRuns(capabilityId))];
           if (runIds.length !== accepted.acceptedActiveRunCount)
             throw new Error("package_permission_denied");
           try {
-            await coordinator.assertRunsIdle(runIds);
+            if(!resourceOwner)await coordinator.assertRunsIdle(runIds);
           } catch {
             throw new Error("package_update_failed");
           }
           if (
             JSON.stringify(
-              [...coordinator.listActiveRuns(capabilityId)].sort(),
+              [...(resourceOwner?.activeRuns(capabilityId) ?? coordinator.listActiveRuns(capabilityId))].sort(),
             ) !== JSON.stringify([...runIds].sort())
           )
             throw new Error("package_permission_denied");
@@ -669,7 +671,7 @@ export class CapabilityDistributionService {
           let deactivated = false;
           const recovery = await this.installer.prepareUpdateRecovery(found, updateConfiguration);
           try {
-            if (!updateConfiguration.configured && runIds.length) {
+            if (!resourceOwner && !updateConfiguration.configured && runIds.length) {
               await coordinator.deactivateRuns(capabilityId);
               deactivated = true;
             }
@@ -679,7 +681,7 @@ export class CapabilityDistributionService {
               verification,
               updateConfiguration,
               async () => {
-                await coordinator.assertRunsIdle(runIds);
+                if(!resourceOwner)await coordinator.assertRunsIdle(runIds);
                 owner.assertHealthy();
                 if (!this.capabilityRepository.sessionCapabilitiesMatch(capabilityId, expectedSessions.records) ||
                     JSON.stringify(this.repository.getByPackageName(staged.packageName)) !== JSON.stringify(priorInstallation) ||
@@ -687,7 +689,7 @@ export class CapabilityDistributionService {
                   throw new Error("package_update_failed");
               },
             );
-            if (updateConfiguration.configured && runIds.length)
+            if (!resourceOwner && updateConfiguration.configured && runIds.length)
               await coordinator.reloadRuns(
                 capabilityId,
                 staged.resolvedVersion,
@@ -695,6 +697,19 @@ export class CapabilityDistributionService {
             owner.assertHealthy();
             if (deactivated) coordinator.finalizeDeactivation(capabilityId);
           } catch {
+            if(resourceOwner) {
+              try {
+                // The Assignment owner has already compensated the package transaction.
+                // Close only the package journal after proving its complete prior snapshot.
+                await this.installer.assertUpdateRecoveryRestored(recovery);
+                this.repository.finishUpdateRecovery(recovery.operationId,recovery.ownerToken);
+              } catch {
+                this.repository.advanceUpdateRecovery(recovery.operationId,recovery.ownerToken,"conflict","package_update_failed");
+                this.repository.quarantineUpdateRecoveries();
+                await this.installedCatalog.refresh();
+              }
+              throw new Error("package_update_failed");
+            }
             try {
               if (
                 !deactivated &&
@@ -762,7 +777,7 @@ export class CapabilityDistributionService {
           });
           return freeze({
             ...detail(found, updateConfiguration.configured),
-            activeRunCount: coordinator.listActiveRuns(capabilityId).length,
+            activeRunCount: (resourceOwner?.activeRuns(capabilityId) ?? coordinator.listActiveRuns(capabilityId)).length,
           });
         }
         let record;

@@ -1,3 +1,5 @@
+import { assignmentActivitySchemaStatements } from "./assignment-activity-bootstrap";
+
 export const managedPackageSchemaStatements = [
   `CREATE TABLE IF NOT EXISTS managed_package_removal_recoveries (
     operation_id TEXT PRIMARY KEY NOT NULL, owner_token TEXT NOT NULL,
@@ -591,6 +593,7 @@ const bootstrapStatements = [
 	`CREATE INDEX IF NOT EXISTS skill_invocations_run_id_idx ON skill_invocations (run_id)`,
 	`CREATE INDEX IF NOT EXISTS skill_invocations_skill_id_idx ON skill_invocations (skill_id)`,
 	...managedPackageSchemaStatements,
+	...assignmentActivitySchemaStatements,
 ] as const;
 
 export const bootstrapSchemaSql = bootstrapStatements.join(";\n");

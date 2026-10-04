@@ -155,7 +155,7 @@ describe("WebSearchMigration", () => {
       lock: {
         runExclusive: async (
           work: (owner: { assertHealthy(): void }) => Promise<unknown>,
-        ) => work({ assertHealthy() {} }),
+        ) => work({ assertHealthy() { return undefined; } }),
       } as never,
     });
     return {

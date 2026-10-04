@@ -1,5 +1,7 @@
 import { BrowserWindow } from "electron";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { registerApplicationRenderer } from "./application-resource-access";
 import { parseCliArguments, CliUsageError } from "./cli/arguments";
 import { NodeCliTerminal } from "./cli/terminal-ui";
 import { runPackageCommand } from "./cli/run-command";
@@ -48,6 +50,9 @@ const createWindow = (): void => {
       nodeIntegration: false,
     },
   });
+  const expectedURL = MAIN_WINDOW_VITE_DEV_SERVER_URL || pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)).href;
+  const unregister = registerApplicationRenderer(window.webContents,expectedURL);
+  window.once("closed",unregister);
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     void window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     window.webContents.openDevTools();
@@ -128,17 +133,17 @@ export async function runApplicationBootstrap(
       }
       return;
     }
-    let services: ApplicationServices | undefined;
+    const serviceState: { current?: ApplicationServices } = {};
     const pending: unknown[] = [];
     const forwarded = new Set<Promise<unknown>>();
     const queued = createCommandExecutionQueue(
       async (command, remote, signal) => {
-        if (!services || signal.aborted) return;
-        await runPackageCommand(command, services, remote);
+        if (!serviceState.current || signal.aborted) return;
+        await runPackageCommand(command, serviceState.current, remote);
       },
     );
     const dispatch = (data: unknown) => {
-      if (!services) {
+      if (!serviceState.current) {
         pending.push(data);
         return;
       }
@@ -153,7 +158,7 @@ export async function runApplicationBootstrap(
     const removeSecondInstance = electronApp.onSecondInstance(dispatch);
     try {
       await electronApp.whenReady();
-      services = await dependencies.createServices({
+      serviceState.current = await dependencies.createServices({
         userDataPath: electronApp.getPath("userData"),
         mode: "cli",
       });
@@ -164,7 +169,7 @@ export async function runApplicationBootstrap(
     } finally {
       removeSecondInstance();
       await endpoint.close().catch(() => undefined);
-      await services?.stop();
+      await serviceState.current?.stop();
       electronApp.quit();
     }
     return;
@@ -173,16 +178,16 @@ export async function runApplicationBootstrap(
     electronApp.quit();
     return;
   }
-  let services: ApplicationServices | undefined;
+  const serviceState: { current?: ApplicationServices } = {};
   const pending: unknown[] = [];
   const queued = createCommandExecutionQueue(
     async (command, terminal, signal) => {
-      if (!services || signal.aborted) return;
-      await runPackageCommand(command, services, terminal);
+      if (!serviceState.current || signal.aborted) return;
+      await runPackageCommand(command, serviceState.current, terminal);
     },
   );
   const removeSecondInstance = electronApp.onSecondInstance((data) => {
-    if (!services) {
+    if (!serviceState.current) {
       pending.push(data);
       return;
     }
@@ -193,7 +198,7 @@ export async function runApplicationBootstrap(
     ).catch(() => false);
   });
   await electronApp.whenReady();
-  services = await dependencies.createServices({
+  const services = serviceState.current = await dependencies.createServices({
     userDataPath: electronApp.getPath("userData"),
     mode: "ui",
   });

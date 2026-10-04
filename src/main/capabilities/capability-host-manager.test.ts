@@ -356,4 +356,87 @@ describe("CapabilityHostManager", () => {
     });
     await expect(starting).rejects.toThrow("startup timed out");
   });
+  it("forwards owned-generation observations and waits for exact cancellation acknowledgement", async () => {
+    const child = new FakeChild();
+    const observations: unknown[] = [];
+    const manager = new CapabilityHostManager({
+      catalog: testCatalog,
+      launch: () => child,
+      resolveSecret: async () => undefined,
+      onObservation: (owner, generation, event) =>
+        observations.push({ owner, generation, event }),
+    });
+    const ready = manager.ensureHost("owner", [], {}, "runtime");
+    child.emit("message", { type: "host.ready", runId: "owner", port: 43123 });
+    await ready;
+    const event = {
+      type: "entered",
+      invocationId: "11111111-1111-4111-8111-111111111111",
+      capabilityId: "test.echo",
+      capabilityVersion: "0.1.0",
+      toolName: "echo_text",
+    };
+    child.emit("message", {
+      type: "host.observation",
+      runtimeGenerationId: "stale",
+      observation: event,
+    });
+    expect(observations).toEqual([]);
+    child.emit("message", {
+      type: "host.observation",
+      runtimeGenerationId: "runtime",
+      observation: event,
+    });
+    expect(observations).toEqual([
+      { owner: "owner", generation: "runtime", event },
+    ]);
+    await expect(
+      manager.cancelInvocation("owner", "stale", event.invocationId),
+    ).resolves.toBe(false);
+    const cancelled = manager.cancelInvocation(
+      "owner",
+      "runtime",
+      event.invocationId,
+    );
+    const command = child.sent.at(-1);
+    if (command?.type !== "host.invocation.cancel")
+      throw new Error("Expected exact cancel command");
+    child.emit("message", {
+      type: "host.invocation.cancelled",
+      requestId: command.requestId,
+      runtimeGenerationId: "runtime",
+      invocationId: event.invocationId,
+      accepted: true,
+    });
+    await expect(cancelled).resolves.toBe(true);
+    await manager.stopAll();
+  });
+});
+
+it("does not report owned host shutdown until the exact utility process exits",async()=>{
+  const child=new FakeChild();
+  const manager=new CapabilityHostManager({launch:()=>child,resolveSecret:async()=>undefined});
+  const ready=manager.ensureHost("owned",[],{},"generation");
+  child.emit("message",{type:"host.ready",runId:"owned",port:3333});
+  await ready;
+  let stopped=false;
+  const stopping=manager.stopOwnedHost("owned","generation").then(()=>{stopped=true;});
+  await Promise.resolve();expect(stopped).toBe(false);
+  child.emit("exit",0);await stopping;expect(stopped).toBe(true);
+});
+
+it("does not finish failed owned startup until the exact child exits",async()=>{
+  const child=new FakeChild();
+  child.postMessage=()=>{throw new Error("Synthetic initialization failure");};
+  const manager=new CapabilityHostManager({catalog:testCatalog,launch:()=>child,resolveSecret:async()=>undefined});
+  let finished=false;
+  const starting=manager.ensureHost("owned",[],{},"generation").catch(error=>{finished=true;throw error;});
+  const rejected=expect(starting).rejects.toThrow("Capability host failed to start");
+  await new Promise<void>(resolve=>setImmediate(resolve));
+  expect(finished).toBe(false);
+  expect(child.killCalls).toBe(1);
+  child.emit("exit",0);
+  await rejected;
+  expect(child.listenerCount("message")).toBe(0);
+  expect(child.listenerCount("exit")).toBe(0);
 });

@@ -22,7 +22,7 @@ export function CapabilitySetupDialog({ capability, open, onOpenChange, onConfig
     catch { setError("Could not save capability configuration."); }
     finally { setSaving(false); }
   };
-  return <Dialog open={open} onOpenChange={onOpenChange}>
+  return <Dialog open={open} onOpenChange={onOpenChange} ariaLabel={`Configure ${capability.name}`}>
     <DialogHeader><DialogTitle>Configure {capability.name}</DialogTitle><DialogDescription>Review permissions and settings before enabling this capability.</DialogDescription></DialogHeader>
     <div className="mt-5 space-y-4 text-sm">
       <div className="rounded-lg border border-primary/15 bg-primary/[0.045] p-3 text-muted-foreground">

@@ -24,6 +24,7 @@ import type { CapabilityCredentialStore } from "./capability-credential-store";
 import type { CapabilityHostManager } from "./capability-host-manager";
 import type {
   CapabilityRepository,
+  CapabilitySettingRecord,
   SessionCapabilityRecord,
   SessionCapabilityIdentity,
   WorktreeCapabilityRecord,
@@ -45,6 +46,7 @@ export interface CapabilityServiceDependencies {
   getAgentVersion?(runId: string): Promise<string>;
   logError?(event: string, code: string): void;
   catalog?: CapabilityCatalog;
+  resourceOwner?(): { configure(entry: CapabilityCatalogEntry, settings: readonly CapabilitySettingRecord[], commit: () => void): Promise<void> } | undefined;
 }
 
 const MINIMUM_AGENT_VERSIONS: Record<CodingAgentKind, string> = {
@@ -224,6 +226,7 @@ export class CapabilityService implements CapabilitySessionPackageCoordinator {
       input,
       existing,
     );
+    const owner = this.dependencies.resourceOwner?.();
     const newlyStored: string[] = [];
     const obsolete: string[] = [];
     const settings = [...prepared.values];
@@ -242,7 +245,7 @@ export class CapabilityService implements CapabilitySessionPackageCoordinator {
         if (change.existingRef && change.existingRef !== secretRef)
           obsolete.push(change.existingRef);
       }
-      this.dependencies.repository.saveConfiguration(
+      const commit = () => this.dependencies.repository.saveConfiguration(
         {
           capabilityId: input.capabilityId,
           version: capability.manifest.version,
@@ -251,6 +254,8 @@ export class CapabilityService implements CapabilitySessionPackageCoordinator {
         },
         settings,
       );
+      if (owner) await owner.configure(capability, settings, commit);
+      else commit();
     } catch (error) {
       for (const reference of newlyStored.reverse()) {
         await this.dependencies.credentials

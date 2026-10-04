@@ -1,3 +1,4 @@
+import type { CapabilityResourceOwner } from "./capability-resource-owner";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { join } from "node:path";
@@ -12,7 +13,7 @@ export const serialRemovalInstallation = (record: ManagedPackageInstallationReco
 export const serialRemovalConfiguration = (snapshot: InstalledConfigurationSnapshot) => ({ ...snapshot, installation: snapshot.installation ? { ...snapshot.installation, createdAt: snapshot.installation.createdAt.getTime(), updatedAt: snapshot.installation.updatedAt.getTime() } : undefined });
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 const absent = (error: unknown) => error !== null && typeof error === "object" && "code" in error && error.code === "ENOENT";
-export interface RemovalInstallerHooks { refreshCatalog(): Promise<void>; fs?: Partial<Pick<typeof fs, "rename" | "rm" | "readFile" | "mkdir" | "lstat" | "readdir">>; }
+export interface RemovalInstallerHooks { resourceOwner?():CapabilityResourceOwner|undefined; refreshCatalog(): Promise<void>; fs?: Partial<Pick<typeof fs, "rename" | "rm" | "readFile" | "mkdir" | "lstat" | "readdir">>; }
 
 /** Removal uses reversible pointer/GC renames. Physical GC is post-commit cleanup. */
 export class CapabilityRemovalInstaller {
@@ -49,7 +50,8 @@ export class CapabilityRemovalInstaller {
     if (removed ? current !== undefined || config.installation !== undefined || config.settings.length !== 0 : !current || !same(serialRemovalInstallation(current), row.previousInstallation) || !same(config, row.configuration)) throw new Error("package_remove_failed");
   }
   async commit(row: RemovalRecovery, guard: () => Promise<void>): Promise<void> {
-    try {
+    const owner=this.hooks.resourceOwner?.();
+    const stage=async()=>{
       await guard(); this.assertState(row, false);
       if (await this.files.readFile(this.pointer(row), "utf8") !== row.pointerText) throw new Error();
       await this.files.mkdir(join(this.staging(row), "gc"), { recursive: true, mode: 0o700 });
@@ -58,12 +60,17 @@ export class CapabilityRemovalInstaller {
       if (await this.files.readFile(this.pointer(row), "utf8") !== row.pointerText) throw new Error();
       await this.files.rename(this.pointer(row), join(this.staging(row), "pointer.json"));
       this.repository.advanceRemovalRecovery(row.operationId, row.ownerToken, "detached");
+    };
+    const commit=()=>{
       this.transaction(() => {
         this.assertState(row, false);
         this.repository.deleteInstallation(row.packageName);
         this.capabilities.restoreInstalledConfiguration({ capabilityId: row.capabilityId, installation: undefined, settings: [] });
         this.repository.advanceRemovalRecovery(row.operationId, row.ownerToken, "committed");
       });
+      if(owner)this.repository.advanceRemovalRecovery(row.operationId,row.ownerToken,"cleanup_pending");
+    };
+    const finalize=async()=>{
       await this.hooks.refreshCatalog();
       for (const version of row.gcVersions) {
         await guard(); this.assertState(row, true);
@@ -73,6 +80,10 @@ export class CapabilityRemovalInstaller {
         await this.files.rename(root, join(this.staging(row), "gc", version.version));
       }
       await guard(); this.assertState(row, true);
+    };
+    try {
+      if(owner)await owner.remove(row.capabilityId,row.operationId,{stage,commit,rollback:()=>this.restore(row),finalize});
+      else {await stage();commit();await finalize();}
     } catch { throw new Error("package_remove_failed"); }
   }
   async restore(row: RemovalRecovery): Promise<void> {

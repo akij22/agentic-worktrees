@@ -48,6 +48,55 @@ describe("database upgrades", () => {
 		]);
 	});
 
+	it("bootstraps Assignment and Resource activity persistence tables", () => {
+		sqlite.exec(bootstrapSchemaSql);
+		const tables = sqlite.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND (
+			name LIKE 'resource_%' OR name LIKE 'worktree_assignment_%' OR name LIKE 'worktree_runtime_%'
+		) ORDER BY name`).all() as Array<{ name: string }>;
+		expect(tables.map(({ name }) => name)).toEqual([
+			"resource_activity",
+			"resource_activity_evidence",
+			"resource_activity_outbox",
+			"resource_activity_session_routes",
+			"resource_activity_streams",
+			"resource_distribution_operation_worktrees",
+			"resource_distribution_operations",
+			"resource_evidence_coverage",
+			"resource_versions",
+			"worktree_assignment_attempt_participants",
+			"worktree_assignment_attempts",
+			"worktree_assignment_generation_resource_providers",
+			"worktree_assignment_generation_resources",
+			"worktree_assignment_generations",
+			"worktree_assignment_migrations",
+			"worktree_assignment_outbox",
+			"worktree_assignments",
+			"worktree_runtime_assignment_attestations",
+			"worktree_runtime_catalog_generations",
+		]);
+	});
+
+	it("rejects invalid Assignment lifecycle enums at the database boundary", () => {
+		sqlite.exec(bootstrapSchemaSql);
+		expect(() => sqlite.prepare(`INSERT INTO resource_distribution_operations
+			(id,resource_kind,resource_id,status,side_effect_boundary,started_at,updated_at)
+			VALUES ('operation-1','capability','search','invented','none',1,1)`).run()).toThrow();
+		expect(() => sqlite.prepare(`INSERT INTO worktree_assignment_migrations
+			(migration_key,status,source_fingerprint,worktree_count,resource_version_count,generation_count)
+			VALUES ('migration-1','invented','sha256:test',0,0,0)`).run()).toThrow();
+	});
+
+	it("enforces one active distribution operation per Resource", () => {
+		sqlite.exec(bootstrapSchemaSql);
+		const insert = sqlite.prepare(`INSERT INTO resource_distribution_operations
+			(id,resource_kind,resource_id,status,side_effect_boundary,started_at,updated_at,completed_at)
+			VALUES (?,?,?,?,?,?,?,?)`);
+		insert.run("operation-1", "capability", "search", "applying", "staged", 1, 1, null);
+		expect(() => insert.run("operation-2", "capability", "search", "waiting_for_idle", "none", 1, 1, null)).toThrow();
+		insert.run("operation-3", "skill", "search", "verified", "commit_pending", 1, 1, 2);
+		insert.run("operation-4", "skill", "search", "verified", "commit_pending", 1, 1, 2);
+	});
+
 	it("bootstraps managed package lifecycle tables and indexes", () => {
 		sqlite.exec(bootstrapSchemaSql);
 		const tables = sqlite.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'managed_package_%' ORDER BY name`).all() as Array<{ name: string }>;

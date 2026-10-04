@@ -1,3 +1,4 @@
+import type { CapabilityResourceOwner } from "./capability-resource-owner";
 import { randomUUID } from "node:crypto";
 import { capabilityRemovalInspectionSchema, packageRemovalInspectRequestSchema, packageRemoveRequestSchema, packageErrorCodeSchema, type CapabilityRemovalInspection, type PackageRemovalInspectRequest, type PackageRemoveRequest, type CapabilityDistributionProgress } from "../../shared/packages/schemas";
 import type { RemovalRecovery } from "../../shared/packages/removal-recovery";
@@ -20,6 +21,7 @@ export class CapabilityRemovalService {
     repository: ManagedPackageRepository; capabilities: CapabilityRepository;
     catalog: Pick<InstalledCapabilityCatalog, "get" | "refresh">;
     coordinator?: CapabilitySessionPackageCoordinator;
+    resourceOwner?():CapabilityResourceOwner|undefined;
     credentials?: Pick<CapabilityCredentialStore, "removeSecret">;
     registry: ConsentLeaseRegistry; installer: CapabilityRemovalInstaller;
     emit(operationId: string, stage: CapabilityDistributionProgress["stage"], status: CapabilityDistributionProgress["status"], extra?: Partial<CapabilityDistributionProgress>): void;
@@ -28,6 +30,7 @@ export class CapabilityRemovalService {
     const parsed = packageRemovalInspectRequestSchema.safeParse(input);
     if (!parsed.success) throw safe(undefined, "package_source_invalid");
     const { repository, capabilities, coordinator, registry, catalog } = this.deps;
+    const resourceOwner=this.deps.resourceOwner?.();
     const upfront = repository.getByPackageName(parsed.data.packageName);
     if (!upfront || upfront.itemKind !== "capability") throw safe(undefined, "package_not_found");
     if (!coordinator) throw safe();
@@ -42,11 +45,11 @@ export class CapabilityRemovalService {
         coordinator.assertManagedCapability(installation.itemId);
         if (!catalog.get(installation.itemId, installation.activeVersion)) throw safe(undefined, "package_not_found");
         repository.beginOperation({ operationId, action: "remove", stage: "removing", packageName: installation.packageName, requestedSpec: installation.requestedSpec }); created = true;
-        return { installation, configuration: capabilities.snapshotInstalledConfiguration(installation.itemId), sessions: capabilities.snapshotSessionCapabilities(installation.itemId) };
+        return { installation, configuration: capabilities.snapshotInstalledConfiguration(installation.itemId), sessions: capabilities.snapshotSessionCapabilities(installation.itemId), runIds:resourceOwner?.activeRuns(installation.itemId) ?? coordinator.listActiveRuns(installation.itemId) };
       },
       inspect: (review, timing) => {
         const installation = review.installation;
-        const count = review.sessions.records.filter((row) => row.status === "active").length;
+        const count = review.runIds.length;
         repository.markAwaitingConsent(operationId, { packageName: installation.packageName, version: installation.activeVersion!, integrity: installation.activeIntegrity!, contentDigest: installation.activeContentDigest! });
         this.deps.emit(operationId, "removing", "awaiting_consent", { action: "remove", packageName: installation.packageName, capabilityId: installation.itemId, activeRunCount: count });
         return Object.freeze(capabilityRemovalInspectionSchema.parse({ inspectionId: operationId, packageName: installation.packageName, capabilityId: installation.itemId, activeVersion: installation.activeVersion, activeIntegrity: installation.activeIntegrity, activeContentDigest: installation.activeContentDigest, activeRunCount: count, expiresAt: new Date(timing.expiresAt).toISOString() }));
@@ -54,16 +57,30 @@ export class CapabilityRemovalService {
       accept: async (payload: PackageRemoveRequest, review, owner) => {
         const accepted = packageRemoveRequestSchema.safeParse(payload);
         const installation = review.installation, capabilityId = installation.itemId;
-        const runIds = review.sessions.records.filter((row) => row.status === "active").map((row) => row.runId);
+        const runIds = [...review.runIds];
         if (!accepted.success || accepted.data.inspectionId !== operationId || accepted.data.packageName !== installation.packageName || accepted.data.acceptedActiveVersion !== installation.activeVersion || accepted.data.acceptedActiveRunCount !== runIds.length) throw safe(undefined, "package_permission_denied");
         const assertReviewed = () => {
           const current = repository.getByPackageName(installation.packageName);
           if (!current || !same(serialRemovalInstallation(current), serialRemovalInstallation(installation)) || !same(serialRemovalConfiguration(capabilities.snapshotInstalledConfiguration(capabilityId)), serialRemovalConfiguration(review.configuration)) || !capabilities.sessionCapabilitiesMatch(capabilityId, review.sessions.records)) throw safe(undefined, "package_permission_denied");
         };
-        assertReviewed(); await coordinator.assertRunsIdle(runIds); assertReviewed(); owner.assertHealthy();
+        assertReviewed(); if(!resourceOwner)await coordinator.assertRunsIdle(runIds); assertReviewed(); owner.assertHealthy();
         if (review.configuration.settings.some((setting) => setting.secretRef) && !this.deps.credentials) throw safe();
         owner.setPhase?.("committing");
         const recovery = await this.deps.installer.prepare(operationId, installation, review.configuration, review.sessions);
+        if(resourceOwner) {
+          if(!same(resourceOwner.activeRuns(capabilityId),review.runIds))throw safe(undefined,"package_permission_denied");
+          try {
+            await this.deps.installer.commit(recovery,async()=>{owner.assertHealthy();if(!capabilities.sessionCapabilitiesMatch(capabilityId,review.sessions.records))throw safe();});
+            await this.cleanup(recovery,owner);
+            this.deps.emit(operationId,"removing","completed",{action:"remove",packageName:installation.packageName,capabilityId,activeRunCount:runIds.length});
+            return;
+          } catch {
+            repository.advanceRemovalRecovery(operationId,recovery.ownerToken,"conflict","package_remove_failed");
+            repository.quarantineRemovalRecoveries();
+            await catalog.refresh();
+            throw safe();
+          }
+        }
         let deactivated = false;
         let expectedSessions = review.sessions;
         try {
