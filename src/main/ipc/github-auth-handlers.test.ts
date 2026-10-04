@@ -251,6 +251,7 @@ describe("GitHub authentication IPC handlers", () => {
 		IPC_CHANNELS.CODING_AGENT_SESSION_GET,
 		IPC_CHANNELS.CODING_AGENT_SESSION_SEND,
 		IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,
+		IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT,
 		IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND,
 		IPC_CHANNELS.INTELLIGENCE_REPOSITORIES,
 		IPC_CHANNELS.INTELLIGENCE_SNAPSHOT_GET,
@@ -266,6 +267,11 @@ describe("GitHub authentication IPC handlers", () => {
 				new Error(`GitHub authentication is required (${state}).`),
 			);
 			for (const channel of applicationChannels) {
+        if(channel===IPC_CHANNELS.CODING_AGENT_SESSION_CREATE || channel===IPC_CHANNELS.CODING_AGENT_SESSION_GET || channel===IPC_CHANNELS.CODING_AGENT_SESSION_SEND || channel===IPC_CHANNELS.CODING_AGENT_SESSION_ABORT || channel===IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT || channel===IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE || channel===IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND) {
+          const request=channel===IPC_CHANNELS.CODING_AGENT_SESSION_CREATE ? {agentKind:"codex",worktreeId:"wt",title:"Test"} : channel===IPC_CHANNELS.CODING_AGENT_SESSION_SEND ? {runId:"run",content:"Test"} : channel===IPC_CHANNELS.CODING_AGENT_SESSION_MODEL_UPDATE ? {runId:"run",providerId:"provider",modelId:"model"} : channel===IPC_CHANNELS.CODING_AGENT_PERMISSION_RESPOND ? {runId:"run",permissionId:"permission",response:"once"} : {runId:"run"};
+          await expect(invoke(channel,request)).resolves.toMatchObject({ok:false,error:{code:"internal_error"}});
+          continue;
+        }
 				await expect(invoke(channel)).rejects.toThrow(
 					"GitHub authentication is required",
 				);

@@ -40,7 +40,7 @@ const messages: Record<AssignmentErrorCode, string> = {
 export function assignmentWireFailure(
   code: AssignmentErrorCode,
   current?: AssignmentProjectionDto,
-): AssignmentIpcResult<AssignmentProjectionDto> {
+): Extract<AssignmentIpcResult<never>, {ok:false}> {
   return {
     ok: false,
     error: {

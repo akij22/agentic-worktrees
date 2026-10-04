@@ -85,7 +85,14 @@ export function createCapabilityCatalog(
   const compose = (): readonly CapabilityCatalogEntry[] => {
     const entries: CapabilityCatalogEntry[] = [...bundledCapabilityEntries];
     for (const item of installed.list()) {
-      if (bundledCapabilities.has(item.record.itemId)) continue;
+      const bundled = bundledCapabilities.get(item.record.itemId);
+      if (bundled) {
+        if (item.record.state === "blocked" && item.record.activeVersion === bundled.manifest.version) {
+          const index = entries.findIndex(entry => entry.manifest.id === item.record.itemId);
+          entries[index] = deepFreeze({ ...bundled, blocked: true });
+        }
+        continue;
+      }
       const version = item.record.activeVersion;
       if (!version) continue;
       entries.push(

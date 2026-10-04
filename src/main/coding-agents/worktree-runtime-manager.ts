@@ -80,6 +80,7 @@ interface RuntimeEntry {
 interface WorktreeRuntimeManagerOptions {
   factory: WorktreeRuntimeFactory;
   attestationVerifier?: RuntimeAttestationVerifier;
+  isPersistedSessionRoute?(route: Pick<SessionRoute,"agentKind"|"worktreeId"|"runId"|"externalSessionId">): boolean;
   now?: () => number;
   maximumRuntimes?: number;
   maximumRuntimesPerProvider?: number;
@@ -473,7 +474,12 @@ export class WorktreeRuntimeManager {
       if (!verified) throw new Error("Runtime Assignment attestation is unavailable.");
       if (input.operation !== "create") {
         if (!input.externalSessionId) throw new Error("Provider session route is required.");
-        const route = this.sessionRoutes.get(this.sessionRouteKey({ ...input, externalSessionId: input.externalSessionId, runtimeGeneration: runtimeLease.runtime.generation }));
+        const exactRoute = { ...input, externalSessionId: input.externalSessionId, runtimeGeneration: runtimeLease.runtime.generation };
+        let route = this.sessionRoutes.get(this.sessionRouteKey(exactRoute));
+        if (!route && input.operation === "resume" && this.options.isPersistedSessionRoute?.(exactRoute)) {
+          this.registerSessionRoute(exactRoute);
+          route = this.sessionRoutes.get(this.sessionRouteKey(exactRoute));
+        }
         if (!route
           || route.worktreeId !== input.worktreeId
           || route.runId !== input.runId

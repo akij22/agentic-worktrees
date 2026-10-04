@@ -157,3 +157,93 @@ it("retains a Skill and arguments through rejection, clears them only after acce
     screen.queryByRole("button", { name: "Remove Security Review skill" }),
   ).toBeNull();
 });
+
+it("shows saved messages and the unavailable-runtime notice without polling live models or usage", async () => {
+  const notice =
+    "The agent runtime could not resume this session. Saved messages are still available.";
+  const snapshot = codingAgentSessionSnapshotSchema.parse({
+    session: {
+      id: "run",
+      worktreeId: "wt",
+      repositoryId: "repo",
+      agentKind: "codex",
+      agentName: "Codex",
+      title: "Saved chat",
+      status: "unavailable",
+      errorMessage: notice,
+      hasUnviewedChanges: false,
+      providerId: "openai",
+      modelId: "gpt",
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    },
+    context: {
+      repository: { name: "App", fullName: "org/app" },
+      worktree: {
+        id: "wt",
+        name: "Main",
+        path: "/local/app",
+        branchName: "main",
+      },
+    },
+    messages: [
+      {
+        id: "saved",
+        role: "user",
+        content: "Saved conversation",
+        reasoning: "",
+        tools: [],
+        createdAt: 1,
+        completedAt: 1,
+      },
+    ],
+    diff: [],
+    turnDiff: [],
+    capabilities: [],
+    skillInvocations: [],
+  });
+  const listModels = vi.fn(async () => []),
+    getSessionUsage = vi.fn(async () => ({
+      contextTokens: 0,
+      contextWindow: 100,
+      contextPercentage: 0,
+      totalCost: null,
+      providerId: "openai",
+      modelId: "gpt",
+    }));
+  Object.defineProperty(window, "api", {
+    configurable: true,
+    value: {
+      codingAgent: {
+        getSession: async () => snapshot,
+        markSessionViewed: async () => undefined,
+        onEvent: () => () => undefined,
+        listModels,
+        getSessionUsage,
+      },
+      skills: { list: async () => [], onChanged: () => () => undefined },
+      resourceAssignment: {
+        get: async () => ({ ok: true, value: initialProjection() }),
+        onChanged: () => () => undefined,
+      },
+      resourceActivity: {
+        list: async () => ({
+          ok: true,
+          value: { runId: "run", sequence: "0", items: [] },
+        }),
+        onChanged: () => () => undefined,
+      },
+      editors: { listAvailable: async () => [] },
+      workspace: { files: { search: async () => [] } },
+    },
+  });
+  render(
+    <MemoryRouter>
+      <CodingAgentSession runId="run" showInspection={false} />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText("Saved conversation")).toBeTruthy();
+  expect(await screen.findByText(notice)).toBeTruthy();
+  expect(listModels).not.toHaveBeenCalled();
+  expect(getSessionUsage).not.toHaveBeenCalled();
+});

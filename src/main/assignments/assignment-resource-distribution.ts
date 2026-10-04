@@ -78,6 +78,11 @@ export async function distributeResourceAssignment(
     id: string;
     targetVersion: string | null;
     operationId?: string;
+    /** Main-owned synchronous library write, committed with all verified Assignments. */
+    commitResource?():void;
+    stageResource?():Promise<void>;
+    rollbackResource?():Promise<void>;
+    finalizeResource?():Promise<void>;
   },
 ): Promise<void> {
   const operationId = input.operationId ?? randomUUID(),
@@ -111,6 +116,7 @@ export async function distributeResourceAssignment(
     }> = [],
     touched: typeof plans = [];
   let committed = false;
+  let resourceStageStarted = false;
   const cleanupFailedWorktrees = new Set<string>();
   let items: Array<{
     prior: AssignmentAggregate;
@@ -218,6 +224,11 @@ export async function distributeResourceAssignment(
     });
     for (const item of items) context.frozen.add(item.prior.worktreeId);
     context.store.freezeDistribution(operationId, items);
+    if(input.stageResource) {
+      resourceStageStarted=true;
+      context.store.distributionBoundary(operationId,"staged");
+      await input.stageResource();
+    }
     for (const item of items) {
       await context.options.resources.prepare(item.target);
       const before = context.options.runtimeManager.inspectWorktree(
@@ -381,8 +392,13 @@ export async function distributeResourceAssignment(
         attemptStatus: "verified",
       };
     });
-    context.store.finishDistribution(operationId, "verified", changes);
+    context.store.transaction(()=>{
+      input.commitResource?.();
+      context.store.finishDistribution(operationId, "verified", changes.map(change=>({...change,projection:context.projection(change.next)})));
+    });
     committed = true;
+    try {await input.finalizeResource?.();}
+    catch {for(const item of items)cleanupFailedWorktrees.add(item.prior.worktreeId);}
     for (const participant of plans) {
       try {
         await participant.plan.finalize();
@@ -458,6 +474,10 @@ export async function distributeResourceAssignment(
       } catch {
         divergent.add(p.worktreeId);
       }
+    }
+    if(resourceStageStarted) {
+      try {await input.rollbackResource?.();}
+      catch {for(const item of items)divergent.add(item.prior.worktreeId);}
     }
     const changes = items
       .filter(

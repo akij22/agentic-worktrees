@@ -181,7 +181,7 @@ export const useCodingAgentSession = (runId: string) => {
     };
   }, [load, runId]);
   useEffect(() => {
-    if (!snapshot) return;
+    if (!snapshot || snapshot.session.status === "unavailable") return;
     let cancelled = false;
     const currentModelKey = `${snapshot.session.providerId}::${snapshot.session.modelId}`;
     setLoadingModels(true);
@@ -203,7 +203,7 @@ export const useCodingAgentSession = (runId: string) => {
     return () => {
       cancelled = true;
     };
-  }, [runId, snapshot?.session.modelId, snapshot?.session.providerId]);
+  }, [runId, snapshot?.session.status, snapshot?.session.modelId, snapshot?.session.providerId]);
   useEffect(() => {
     if (!snapshot || !["busy", "creating"].includes(snapshot.session.status))
       return;

@@ -23,7 +23,7 @@ interface OpenCodeRuntimeFactoryDependencies {
   loadPlan(
     input: Parameters<WorktreeRuntimeFactory["create"]>[0],
   ): Promise<OpenCodeRuntimePlan>;
-  onExit?(worktreeId: string, generation: string): void;
+  onExit?(worktreeId: string, generation: string, cleanupFailed: boolean): void;
 }
 interface OwnedOpenCodeRuntime extends OwnedWorktreeRuntime {
   adapter: OpenCodeAdapter;
@@ -73,20 +73,35 @@ export class OpenCodeWorktreeRuntimeFactory implements WorktreeRuntimeFactory {
       sessionDataRoot: join(storageRoot, "worktree-data", worktreeKey),
     });
     let stopping = false;
+    let exitCleanup: Promise<void> | undefined;
+    let exitCleanupFailure: unknown;
     const unsubscribe = adapter.subscribe((event) => {
-      if (event.type === "server.exit" && !stopping)
-        this.dependencies.onExit?.(input.worktreeId, input.generation);
+      if (event.type === "server.exit" && !stopping) {
+        exitCleanup = Promise.resolve().then(async()=>{
+          await stopOwnedHosts?.();
+          if(this.runtimes.has(`${input.worktreeId}\0${input.generation}`))
+            options.evidence?.retireRuntime(options.lineage);
+        }).then(()=>{
+          this.runtimes.delete(`${input.worktreeId}\0${input.generation}`);
+          this.dependencies.onExit?.(input.worktreeId,input.generation,false);
+        },error=>{
+          exitCleanupFailure=error;
+          this.dependencies.onExit?.(input.worktreeId,input.generation,true);
+        });
+      }
     });
     try {
       await adapter.start(plan.executablePath, options.directory);
+      if(!adapter.getStatus().running || adapter.getStatus().error)
+        throw new Error("OpenCode owned provider exited during activation.");
     } catch (error) {
       unsubscribe();
       const cleanup = await Promise.allSettled([
         adapter.stop(),
         Promise.resolve().then(() => stopOwnedHosts?.()),
         Promise.resolve().then(() => {
+          // Failed activation has not admitted a session or persisted an attestation.
           options.onUnavailable?.(options.lineage);
-          options.evidence?.retireRuntime(options.lineage);
         }),
       ]);
       if (cleanup.some((result) => result.status === "rejected"))
@@ -105,7 +120,8 @@ export class OpenCodeWorktreeRuntimeFactory implements WorktreeRuntimeFactory {
       cancelOwnedWork: () => adapter.cancelOwnedWork(),
       stop: async () => {
         stopping = true;
-        const failures: unknown[] = [];
+        await exitCleanup;
+        const failures: unknown[] = exitCleanupFailure ? [exitCleanupFailure] : [];
         try {
           await adapter.cancelOwnedWork();
         } catch (error) {

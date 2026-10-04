@@ -39,6 +39,7 @@ export type AssignmentAdmissionLease = WorktreeRuntimeLease & {
   readonly assignmentRevision: string;
 };
 export interface AssignmentResourcePort {
+  list?(agentKind: AgentKind): AssignmentProjectionDto["resources"];
   resolve(
     selection: AssignmentSetDesiredRequest["resources"][number],
   ): Promise<ResourceIdentity>;
@@ -118,6 +119,18 @@ export class WorktreeResourceAssignmentService {
             }))
         : [];
     const projection = projectWorktreeAssignment(state, agentKind, blockers);
+    const installed = this.options.resources.list?.(agentKind) ?? [];
+    projection.resources = [
+      ...projection.resources.map(resource=>{
+        const metadata = installed.find(item=>item.kind === resource.kind && item.id === resource.id && item.version === resource.version);
+        return metadata ? {...resource,name:metadata.name,description:metadata.description,assignable:metadata.assignable,
+          ...(metadata.status === "unavailable" ? {status:"unavailable" as const,verified:false,unavailableReason:metadata.unavailableReason} : {})} : resource;
+      }),
+      ...installed.filter(item=>!projection.resources.some(resource=>resource.kind === item.kind && resource.id === item.id)),
+    ];
+    if(projection.resources.some(resource=>resource.verified === false && resource.desired && resource.status === "unavailable")) {
+      projection.admission={canCreateSession:false,canResumeSession:false,canSend:false,reason:"runtime_verification",message:"An assigned Resource is unavailable."};
+    }
     const live = this.options.runtimeManager
       .inspectWorktree(state.worktreeId)
       .runtimes.find((r) => r.agentKind === agentKind);
@@ -386,7 +399,11 @@ export class WorktreeResourceAssignmentService {
     const result = replaceDesiredAssignment(afterBarrier, {
       expectedRevision: input.expectedRevision,
       attemptId: randomUUID(),
-      targetGeneration: this.store.generation(input.worktreeId, resources),
+      targetGeneration: JSON.stringify(resources) === JSON.stringify(afterBarrier.desiredGeneration.resources)
+        ? afterBarrier.desiredGeneration
+        : JSON.stringify(resources) === JSON.stringify(afterBarrier.verifiedGeneration.resources)
+          ? afterBarrier.verifiedGeneration
+          : this.store.generation(input.worktreeId, resources),
       acceptedAt: new Date().toISOString(),
     });
     if (result.kind === "conflict")
@@ -438,7 +455,7 @@ export class WorktreeResourceAssignmentService {
       );
     controller.abort();
   }
-  async distribute(input: { kind: "skill" | "capability"; id: string; targetVersion: string | null; operationId?: string }): Promise<void> {
+  async distribute(input: { kind: "skill" | "capability"; id: string; targetVersion: string | null; operationId?: string; commitResource?():void; stageResource?():Promise<void>; rollbackResource?():Promise<void>; finalizeResource?():Promise<void> }): Promise<void> {
     const key = `${input.kind}:${input.id}`, previous = this.distributionIntents.get(key);
     if (previous) {
       if (previous.targetVersion === input.targetVersion) throw Object.assign(new Error("This Resource already has an update in progress."), { code: "resource_update_pending" });
@@ -538,7 +555,7 @@ export class WorktreeResourceAssignmentService {
         throw new Error("Provider Skill isolation mismatch.");
     }
   }
-  async removeWorktree(worktreeId: string): Promise<void> {
+  async removeWorktree(worktreeId: string, remove?:()=>Promise<void>): Promise<void> {
     if (this.frozen.has(worktreeId)) {
       const gate = await this.options.runtimeManager.acquireAdmission(
         worktreeId,
@@ -573,7 +590,8 @@ export class WorktreeResourceAssignmentService {
         : undefined,
     );
     await this.options.runtimeManager.stopWorktree(worktreeId, async () => {
-      this.store.removeWorktree(worktreeId);
+      await remove?.();
+      if(this.store.load(worktreeId))this.store.removeWorktree(worktreeId);
     });
     this.removed.add(worktreeId);
   }
@@ -1216,6 +1234,10 @@ export class WorktreeResourceAssignmentService {
   ): Promise<T> {
     const current = this.state(request.worktreeId);
     this.assertAdmission(current);
+    try {await this.options.resources.prepare(current.verifiedGeneration);}
+    catch {throw Object.assign(new Error("An assigned Resource is unavailable."),{code:"resource_unavailable",current:this.projection(current,request.agentKind)});}
+    if (this.state(request.worktreeId).verifiedGeneration.id !== current.verifiedGeneration.id)
+      throw Object.assign(new Error("The verified Assignment changed while preparing admission."),{code:"resource_unavailable"});
     if (
       current.verifiedGeneration.resources.some(
         (r) =>
@@ -1260,6 +1282,8 @@ export class WorktreeResourceAssignmentService {
     );
     const state = this.state(request.worktreeId);
     this.assertAdmission(state);
+    if (state.verifiedGeneration.id !== current.verifiedGeneration.id)
+      throw Object.assign(new Error("The verified Assignment changed while preparing admission."),{code:"resource_unavailable"});
     const participant = state.participants.find(
       (p) => p.agentKind === request.agentKind,
     );
@@ -1292,6 +1316,13 @@ export class WorktreeResourceAssignmentService {
     agentKind: AgentKind,
     signal?: AbortSignal,
   ): Promise<void> {
+    const cachedState = this.state(worktreeId);
+    const cachedRuntime = this.options.runtimeManager.inspectWorktree(worktreeId).runtimes.find(runtime=>runtime.agentKind === agentKind);
+    const cachedParticipant = cachedRuntime && cachedState.participants.find(participant=>participant.agentKind === agentKind && participant.runtimeGenerationId === cachedRuntime.generation && participant.providerVersion === cachedRuntime.providerVersion);
+    if(cachedRuntime && cachedParticipant && await new DatabaseRuntimeAttestationVerifier(this.options.sqlite).verify({
+      agentKind,worktreeId,runtimeGeneration:cachedRuntime.generation,providerVersion:cachedRuntime.providerVersion,
+      assignmentGenerationId:cachedState.verifiedGeneration.id,catalogGenerationId:cachedParticipant.catalogGenerationId,
+    })) return;
     const gate = await this.options.runtimeManager.acquireAdmission(
       worktreeId,
       "exclusive",

@@ -11,9 +11,10 @@ import { bootstrapSchemaSql } from "../database/bootstrap";
 
 type AppDatabase = BetterSQLite3Database<typeof schema>;
 
-const mocks = vi.hoisted(() => ({ database: null as AppDatabase | null }));
+const mocks = vi.hoisted(() => ({ database: null as AppDatabase | null,sqlite:null as BetterSqlite3.Database|null }));
 
 vi.mock("../database/client", () => ({
+  getSqlite:()=>{if(!mocks.sqlite)throw new Error("Test database is not initialized.");return mocks.sqlite;},
 	getDatabase: () => {
 		if (!mocks.database) throw new Error("Test database is not initialized.");
 		return mocks.database;
@@ -55,6 +56,7 @@ const seedRepository = (localRootPath: string): void => {
 beforeEach(async () => {
 	sqlite = new BetterSqlite3(":memory:");
 	sqlite.exec(bootstrapSchemaSql);
+  mocks.sqlite=sqlite;
 	mocks.database = drizzle(sqlite, { schema });
 	repositoryPath = realpathSync(
 		mkdtempSync(path.join(tmpdir(), "primary-workspace-")),

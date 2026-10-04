@@ -22,7 +22,7 @@ export class OpenCodeResourceEvidence {
   private readonly sessionRuns = new Map<string, string>();
   private readonly explicitRequests = new Map<
     string,
-    { skill: ProjectedOpenCodeSkill; messageId: string; sessionId: string }
+    { skill: ProjectedOpenCodeSkill; messageId: string; sessionId: string; expectedContext: string }
   >();
   private readonly assistantMessages = new Set<string>();
   private readonly invocationSessions = new Map<string, string>();
@@ -170,6 +170,7 @@ export class OpenCodeResourceEvidence {
     sessionId: string,
     messageId: string,
     skill: ProjectedOpenCodeSkill,
+    argumentsText = "",
   ): void {
     this.assertSession(sessionId);
     if (this.explicitRequests.size >= 1000)
@@ -178,6 +179,11 @@ export class OpenCodeResourceEvidence {
       skill,
       messageId,
       sessionId,
+      // Pinned command expansion preserves the complete body when no placeholders exist.
+      // Substituted or shell-expanded bodies cannot prove the original body digest.
+      expectedContext: (!/\$\d+|\$ARGUMENTS/.test(skill.commandTemplate) && argumentsText.trim()
+        ? `${skill.commandTemplate}\n\n${argumentsText}`
+        : skill.commandTemplate).trim(),
     });
     this.projection.options.evidence?.ingestSkill({
       lineage: this.projection.options.lineage,
@@ -249,7 +255,7 @@ export class OpenCodeResourceEvidence {
             .filter((p) => p?.type === "text" && typeof p.text === "string")
             .map((p) => p?.text)
             .join("\n");
-          if (text === request.skill.commandTemplate)
+          if (text === request.expectedContext)
             this.projection.options.evidence?.ingestSkill({
               lineage: this.projection.options.lineage,
               providerContract: OPENCODE_ACTIVITY_CONTRACT,

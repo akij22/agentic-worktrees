@@ -29,6 +29,7 @@ export class AssignmentMigrator {
     private readonly sqlite: BetterSqlite3.Database = getSqlite(),
     private readonly catalog?: AssignmentMigrationCatalog,
     private readonly onJournalApplied?: () => void,
+    private readonly beforeVerified?: () => void,
   ) {}
 
   runInitialMigration(now = new Date()): MigrationResult {
@@ -43,6 +44,13 @@ export class AssignmentMigrator {
     const skills = this.sqlite.prepare(`SELECT skill_id skillId,version,content_digest contentDigest,codex_compatibility codexCompatibility,opencode_compatibility opencodeCompatibility
       FROM skill_installations WHERE state IN ('installed','update_available') ORDER BY skill_id`).all() as Array<{ skillId: string; version: string; contentDigest: string; codexCompatibility: string; opencodeCompatibility: string }>;
     const sourceFingerprint = digest({ worktrees, capabilities: activeRows, skills });
+    const brokenReference = this.sqlite.prepare(`SELECT 1 FROM session_capabilities sc
+      LEFT JOIN runs r ON r.id=sc.run_id LEFT JOIN worktrees w ON w.id=r.worktree_id
+      WHERE r.id IS NULL OR w.id IS NULL
+      UNION ALL SELECT 1 FROM skill_invocations si
+      LEFT JOIN runs r ON r.id=si.run_id LEFT JOIN worktrees w ON w.id=r.worktree_id
+      WHERE r.id IS NULL OR w.id IS NULL LIMIT 1`).get();
+    if (brokenReference) this.failPreflight(sourceFingerprint, worktrees.length, "migration_reference_invalid", now);
     if (transitional.count !== 0) this.failPreflight(sourceFingerprint, worktrees.length, "migration_capability_transitional", now);
     const brokenInstallation = this.sqlite.prepare(`SELECT count(*) count FROM session_capabilities sc
       LEFT JOIN capability_installations ci ON ci.capability_id=sc.capability_id
@@ -68,7 +76,7 @@ export class AssignmentMigrator {
       const descriptor = this.catalog?.resolve(ref);
       if (!descriptor || descriptor.resourceKind !== ref.resourceKind || descriptor.resourceId !== ref.resourceId || descriptor.version !== ref.version) this.failPreflight(sourceFingerprint, worktrees.length, "migration_resource_descriptor_missing", now);
       const digestValues = [descriptor.contentDigest, descriptor.securityDigest, descriptor.configurationDigest, descriptor.invocationPolicyDigest, ...descriptor.providers.flatMap((provider) => [provider.qualificationDigest, provider.expectedStateDigest])];
-      if (descriptor.permissionDigest !== undefined) digestValues.push(descriptor.permissionDigest);
+      if (descriptor.permissionDigest !== undefined && !/^(?:sha256:)?[a-f0-9]{64}$/.test(descriptor.permissionDigest)) this.failPreflight(sourceFingerprint, worktrees.length, "migration_resource_descriptor_invalid", now);
       if (!digestValues.every((value) => /^sha256:[a-f0-9]{64}$/.test(value))) this.failPreflight(sourceFingerprint, worktrees.length, "migration_resource_descriptor_invalid", now);
       const skill = skills.find((candidate) => ref.resourceKind === "skill" && candidate.skillId === ref.resourceId && candidate.version === ref.version);
       if (skill && skill.contentDigest !== descriptor.contentDigest) this.failPreflight(sourceFingerprint, worktrees.length, "migration_skill_digest_mismatch", now);
@@ -141,6 +149,7 @@ export class AssignmentMigrator {
         });
         insertOutbox.run(`migration:${worktree.id}`, worktree.id, JSON.stringify(projection), now.getTime());
       }
+      this.beforeVerified?.();
       const journal = this.sqlite.prepare("UPDATE worktree_assignment_migrations SET status='verified',completed_at=? WHERE migration_key=? AND status='applying' AND source_fingerprint=?").run(now.getTime(), migrationKey, sourceFingerprint);
       if (journal.changes !== 1) throw new Error("Assignment migration journal changed during conversion.");
       this.sqlite.exec("COMMIT");

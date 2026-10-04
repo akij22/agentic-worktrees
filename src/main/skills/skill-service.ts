@@ -17,6 +17,7 @@ import {
   type SkillStorageLayout,
   stageSkillInstallation,
   removeInstalledSkill,
+  type SkillInstallTransaction,
 } from "./skill-installer";
 import {
   SkillRepository,
@@ -72,6 +73,10 @@ export interface SkillServiceDependencies {
   layout: SkillStorageLayout;
   runtime: SkillRuntimeBridge;
   log?: (message: string, error?: unknown) => void;
+  resourceOwner?():{
+    remove(skillId:string,commit:()=>void):Promise<void>;
+    install(transaction:SkillInstallTransaction,commit:()=>void):Promise<void>;
+  }|undefined;
 }
 function persisted(
   record: SkillInstallationRecord,
@@ -195,7 +200,6 @@ export class SkillService {
     });
     const validated = transaction.validated;
     const previous = this.repository.getInstallation(validated.descriptor.id);
-    await transaction.commit();
     const next = {
       skillId: validated.descriptor.id,
       version: validated.descriptor.version,
@@ -214,13 +218,15 @@ export class SkillService {
     };
     let persistedNew = false;
     try {
-      this.repository.saveInstallation(next);
-      persistedNew = true;
-      await this.synchronize();
-      this.repository.setInstallationState(
-        validated.descriptor.id,
-        "installed",
-      );
+      const owner=this.dependencies.resourceOwner?.();
+      if(owner) await owner.install(transaction,()=>{this.repository.saveInstallation({...next,state:"installed"});persistedNew=true;});
+      else {
+        await transaction.commit();
+        this.repository.saveInstallation(next);
+        persistedNew = true;
+        await this.synchronize();
+        this.repository.setInstallationState(validated.descriptor.id,"installed");
+      }
     } catch (error) {
       await transaction.rollback({ keepPackage: true });
       if (previous) this.repository.saveInstallation(persisted(previous));
@@ -266,6 +272,13 @@ export class SkillService {
         "skill_not_installed",
         "The skill is not installed.",
       );
+    const owner=this.dependencies.resourceOwner?.();
+    if(owner) {
+      await owner.remove(skillId,()=>this.repository.removeInstallation(skillId));
+      await removeInstalledSkill({managedRoot:this.dependencies.layout,skillId,version:record.version});
+      this.emit(skillId,"removed");
+      return;
+    }
     const active = join(this.dependencies.layout.activeRoot, skillId),
       backup = join(
         this.dependencies.layout.stagingRoot,

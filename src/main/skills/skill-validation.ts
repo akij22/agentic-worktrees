@@ -47,13 +47,13 @@ function frontmatter(content: string): { metadata: Record<string, unknown>; body
   return { metadata: value as Record<string, unknown>, body: content.slice(match[0].length) };
 }
 
-export async function validateSkillPackage(sourceRoot: string): Promise<ValidatedSkillPackage> {
+export async function validateSkillPackage(sourceRoot: string, expectedId?: string): Promise<ValidatedSkillPackage> {
   const root = resolve(sourceRoot);
   const rootStat = await lstat(root);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) invalid("source must be a real directory");
   const canonicalRoot = await realpath(root);
   const insideRoot = (candidate: string) => candidate === canonicalRoot || candidate.startsWith(`${canonicalRoot}${sep}`);
-  const id = skillIdSchema.parse(basename(root));
+  const id = skillIdSchema.parse(expectedId ?? basename(root));
   const files: ValidatedSkillFile[] = [];
   let totalBytes = 0;
 

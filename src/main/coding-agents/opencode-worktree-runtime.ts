@@ -62,6 +62,8 @@ export interface OpenCodeAssignedSkill {
   automaticInvocation: boolean;
 }
 export interface OpenCodeWorktreeRuntimeOptions {
+  /** Trusted main-process model endpoint, verified with the effective configuration. */
+  modelProvider?: { id: string; name: string; baseUrl: string };
   namespaceRoot: string;
   /** Application-owned data namespace retained for this Worktree across process generations. */
   sessionDataRoot?: string;
@@ -96,6 +98,14 @@ export interface OpenCodeAssignedTool {
 // Pinned MCP catalog transformation from OpenCode v1.18.30, not a reverse name parser.
 export const openCodeToolName = (server: string, tool: string): string =>
   `${normalizeOpenCodeIdentifier(server)}_${tool.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+/** Fingerprints the immutable qualified intent after every effective catalog/config check succeeds. */
+export const openCodeEffectiveStateDigest = (options: OpenCodeWorktreeRuntimeOptions): string =>
+  `sha256:${createHash("sha256").update(JSON.stringify({
+    lineage: options.lineage,
+    skills: options.skills.map(skill => ({identity:skill.identity,automaticInvocation:skill.automaticInvocation})),
+    tools: options.capabilityTools ?? [], skillIsolation: "enforced", adapterContractVersion: 1,
+  })).digest("hex")}`;
+
 export interface ProjectedOpenCodeSkill extends OpenCodeAssignedSkill {
   path: string;
   body: string;
@@ -242,6 +252,7 @@ export class OpenCodeRuntimeProjection {
       toolNames.add(name);
     }
     this.config = {
+      ...(options.modelProvider ? { provider: { [options.modelProvider.id]: { npm: "@ai-sdk/openai-compatible", name: options.modelProvider.name, options: { baseURL: options.modelProvider.baseUrl }, models: { "qualification": { name: "Qualification", limit: { context: 32000, output: 4096 } } } } } } : {}),
       skills: { paths: [this.projectionRoot] },
       plugin: [],
       command: {},
@@ -614,6 +625,7 @@ export class OpenCodeRuntimeProjection {
       "permission",
       "agent",
       "autoupdate",
+      ...(this.options.modelProvider ? ["provider"] : []),
     ])
       if (
         canonical(cfg[key] ?? (key === "mcp" ? {} : undefined)) !==
@@ -642,7 +654,7 @@ export class OpenCodeRuntimeProjection {
       if (input.hostTools[server]?.join("\0") !== expected.join("\0")) fail();
     }
     // Credentials and transport URLs are verified in memory but never fingerprint inputs.
-    return `sha256:${hash(canonical({ skills: skills.map((s) => ({ name: s.name, contentDigest: typeof s.content === "string" ? hash(s.content) : null })), commands: commands.map((c) => ({ name: c.name, source: c.source, templateDigest: typeof c.template === "string" ? hash(c.template) : null })), config: { ...this.config, mcp: Object.keys(mcp).sort() }, tools: input.tools, hostTools: input.hostTools }))}`;
+    return openCodeEffectiveStateDigest(this.options);
   }
   resolveExplicit(input: {
     id: string;
@@ -671,7 +683,7 @@ export function createOpenCodeEvidenceContract(
     capabilityTools = [],
   } = structuredClone({
     lineage: options.lineage,
-    skills: options.skills,
+    skills: options.skills.map(skill=>{const content=skill.files.find(file=>file.relativePath === "SKILL.md")?.content;return {name:skill.name,identity:skill.identity,bodyDigest:content ? `sha256:${hash(content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "").trim())}` : null};}),
     capabilityTools: options.capabilityTools,
   });
   const matches = (value: ActivityLineage) =>
@@ -693,13 +705,7 @@ export function createOpenCodeEvidenceContract(
     adapterContractVersion: 1,
     automaticSkillContextQualified: true,
     resolveSkill: (value, route) => skill(value, route)?.identity ?? null,
-    resolveSkillBodyDigest: (value, route) => {
-      const content = skill(value, route)?.files.find(
-        (f) => f.relativePath === "SKILL.md",
-      )?.content;
-      if (!content) return null;
-      return `sha256:${hash(content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "").trim())}`;
-    },
+    resolveSkillBodyDigest: (value,route) => skill(value,route)?.bodyDigest ?? null,
     resolveTool: (value, server, name) =>
       tool(value, server, name)?.identity ?? null,
     resolveHostTool: (value, server, name) =>
