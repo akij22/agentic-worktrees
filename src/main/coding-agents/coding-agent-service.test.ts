@@ -63,7 +63,7 @@ const mocks = vi.hoisted(() => {
       >(async () => []),
       sendPrompt: vi.fn(async () => undefined),
       configureSkills: vi.fn(async () => undefined),
-      reconfigureCapabilities: vi.fn(async () => undefined),
+      reconfigureCapabilities: vi.fn<NonNullable<CodingAgentAdapter["reconfigureCapabilities"]>>(async () => undefined),
       compact: vi.fn(async () => undefined),
       getUsage: vi.fn<() => Promise<CodingAgentSessionUsage>>(async () => ({
         contextTokens: 50_000,
@@ -551,6 +551,57 @@ describe("coding-agent service routing", () => {
     expect(mocks.codex.adapter.getSession).toHaveBeenCalledWith(
       process.cwd(),
       "other-thread",
+    );
+  });
+
+  it("does not let an unavailable chat block capability activation or removal in another chat", async () => {
+    seedSession("codex-run", "codex", "codex-thread");
+    seedSession("other-run", "codex", "other-thread");
+    seedSession("missing-run", "codex", "missing-thread", "unavailable");
+    mocks.database?.update(runs).set({ errorMessage: new CodingAgentSessionMissingError().message })
+      .where(eq(runs.id, "missing-run")).run();
+    seedSession("transient-run", "codex", "transient-thread", "unavailable");
+    const connection = {
+      serverName: "aw_codex_run",
+      profileId: "aw_codex_run",
+      url: "http://127.0.0.1:43123/mcp",
+      authorizationHeader: "Bearer test",
+    };
+    const reload = async (input: Parameters<NonNullable<CodingAgentAdapter["reconfigureCapabilities"]>>[0]) => {
+      if (input.sessions.some((session) => session.sessionId === "missing-thread")) {
+        throw new CodingAgentSessionMissingError();
+      }
+    };
+    mocks.codex.adapter.reconfigureCapabilities
+      .mockImplementationOnce(reload)
+      .mockImplementationOnce(reload);
+
+    await expect(applyCodingAgentCapabilities("codex-run", connection, ["web_search"]))
+      .resolves.toBe("reloaded");
+    await expect(applyCodingAgentCapabilities("codex-run", connection, [], []))
+      .resolves.toBe("reloaded");
+    for (const [input] of mocks.codex.adapter.reconfigureCapabilities.mock.calls) {
+      expect(input.sessions.map((session) => session.sessionId)).toEqual(["codex-thread", "other-thread", "transient-thread"]);
+    }
+    expect(mocks.database?.select().from(runs).where(eq(runs.id, "missing-run")).get()?.status)
+      .toBe("unavailable");
+  });
+
+  it("keeps the selected unavailable chat in capability reload so its failure is surfaced", async () => {
+    seedSession("codex-run", "codex", "codex-thread", "unavailable");
+    mocks.database?.update(runs).set({ errorMessage: new CodingAgentSessionMissingError().message })
+      .where(eq(runs.id, "codex-run")).run();
+    const connection = {
+      serverName: "aw_codex_run",
+      profileId: "aw_codex_run",
+      url: "http://127.0.0.1:43123/mcp",
+      authorizationHeader: "Bearer test",
+    };
+    mocks.codex.adapter.reconfigureCapabilities.mockRejectedValueOnce(new CodingAgentSessionMissingError());
+    await expect(applyCodingAgentCapabilities("codex-run", connection, ["web_search"]))
+      .rejects.toBeInstanceOf(CodingAgentSessionMissingError);
+    expect(mocks.codex.adapter.reconfigureCapabilities).toHaveBeenCalledWith(
+      expect.objectContaining({ sessions: [expect.objectContaining({ sessionId: "codex-thread" })] }),
     );
   });
 

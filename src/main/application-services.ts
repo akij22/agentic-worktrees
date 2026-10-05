@@ -302,7 +302,9 @@ export async function createApplicationServices(input: {
   currentUserDataPath = input.userDataPath;
   currentMode = input.mode;
   const { configureDatabaseUserDataPath } = await import("./database/client");
-  configureDatabaseUserDataPath(input.userDataPath);
+  const { resolveCompatibleDatabasePath } = await import("./database/compatibility");
+  const databasePath = await resolveCompatibleDatabasePath(input.userDataPath);
+  configureDatabaseUserDataPath(input.userDataPath, databasePath);
   initDatabase();
   const capabilityService = await initializeCapabilities();
   if (!capabilityDistributionService || !currentWebSearchMigration)

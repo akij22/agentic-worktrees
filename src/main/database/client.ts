@@ -11,21 +11,17 @@ import * as schema from "../../shared/db/schema";
 
 let sqlite: Database.Database | null = null;
 let db: BetterSQLite3Database<typeof schema> | null = null;
-let configuredUserDataPath: string | null = null;
+let configuredDatabasePath: string | null = null;
 
-export const configureDatabaseUserDataPath = (userDataPath: string): void => {
-  const requestedDatabasePath = path.join(userDataPath, "data", "app.db");
+export const configureDatabaseUserDataPath = (userDataPath: string, databasePath?: string): void => {
+  const requestedDatabasePath = databasePath ?? path.join(userDataPath, "data", "app.db");
   if (sqlite && getDatabasePath() !== requestedDatabasePath)
     throw new Error("database_already_initialized");
-  configuredUserDataPath = userDataPath;
+  configuredDatabasePath = requestedDatabasePath;
 };
 
 export const getDatabasePath = (): string =>
-  path.join(
-    configuredUserDataPath ?? app.getPath("userData"),
-    "data",
-    "app.db",
-  );
+  configuredDatabasePath ?? path.join(app.getPath("userData"), "data", "app.db");
 
 export const getSqlite = (): Database.Database => {
   if (!sqlite) {

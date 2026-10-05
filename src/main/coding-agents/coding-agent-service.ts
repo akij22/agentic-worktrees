@@ -47,6 +47,7 @@ import type {
 
 const execFileAsync = promisify(execFile);
 const STATUS_ACTIVATION_GRACE_MS = 2_000;
+const MISSING_SESSION_MESSAGE = new CodingAgentSessionMissingError().message;
 
 export interface AgentInstallationStatus {
   kind: CodingAgentKind;
@@ -419,6 +420,8 @@ const listCapabilityReloadSessions = (
       runId: codingAgentSessions.runId,
       externalSessionId: codingAgentSessions.externalSessionId,
       worktreeId: runs.worktreeId,
+      status: runs.status,
+      errorMessage: runs.errorMessage,
     })
     .from(codingAgentSessions)
     .innerJoin(runs, eq(runs.id, codingAgentSessions.runId))
@@ -428,6 +431,10 @@ const listCapabilityReloadSessions = (
     )
     .where(eq(codingAgentInstallations.kind, kind))
     .all()
+    // Confirmed missing history has no live provider session to restore.
+    // Keep selected chats and transient failures so provider checks still run.
+    .filter((session) => session.runId === affectedRunId ||
+      session.status !== "unavailable" || session.errorMessage !== MISSING_SESSION_MESSAGE)
     .filter(
       (session) =>
         includeAll ||
