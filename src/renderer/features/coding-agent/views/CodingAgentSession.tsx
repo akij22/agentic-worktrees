@@ -223,6 +223,7 @@ export const CodingAgentSession = ({
   ].includes(session.status);
   const composerLocked =
     sessionState.sending ||
+    session.status === "unavailable" ||
     session.status === "creating" ||
     session.status === "aborting" ||
     session.status === "waiting_permission" ||

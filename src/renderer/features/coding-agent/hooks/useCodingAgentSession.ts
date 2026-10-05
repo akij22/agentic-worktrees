@@ -97,7 +97,7 @@ export const useCodingAgentSession = (runId: string) => {
         name: next.session.agentName,
       };
       if (!isBusyLikeStatus(next.session.status)) setActivity(undefined);
-      setError(undefined);
+      setError(next.session.errorMessage ?? undefined);
     } catch (cause) {
       if (requestedRunId !== runIdRef.current) return;
       setError(cause instanceof Error ? cause.message : String(cause));

@@ -11,6 +11,7 @@ import {
   codingAgentSessionDiffs,
   codingAgentSessions,
   repositories,
+  runMessages,
   runOutputEvents,
   runs,
   worktrees,
@@ -24,6 +25,7 @@ import type {
   CodingAgentModel,
   CodingAgentSessionUsage,
 } from "./types";
+import { CodingAgentSessionMissingError } from "./types";
 
 type AppDatabase = BetterSQLite3Database<typeof schema>;
 type EventListener = (event: CodingAgentEvent) => void;
@@ -675,6 +677,48 @@ describe("coding-agent service routing", () => {
     expect(snapshot.context.worktree.path).toBe("/path/that/no-longer-exists");
     expect(mocks.codex.adapter.getSession).not.toHaveBeenCalled();
     expect(mocks.codex.adapter.getDiff).not.toHaveBeenCalled();
+  });
+
+  it("returns saved history and diffs when the provider rollout is missing", async () => {
+    seedSession("codex-run", "codex", "codex-thread", "busy");
+    seedSessionDiff("codex-run");
+    mocks.database?.insert(runMessages).values({
+      id: "codex-run:message-1",
+      runId: "codex-run",
+      role: "user",
+      messageType: "text",
+      content: "Keep this conversation history",
+      sequence: 0,
+      createdAt: new Date(),
+    }).run();
+    mocks.codex.adapter.getSession
+      .mockRejectedValueOnce(new CodingAgentSessionMissingError())
+      .mockRejectedValueOnce(new CodingAgentSessionMissingError());
+
+    const snapshot = await getAgentSessionSnapshot("codex-run");
+
+    expect(snapshot.session.status).toBe("unavailable");
+    expect(snapshot.session.errorMessage).toContain("Start a new chat");
+    expect(snapshot.messages).toEqual([expect.objectContaining({ content: "Keep this conversation history" })]);
+    expect(snapshot.diff).toEqual([expect.objectContaining({ file: "src/example.ts" })]);
+    expect(snapshot.turnDiff).toEqual([]);
+    expect(mocks.codex.adapter.listMessages).not.toHaveBeenCalled();
+    expect(mocks.codex.adapter.getDiff).not.toHaveBeenCalled();
+    expect(mocks.codex.adapter.createSession).not.toHaveBeenCalled();
+
+    const retry = await getAgentSessionSnapshot("codex-run");
+    expect(retry.session.status).toBe("unavailable");
+    expect(retry.messages).toEqual(snapshot.messages);
+    expect(retry.diff).toEqual(snapshot.diff);
+
+    // Retrying still uses the original thread, and can recover if its data returns.
+    expect((await getAgentSessionSnapshot("codex-run")).session.status).toBe("idle");
+  });
+
+  it("does not hide unexpected provider failures when reading a snapshot", async () => {
+    seedSession("codex-run", "codex", "codex-thread");
+    mocks.codex.adapter.getSession.mockRejectedValueOnce(new Error("Codex connection closed"));
+    await expect(getAgentSessionSnapshot("codex-run")).rejects.toThrow("Codex connection closed");
   });
 
   it("does not clear a newly submitted OpenCode turn before it becomes active", async () => {

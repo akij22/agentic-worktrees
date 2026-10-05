@@ -35,6 +35,7 @@ import type {
   CodingAgentSkillCatalog,
   CodingAgentTurnInput,
 } from "./types";
+import { CodingAgentSessionMissingError } from "./types";
 
 const execFile = promisify(execFileCallback);
 
@@ -195,11 +196,19 @@ export class CodexAdapter implements CodingAgentAdapter {
     options?: { capabilities?: CodingAgentCapabilityConnection },
   ): Promise<{ id: string; status: "idle" | "busy" | "error" }> {
     this.directoryByThread.set(sessionId, directory);
-    const resumed = await this.client.request<unknown>("thread/resume", {
-      threadId: sessionId,
-      cwd: directory,
-      ...(options?.capabilities ? { config: capabilityConfig(options.capabilities) } : {}),
-    });
+    let resumed: unknown;
+    try {
+      resumed = await this.client.request<unknown>("thread/resume", {
+        threadId: sessionId,
+        cwd: directory,
+        ...(options?.capabilities ? { config: capabilityConfig(options.capabilities) } : {}),
+      });
+    } catch (error) {
+      if (errorMessage(error).includes(`no rollout found for thread id ${sessionId}`)) {
+        throw new CodingAgentSessionMissingError(error);
+      }
+      throw error;
+    }
     const resumedThreadId = readCodexThreadId(resumed);
     if (resumedThreadId !== sessionId) {
       throw new Error("Codex resumed an unexpected thread.");

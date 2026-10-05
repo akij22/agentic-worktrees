@@ -21,6 +21,7 @@ import { CoalescingTaskScheduler } from "./coalescing-task-scheduler";
 import { calculateDiffStats } from "./diff-stats";
 import { findCodexInSystem, parseCodexVersion } from "./codex-utils";
 import { OpenCodeAdapter } from "./opencode-adapter";
+import { CodingAgentSessionMissingError } from "./types";
 import {
   revalidatePrimaryWorkspace,
   synchronizePrimaryWorkspaces,
@@ -1202,12 +1203,26 @@ const getAgentSessionSnapshotUnlocked = async (
 ): Promise<AgentSessionSnapshot> => {
   let row = getSessionRecord(runId);
   const storedContext = getStoredContext(row.run.worktreeId);
-  if (!existsSync(storedContext.worktree.path)) {
-    setRunStatus(
-      runId,
-      "unavailable",
-      "The worktree for this session is no longer available.",
-    );
+  const worktreeAvailable = existsSync(storedContext.worktree.path);
+  let providerSessionMissing = false;
+  if (worktreeAvailable) {
+    try {
+      await reconcileAgentSessionUnlocked(runId);
+    } catch (error) {
+      if (!(error instanceof CodingAgentSessionMissingError)) throw error;
+      // Reconciliation has persisted the unavailable status. Keep local history
+      // readable without asking the provider for messages or diffs it cannot load.
+      providerSessionMissing = true;
+    }
+  }
+  if (!worktreeAvailable || providerSessionMissing) {
+    if (!worktreeAvailable) {
+      setRunStatus(
+        runId,
+        "unavailable",
+        "The worktree for this session is no longer available.",
+      );
+    }
     row = getSessionRecord(runId);
     return {
       session: toSummary(row),
@@ -1242,7 +1257,6 @@ const getAgentSessionSnapshotUnlocked = async (
       skillInvocations: skillInvocationSource?.(runId) ?? [],
     };
   }
-  await reconcileAgentSessionUnlocked(runId);
   row = getSessionRecord(runId);
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);

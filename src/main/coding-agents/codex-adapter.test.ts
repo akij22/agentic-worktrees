@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CodexAdapter } from "./codex-adapter";
 import type { CodexIncomingMessage } from "./codex-app-server-client";
 import type { CodingAgentEvent } from "./types";
+import { CodingAgentSessionMissingError } from "./types";
 
 interface RecordedRequest {
   method: string;
@@ -287,6 +288,24 @@ describe("Codex adapter", () => {
       threadId: "thread-1",
       includeTurns: true,
     });
+  });
+
+  it("reports a missing rollout as an unavailable conversation", async () => {
+    const { adapter, client } = createAdapter();
+    client.reply("thread/resume", () => {
+      throw new Error("thread/resume: no rollout found for thread id thread-1");
+    });
+
+    await expect(adapter.getSession("/repo", "thread-1")).rejects.toBeInstanceOf(CodingAgentSessionMissingError);
+    expect(client.methods()).toEqual(["thread/resume"]);
+  });
+
+  it("preserves unexpected resume failures", async () => {
+    const { adapter, client } = createAdapter();
+    client.reply("thread/resume", () => {
+      throw new Error("Codex connection closed");
+    });
+    await expect(adapter.getSession("/repo", "thread-1")).rejects.toThrow("Codex connection closed");
   });
 
   it("starts and interrupts a turn with the selected model and effort", async () => {

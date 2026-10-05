@@ -3,3 +3,15 @@ import {act,renderHook,waitFor} from "@testing-library/react";import {beforeEach
 const snapshot={session:{id:"run-1",agentKind:"codex",agentName:"Codex",worktreeId:"w",repositoryId:"repo",title:"Session",status:"idle",errorMessage:null,hasUnviewedChanges:false,providerId:"openai",modelId:"gpt",createdAt:new Date(0),updatedAt:new Date(0)},context:{worktree:{id:"w",repositoryId:"repo",name:"w",path:"/repo",branchName:"main",kind:"linked",baseBranchName:null,headCommitSha:null,status:"ready",activeRunId:null,createdAt:new Date(0),updatedAt:new Date(0),lastSyncedAt:null},repository:{id:"repo"}},messages:[],diff:[],turnDiff:[],capabilities:[],capabilityReloading:false,skillInvocations:[]};let sendMessage:ReturnType<typeof vi.fn>;
 beforeEach(()=>{sendMessage=vi.fn(async()=>undefined);Object.defineProperty(window,"api",{configurable:true,value:{codingAgent:{markSessionViewed:vi.fn(async()=>undefined),getSession:vi.fn(async()=>snapshot),listModels:vi.fn(async()=>[]),onEvent:vi.fn(()=>()=>undefined),sendMessage,setSessionModel:vi.fn(),compactSession:vi.fn(),respondPermission:vi.fn()},capabilities:{list:vi.fn(async()=>[]),onChanged:vi.fn(()=>()=>undefined),activate:vi.fn(),deactivate:vi.fn()},skills:{list:vi.fn(async()=>[{id:"review",name:"review",description:"Review",version:"1",source:"local",compatibility:{codex:"supported",opencode:"supported"},installationState:"installed",automaticInvocation:true}]),onChanged:vi.fn(()=>()=>undefined)}}});});
 describe("useCodingAgentSession skills",()=>{it("loads the skill catalog and sends the exact union",async()=>{const {result}=renderHook(()=>useCodingAgentSession("run-1"));await waitFor(()=>expect(result.current.skillLibrary).toHaveLength(1));let sent=false;await act(async()=>{sent=await result.current.send({skillInvocation:{skillId:"review",version:"1",arguments:"Review auth"}});});expect(sent).toBe(true);expect(sendMessage).toHaveBeenCalledWith({runId:"run-1",skillInvocation:{skillId:"review",version:"1",arguments:"Review auth"}});});it("returns false after a failed send",async()=>{sendMessage.mockRejectedValueOnce(new Error("failed"));const {result}=renderHook(()=>useCodingAgentSession("run-1"));await waitFor(()=>expect(result.current.loading).toBe(false));let sent=true;await act(async()=>{sent=await result.current.send({skillInvocation:{skillId:"review",version:"1"}});});expect(sent).toBe(false);expect(result.current.error).toBe("failed");});});
+
+it("shows the saved session error when a conversation is unavailable", async () => {
+  const savedSnapshot = await window.api.codingAgent.getSession({ runId: "run-1" });
+  vi.mocked(window.api.codingAgent.getSession).mockResolvedValue({
+    ...savedSnapshot,
+    session: { ...savedSnapshot.session, status: "unavailable", errorMessage: "Start a new chat to continue." },
+  });
+  const { result } = renderHook(() => useCodingAgentSession("run-1"));
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  expect(result.current.snapshot?.session.status).toBe("unavailable");
+  expect(result.current.error).toBe("Start a new chat to continue.");
+});

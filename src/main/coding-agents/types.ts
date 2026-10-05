@@ -9,6 +9,13 @@ export type CodingAgentRunStatus =
 
 export type CodingAgentKind = "opencode" | "codex";
 
+export class CodingAgentSessionMissingError extends Error {
+  constructor(cause?: unknown) {
+    super("Codex can no longer find this conversation's saved data. Your locally saved history is still available. Start a new chat to continue.", { cause });
+    this.name = "CodingAgentSessionMissingError";
+  }
+}
+
 export interface CodingAgentModel {
   providerId: string;
   providerName: string;
