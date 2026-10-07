@@ -104,6 +104,7 @@ const hasExpectedCapabilityServer = (
 export class CodexAdapter implements CodingAgentAdapter {
   private version: string | null = null;
   private readonly listeners = new Set<(event: CodingAgentEvent) => void>();
+  private readonly loadedThreads = new Set<string>();
   private readonly threadSnapshots = new Map<string, CodexThreadSnapshot>();
   private readonly directoryByThread = new Map<string, string>();
   private readonly activeTurnByThread = new Map<string, string>();
@@ -138,6 +139,7 @@ export class CodexAdapter implements CodingAgentAdapter {
 
   async start(executablePath: string, cwd: string): Promise<string> {
     if (this.client.getStatus().running && this.version) return this.version;
+    this.loadedThreads.clear();
     const version = await this.readVersion(executablePath);
     await this.client.start(executablePath, cwd);
     this.executablePath = executablePath;
@@ -149,6 +151,7 @@ export class CodexAdapter implements CodingAgentAdapter {
 
   async stop(): Promise<void> {
     await this.client.stop();
+    this.loadedThreads.clear();
     this.threadSnapshots.clear();
     this.directoryByThread.clear();
     this.activeTurnByThread.clear();
@@ -180,6 +183,7 @@ export class CodexAdapter implements CodingAgentAdapter {
     if (!threadId) throw new Error("Codex returned a thread without an ID.");
 
     this.directoryByThread.set(threadId, directory);
+    this.loadedThreads.add(threadId);
     await this.client.request<unknown>("thread/name/set", {
       threadId,
       name: title,
@@ -196,26 +200,35 @@ export class CodexAdapter implements CodingAgentAdapter {
     options?: { capabilities?: CodingAgentCapabilityConnection },
   ): Promise<{ id: string; status: "idle" | "busy" | "error" }> {
     this.directoryByThread.set(sessionId, directory);
-    let resumed: unknown;
-    try {
-      resumed = await this.client.request<unknown>("thread/resume", {
-        threadId: sessionId,
-        cwd: directory,
-        ...(options?.capabilities ? { config: capabilityConfig(options.capabilities) } : {}),
-      });
-    } catch (error) {
-      if (errorMessage(error).includes(`no rollout found for thread id ${sessionId}`)) {
-        throw new CodingAgentSessionMissingError(error);
+    const connection = options?.capabilities;
+    const previousConnection = this.capabilityByThread.get(sessionId);
+    const connectionChanged = connection !== undefined && (
+      connection.serverName !== previousConnection?.serverName ||
+      connection.url !== previousConnection?.url ||
+      connection.authorizationHeader !== previousConnection?.authorizationHeader ||
+      connection.profileId !== previousConnection?.profileId
+    );
+    // thread/start already loads the thread. Resuming it again can race the
+    // first turn's rollout persistence and report a missing conversation.
+    if (!this.loadedThreads.has(sessionId) || connectionChanged) {
+      let resumed: unknown;
+      try {
+        resumed = await this.client.request<unknown>("thread/resume", {
+          threadId: sessionId,
+          cwd: directory,
+          ...(connection ? { config: capabilityConfig(connection) } : {}),
+        });
+      } catch (error) {
+        if (errorMessage(error).includes(`no rollout found for thread id ${sessionId}`)) {
+          throw new CodingAgentSessionMissingError(error);
+        }
+        throw error;
       }
-      throw error;
-    }
-    const resumedThreadId = readCodexThreadId(resumed);
-    if (resumedThreadId !== sessionId) {
-      throw new Error("Codex resumed an unexpected thread.");
-    }
-
-    if (options?.capabilities) {
-      this.capabilityByThread.set(sessionId, options.capabilities);
+      if (readCodexThreadId(resumed) !== sessionId) {
+        throw new Error("Codex resumed an unexpected thread.");
+      }
+      this.loadedThreads.add(sessionId);
+      if (connection) this.capabilityByThread.set(sessionId, connection);
     }
     const thread = await this.refreshThread(sessionId);
     return { id: thread.id, status: threadStatus(thread) };
@@ -519,6 +532,7 @@ export class CodexAdapter implements CodingAgentAdapter {
       if (readCodexThreadId(resumed) !== session.sessionId) {
         throw new Error("Codex resumed an unexpected session after capability reload.");
       }
+      this.loadedThreads.add(session.sessionId);
       this.directoryByThread.set(session.sessionId, session.directory);
       if (session.capabilities) this.capabilityByThread.set(session.sessionId, session.capabilities);
       else this.capabilityByThread.delete(session.sessionId);

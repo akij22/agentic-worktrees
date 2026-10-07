@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
   CodingAgentInstallationStatusDto,
@@ -77,6 +77,10 @@ export const NewThreadView = ({
   const [createState, setCreateState] = useState<CreateState>({
     status: "idle",
   });
+  const sendingRef = useRef(false);
+  const pendingSessionRef = useRef<{ key: string; id: string } | undefined>(
+    undefined,
+  );
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
   const { activeCount: activeCapabilityCount } =
     useWorktreeCapabilities(worktreeId);
@@ -152,30 +156,41 @@ export const NewThreadView = ({
       kind: CodingAgentKindDto,
       model: CodingAgentModelDto | undefined,
     ) => {
-      if (!worktreeId || !kind) return;
-      const matchingDrafts = model
-        ? sessions.filter(
-            (session) =>
-              session.agentKind === kind &&
-              session.providerId === model.providerId &&
-              session.modelId === model.modelId,
-          )
-        : [];
-      const reusable = findReusableDraft(matchingDrafts, worktreeId);
-      if (reusable) {
-        navigate(`/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(reusable.id)}`);
-        return;
-      }
+      const content = draft.trim();
+      if (!worktreeId || !kind || !content || sendingRef.current) return;
+      sendingRef.current = true;
       setCreateState({ status: "creating" });
+      const sessionKey = JSON.stringify([
+        worktreeId,
+        kind,
+        model?.providerId,
+        model?.modelId,
+      ]);
       try {
-        const session = await window.api.codingAgent.createSession({
-          agentKind: kind,
-          worktreeId,
-          title: context?.worktree.name ?? "New thread",
-          ...(model
-            ? { providerId: model.providerId, modelId: model.modelId }
-            : {}),
-        });
+        const matchingDrafts = model
+          ? sessions.filter(
+              (session) =>
+                session.agentKind === kind &&
+                session.providerId === model.providerId &&
+                session.modelId === model.modelId,
+            )
+          : [];
+        const reusable = findReusableDraft(matchingDrafts, worktreeId);
+        const pending = pendingSessionRef.current;
+        const session =
+          (pending?.key === sessionKey ? pending : reusable) ??
+          (await window.api.codingAgent.createSession({
+            agentKind: kind,
+            worktreeId,
+            title: context?.worktree.name ?? "New thread",
+            ...(model
+              ? { providerId: model.providerId, modelId: model.modelId }
+              : {}),
+          }));
+        // Keep the created session available if submission fails and is retried.
+        pendingSessionRef.current = { key: sessionKey, id: session.id };
+        await window.api.codingAgent.sendMessage({ runId: session.id, content });
+        pendingSessionRef.current = undefined;
         navigate(
           `/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(session.id)}`,
         );
@@ -184,9 +199,11 @@ export const NewThreadView = ({
           status: "error",
           message: cause instanceof Error ? cause.message : String(cause),
         });
+      } finally {
+        sendingRef.current = false;
       }
     },
-    [context, navigate, sessions, worktreeId],
+    [context, draft, navigate, sessions, worktreeId],
   );
 
   if (contexts.length === 0) {

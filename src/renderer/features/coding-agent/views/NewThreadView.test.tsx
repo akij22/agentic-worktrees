@@ -61,6 +61,7 @@ const installation: CodingAgentInstallationStatusDto = {
 };
 
 const createSession = vi.fn();
+const sendMessage = vi.fn();
 const listWorktreeModels = vi.fn();
 const listWorktree = vi.fn();
 const listCapabilities = vi.fn();
@@ -106,6 +107,8 @@ const waitForModelPicker = async () => {
 
 beforeEach(() => {
   createSession.mockReset();
+  sendMessage.mockReset();
+  sendMessage.mockResolvedValue(undefined);
   listWorktreeModels.mockReset();
   listWorktreeModels.mockImplementation(({ agentKind }) =>
     Promise.resolve([
@@ -130,7 +133,7 @@ beforeEach(() => {
   Object.defineProperty(window, "api", {
     configurable: true,
     value: {
-      codingAgent: { createSession, listWorktreeModels },
+      codingAgent: { createSession, sendMessage, listWorktreeModels },
       capabilities: {
         listWorktree,
         list: listCapabilities,
@@ -196,6 +199,10 @@ describe("NewThreadView", () => {
       providerId: "anthropic",
       modelId: "claude-sonnet",
     });
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      runId: "run-new",
+      content: "Make the sidebar denser",
+    }));
     await waitFor(() =>
       expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"),
     );
@@ -229,6 +236,57 @@ describe("NewThreadView", () => {
       expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-draft"),
     );
     expect(createSession).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith({
+      runId: "run-draft",
+      content: "Continue",
+    });
+  });
+
+  it("waits for submission before opening the thread and ignores repeated sends", async () => {
+    let finishSend!: () => void;
+    sendMessage.mockReturnValue(new Promise<void>((resolve) => { finishSend = resolve; }));
+    renderLanding();
+    await waitForModelPicker();
+    const input = screen.getByRole("textbox", { name: "Message to agent" });
+    fireEvent.change(input, { target: { value: "  Make the sidebar denser  " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    expect(sendMessage).toHaveBeenCalledWith({ runId: "run-new", content: "Make the sidebar denser" });
+    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(locationProbe).not.toHaveBeenCalledWith("/chat/wt-1/run-new");
+    finishSend();
+    await waitFor(() => expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"));
+  });
+
+  it("preserves the message after a send failure and retries the same session", async () => {
+    sendMessage.mockRejectedValueOnce(new Error("Could not send message."));
+    renderLanding();
+    await waitForModelPicker();
+    const input = screen.getByRole("textbox", { name: "Message to agent" });
+    fireEvent.change(input, { target: { value: "Make the sidebar denser" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Could not send message."));
+    expect((input as HTMLTextAreaElement).value).toBe("Make the sidebar denser");
+    expect(locationProbe).not.toHaveBeenCalledWith("/chat/wt-1/run-new");
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"));
+    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenLastCalledWith({ runId: "run-new", content: "Make the sidebar denser" });
+  });
+
+  it("does not create or send an empty message through the keyboard", async () => {
+    renderLanding();
+    await waitForModelPicker();
+    const input = screen.getByRole("textbox", { name: "Message to agent" });
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(createSession).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it("does not reuse a draft belonging to another worktree", async () => {

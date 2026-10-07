@@ -290,6 +290,52 @@ describe("Codex adapter", () => {
     });
   });
 
+  it("reads a newly started thread without resuming its not-yet-persisted rollout", async () => {
+    const { adapter, client } = createAdapter();
+    client.reply("thread/start", { thread: { id: "thread-1" } });
+    await adapter.createSession("/repo", "Chat", { modelId: "gpt-5.4" });
+    client.reply("thread/resume", () => {
+      throw new Error("thread/resume: no rollout found for thread id thread-1");
+    });
+
+    await expect(adapter.getSession("/repo", "thread-1")).resolves.toEqual({
+      id: "thread-1", status: "idle",
+    });
+    expect(client.requestsFor("thread/resume")).toHaveLength(0);
+  });
+
+  it("resumes an existing thread only once per app-server lifetime", async () => {
+    const { adapter, client } = createAdapter();
+    await adapter.start("/codex", "/repo");
+    await adapter.getSession("/repo", "thread-1");
+    await adapter.getSession("/repo", "thread-1");
+    expect(client.requestsFor("thread/resume")).toHaveLength(1);
+    await adapter.stop();
+    await adapter.start("/codex", "/repo");
+    await adapter.getSession("/repo", "thread-1");
+    expect(client.requestsFor("thread/resume")).toHaveLength(2);
+  });
+
+  it("resumes again when a loaded thread's capability credentials change", async () => {
+    const { adapter, client } = createAdapter();
+    const connection = { serverName: "tools", url: "http://localhost:1234", authorizationHeader: "Bearer first", profileId: "profile" };
+    await adapter.getSession("/repo", "thread-1", { capabilities: connection });
+    await adapter.getSession("/repo", "thread-1", { capabilities: { ...connection } });
+    expect(client.requestsFor("thread/resume")).toHaveLength(1);
+    await adapter.getSession("/repo", "thread-1", { capabilities: { ...connection, authorizationHeader: "Bearer second" } });
+    expect(client.requestsFor("thread/resume")).toHaveLength(2);
+  });
+
+  it("resumes threads after restarting an unexpectedly exited server", async () => {
+    const { adapter, client } = createAdapter();
+    await adapter.start("/codex", "/repo");
+    await adapter.getSession("/repo", "thread-1");
+    client.running = false;
+    await adapter.start("/codex", "/repo");
+    await adapter.getSession("/repo", "thread-1");
+    expect(client.requestsFor("thread/resume")).toHaveLength(2);
+  });
+
   it("reports a missing rollout as an unavailable conversation", async () => {
     const { adapter, client } = createAdapter();
     client.reply("thread/resume", () => {

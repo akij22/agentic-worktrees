@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	CodingAgentSessionDto,
 	CodingAgentStatusDto,
 	CodingAgentWorktreeContextDto,
 } from "../../../../shared/ipc/schemas";
+import { CoalescingTaskQueue } from "../lib/coalescing-task-queue";
 import type { SessionGridDetail } from "../types";
 
 export const useCodingAgentSessions = () => {
@@ -15,21 +16,37 @@ export const useCodingAgentSessions = () => {
 	>(() => new Map());
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string>();
-	const load = useCallback(async (showLoading = true) => {
+	const requestReloadRef = useRef<() => Promise<void>>(async () => undefined);
+	const detailErrorsRef = useRef(new Set<string>());
+	const load = useCallback(async (
+		showLoading: boolean,
+		runIds: Set<string> | undefined,
+		isCurrent: () => boolean,
+	) => {
 		if (showLoading) setLoading(true);
 		try {
-			const [nextStatus, nextContexts, nextSessions] = await Promise.all([
-				window.api.codingAgent.getStatus(),
-				window.api.codingAgent.listWorktrees(),
-				window.api.codingAgent.listSessions(),
-			]);
-			setStatus(nextStatus);
-			setContexts(nextContexts);
+			let nextSessions: CodingAgentSessionDto[];
+			if (runIds) {
+				nextSessions = await window.api.codingAgent.listSessions();
+			} else {
+				const [nextStatus, nextContexts, listedSessions] = await Promise.all([
+					window.api.codingAgent.getStatus(),
+					window.api.codingAgent.listWorktrees(),
+					window.api.codingAgent.listSessions(),
+				]);
+				if (!isCurrent()) return;
+				setStatus(nextStatus);
+				setContexts(nextContexts);
+				nextSessions = listedSessions;
+			}
+			if (!isCurrent()) return;
 			setSessions(nextSessions);
-			setError(undefined);
 			if (showLoading) setLoading(false);
+			const sessionsToRefresh = runIds
+				? nextSessions.filter((session) => runIds.has(session.id))
+				: nextSessions;
 			const detailResults = await Promise.all(
-				nextSessions.map(async (session) => {
+				sessionsToRefresh.map(async (session) => {
 					try {
 						const snapshot = await window.api.codingAgent.getSession({
 							runId: session.id,
@@ -79,39 +96,63 @@ export const useCodingAgentSessions = () => {
 					}
 				}),
 			);
-			setSessions(detailResults.map(({ session }) => session));
-			setSessionDetails(
-				new Map(detailResults.map(({ id, detail }) => [id, detail])),
-			);
-			const failures = detailResults.filter((result) => result.error);
-			setError(
-				failures.length > 0
-					? `Could not load details for ${failures.length} session${failures.length === 1 ? "" : "s"}. Open a session to retry.`
-					: undefined,
-			);
+			if (!isCurrent()) return;
+			const refreshed = new Map(detailResults.map((result) => [result.id, result]));
+			setSessions(nextSessions.map((session) => refreshed.get(session.id)?.session ?? session));
+			setSessionDetails((current) => new Map(nextSessions.flatMap((session) => {
+				const detail = refreshed.get(session.id)?.detail ?? current.get(session.id);
+				return detail ? [[session.id, detail] as const] : [];
+			})));
+			const existingIds = new Set(nextSessions.map((session) => session.id));
+			for (const id of detailErrorsRef.current) {
+				if (!existingIds.has(id)) detailErrorsRef.current.delete(id);
+			}
+			for (const result of detailResults) {
+				if (result.error) detailErrorsRef.current.add(result.id);
+				else detailErrorsRef.current.delete(result.id);
+			}
+			const failureCount = detailErrorsRef.current.size;
+			setError(failureCount > 0
+				? `Could not load details for ${failureCount} session${failureCount === 1 ? "" : "s"}. Open a session to retry.`
+				: undefined);
 		} catch (cause) {
-			setError(cause instanceof Error ? cause.message : String(cause));
+			if (isCurrent()) setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
-			setLoading(false);
+			if (isCurrent()) setLoading(false);
 		}
 	}, []);
 	useEffect(() => {
-		void load();
-		return window.api.codingAgent.onEvent((event) => {
+		let cancelled = false;
+		let fullRefresh = true;
+		const pendingRunIds = new Set<string>();
+		const queue = new CoalescingTaskQueue(async () => {
+			if (cancelled) return;
+			const refreshAll = fullRefresh;
+			const runIds = new Set(pendingRunIds);
+			fullRefresh = false;
+			pendingRunIds.clear();
+			await load(refreshAll, refreshAll ? undefined : runIds, () => !cancelled);
+		});
+		requestReloadRef.current = () => {
+			fullRefresh = true;
+			return queue.request();
+		};
+		void queue.request();
+		const unsubscribe = window.api.codingAgent.onEvent((event) => {
 			if (
 				event.runId !== null &&
-				[
-					"messages.updated",
-					"session.diff",
-					"session.idle",
-					"session.error",
-					"session.status",
-				].includes(event.type)
+				["messages.updated", "session.diff", "session.idle", "session.error", "session.status"].includes(event.type)
 			) {
-				void load(false);
+				pendingRunIds.add(event.runId);
+				void queue.request();
 			}
 		});
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, [load]);
+	const reload = useCallback(() => requestReloadRef.current(), []);
 	return {
 		status,
 		contexts,
@@ -119,6 +160,6 @@ export const useCodingAgentSessions = () => {
 		sessionDetails,
 		loading,
 		error,
-		reload: load,
+		reload,
 	};
 };
