@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Search } from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
@@ -29,6 +29,11 @@ type Props = {
   searchPlaceholder?: string;
   emptyLabel?: string;
   triggerClassName?: string;
+  title?: string;
+  onBack?: () => void;
+  closeOnChange?: boolean;
+  state?: "error" | "success";
+  description?: string;
 };
 
 export const PickerMenu = ({
@@ -45,6 +50,11 @@ export const PickerMenu = ({
   searchPlaceholder = "Search…",
   emptyLabel = "No matches",
   triggerClassName,
+  title,
+  onBack,
+  closeOnChange = true,
+  state,
+  description,
 }: Props) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -89,7 +99,7 @@ export const PickerMenu = ({
 
   const filtered = query.trim()
     ? options.filter((option) =>
-        `${option.label} ${option.hint ?? ""}`
+        `${option.group ?? ""} ${option.label} ${option.hint ?? ""}`
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
       )
@@ -99,7 +109,7 @@ export const PickerMenu = ({
     const option = options.find((candidate) => candidate.id === id);
     if (option?.disabled) return;
     onChange(id);
-    onOpenChange(false);
+    if (closeOnChange) onOpenChange(false);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -132,11 +142,15 @@ export const PickerMenu = ({
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-invalid={state === "error" || undefined}
+        aria-description={description}
         disabled={disabled}
         onClick={() => onOpenChange(!open)}
         className={cn(
           "inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-white/[0.065] bg-muted/40 px-2.5 text-[11px] font-semibold text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50",
           open && "border-primary/35 bg-muted text-accent-foreground ring-1 ring-ring/30",
+          state === "error" && "border-destructive/70 text-destructive-foreground",
+          state === "success" && "text-foreground",
           triggerClassName,
         )}
       >
@@ -156,6 +170,23 @@ export const PickerMenu = ({
           onKeyDown={onKeyDown}
           className="absolute bottom-full left-0 z-30 mb-1.5 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-white/[0.075] bg-popover/95 p-1 shadow-2xl backdrop-blur-xl"
         >
+          {title ? (
+            <div className="flex min-h-8 items-center gap-1 px-1 pb-1">
+              {onBack ? (
+                <button
+                  type="button"
+                  aria-label="Back to provider selection"
+                  onClick={onBack}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+                >
+                  <ArrowLeft aria-hidden="true" className="size-3.5" />
+                </button>
+              ) : null}
+              <p className="min-w-0 truncate px-1 text-[11px] font-semibold text-foreground">
+                {title}
+              </p>
+            </div>
+          ) : null}
           {searchable ? (
             <div className="relative mb-1">
               <Search

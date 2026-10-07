@@ -38,6 +38,7 @@ export const IPC_CHANNELS = {
 	CODING_AGENT_SELECT_EXECUTABLE: "coding-agent:select-executable",
 	CODING_AGENT_STATUS: "coding-agent:status",
 	CODING_AGENT_MODELS: "coding-agent:models",
+	CODING_AGENT_WORKTREE_MODELS: "coding-agent:worktree-models",
 	CODING_AGENT_WORKTREES: "coding-agent:worktrees",
 	CODING_AGENT_SESSION_LIST: "coding-agent:session-list",
 	CODING_AGENT_SESSION_CREATE: "coding-agent:session-create",

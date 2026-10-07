@@ -237,6 +237,7 @@ export interface Api {
 		}) => Promise<CodingAgentStatusDto | null>;
 		getStatus: () => Promise<CodingAgentStatusDto>;
 		listModels: (request: { runId: string }) => Promise<CodingAgentModelDto[]>;
+		listWorktreeModels: (request: { worktreeId: string; agentKind: CodingAgentKindDto }) => Promise<CodingAgentModelDto[]>;
 		listWorktrees: () => Promise<CodingAgentWorktreeContextDto[]>;
 		listSessions: (request?: {
 			worktreeId?: string;
@@ -245,7 +246,10 @@ export interface Api {
 			agentKind: CodingAgentKindDto;
 			worktreeId: string;
 			title: string;
-		}) => Promise<CodingAgentSessionDto>;		setSessionModel: (request: {
+			providerId?: string;
+			modelId?: string;
+		}) => Promise<CodingAgentSessionDto>;
+		setSessionModel: (request: {
 			runId: string;
 			providerId: string;
 			modelId: string;

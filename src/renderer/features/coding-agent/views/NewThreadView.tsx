@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
   CodingAgentInstallationStatusDto,
   CodingAgentKindDto,
+  CodingAgentModelDto,
   CodingAgentWorktreeContextDto,
 } from "../../../../shared/ipc/schemas";
 import { Button } from "../../../components/ui/button";
@@ -20,7 +21,15 @@ import {
 type Props = {
   contexts: CodingAgentWorktreeContextDto[];
   installations: CodingAgentInstallationStatusDto[];
-  sessions: { id: string; worktreeId: string; updatedAt: Date; isDraft: boolean }[];
+  sessions: {
+    id: string;
+    worktreeId: string;
+    updatedAt: Date;
+    isDraft: boolean;
+    agentKind?: CodingAgentKindDto;
+    providerId?: string;
+    modelId?: string;
+  }[];
   initialWorktreeId?: string;
 };
 
@@ -45,7 +54,26 @@ export const NewThreadView = ({
       resolveDefaultWorktreeId(contexts, sessions)
     );
   });
-  const [agentKind, setAgentKind] = useState<CodingAgentKindDto | undefined>();  const [draft, setDraft] = useState("");
+  useEffect(() => {
+    if (contexts.length === 0) return;
+    if (worktreeId && contexts.some(({ worktree }) => worktree.id === worktreeId)) {
+      return;
+    }
+    const requested = contexts.find(
+      ({ worktree }) => worktree.id === initialWorktreeId,
+    );
+    setWorktreeId(
+      requested?.worktree.id ?? resolveDefaultWorktreeId(contexts, sessions),
+    );
+  }, [contexts, initialWorktreeId, sessions, worktreeId]);
+  const [agentKind, setAgentKind] = useState<CodingAgentKindDto | undefined>();
+  const [selectedModel, setSelectedModel] = useState<CodingAgentModelDto>();
+  const [modelsByKind, setModelsByKind] = useState<
+    Partial<Record<CodingAgentKindDto, CodingAgentModelDto[]>>
+  >({});
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState<string>();
+  const [draft, setDraft] = useState("");
   const [createState, setCreateState] = useState<CreateState>({
     status: "idle",
   });
@@ -63,11 +91,77 @@ export const NewThreadView = ({
   );
   const activeHarness =
     agentKind ?? configured[0]?.kind ?? installations[0]?.kind;
+  const activeModel = selectedModel ?? (activeHarness
+    ? (modelsByKind[activeHarness] ?? []).find((model) => model.isDefault) ??
+      modelsByKind[activeHarness]?.[0]
+    : undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!worktreeId || configured.length === 0) {
+      setModelsByKind({});
+      setSelectedModel(undefined);
+      setLoadingModels(false);
+      return;
+    }
+    setModelsByKind({});
+    setSelectedModel(undefined);
+    setModelLoadError(undefined);
+    setLoadingModels(true);
+    const modelErrors: string[] = [];
+    void Promise.all(
+      configured.map(async ({ kind }) => {
+        try {
+          const models = await window.api.codingAgent.listWorktreeModels({
+            worktreeId,
+            agentKind: kind,
+          });
+          return [kind, models] as const;
+        } catch {
+          modelErrors.push(kind);
+          return [kind, []] as const;
+        }
+      }),
+    )
+      .then((entries) => {
+        if (cancelled) return;
+        const next = Object.fromEntries(entries) as Partial<
+          Record<CodingAgentKindDto, CodingAgentModelDto[]>
+        >;
+        setModelsByKind(next);
+        setModelLoadError(
+          modelErrors.length > 0
+            ? "Could not load models for one or more providers."
+            : undefined,
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setModelLoadError("Could not load available models.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingModels(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [configured, worktreeId]);
 
   const createAndOpen = useCallback(
-    async (kind: CodingAgentKindDto) => {
+    async (
+      kind: CodingAgentKindDto,
+      model: CodingAgentModelDto | undefined,
+    ) => {
       if (!worktreeId || !kind) return;
-      const reusable = findReusableDraft(sessions, worktreeId);
+      const matchingDrafts = model
+        ? sessions.filter(
+            (session) =>
+              session.agentKind === kind &&
+              session.providerId === model.providerId &&
+              session.modelId === model.modelId,
+          )
+        : [];
+      const reusable = findReusableDraft(matchingDrafts, worktreeId);
       if (reusable) {
         navigate(`/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(reusable.id)}`);
         return;
@@ -78,6 +172,9 @@ export const NewThreadView = ({
           agentKind: kind,
           worktreeId,
           title: context?.worktree.name ?? "New thread",
+          ...(model
+            ? { providerId: model.providerId, modelId: model.modelId }
+            : {}),
         });
         navigate(
           `/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(session.id)}`,
@@ -151,11 +248,18 @@ export const NewThreadView = ({
           }}
           leadingControl={
             <div className="session-composer__setting">
-              <span className="session-composer__label">Agent</span>
+              <span className="session-composer__label">Provider / model</span>
               <HarnessModelPicker
                 installations={installations}
+                modelsByKind={modelsByKind}
                 selectedKind={activeHarness}
-                onSelect={setAgentKind}
+                selectedModel={activeModel}
+                loadingModels={loadingModels}
+                errorMessage={modelLoadError}
+                onSelect={(kind, model) => {
+                  setAgentKind(kind);
+                  setSelectedModel(model);
+                }}
               />
             </div>
           }
@@ -181,12 +285,13 @@ export const NewThreadView = ({
           loadingModels={false}
           changingModel={false}
           busy={createState.status === "creating"}
-          locked={createState.status === "creating" || !worktreeId}
+          locked={createState.status === "creating" || !worktreeId || !activeModel}
           onDraftChange={setDraft}
           onModelChange={() => undefined}
           onReasoningChange={() => undefined}
           onSend={() => {
-            if (activeHarness) void createAndOpen(activeHarness);
+            if (activeHarness && activeModel)
+              void createAndOpen(activeHarness, activeModel);
           }}
           onStop={() => undefined}
           onSlashCommand={() => undefined}
@@ -203,6 +308,11 @@ export const NewThreadView = ({
       {createState.status === "error" ? (
         <p role="alert" className="max-w-[40rem] text-sm text-destructive">
           {createState.message}
+        </p>
+      ) : null}
+      {modelLoadError ? (
+        <p role="alert" className="max-w-[40rem] text-sm text-destructive">
+          {modelLoadError}
         </p>
       ) : null}
     </div>

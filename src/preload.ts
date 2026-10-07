@@ -7,6 +7,7 @@ import {
 	capabilitySessionStateSchema,
 	worktreeCapabilityStateSchema,
 	capabilitySummarySchema,
+	codingAgentModelSchema,
 	codingAgentSessionSnapshotSchema,
 	githubAuthStatusSchema,
 	githubDeviceChallengeSchema,
@@ -279,6 +280,10 @@ const api: Api = {
 		getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_STATUS),
 		listModels: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_MODELS, request),
+		listWorktreeModels: async (request) =>
+			codingAgentModelSchema.array().parse(
+				await ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_WORKTREE_MODELS, request),
+			),
 		listWorktrees: () => ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_WORKTREES),
 		listSessions: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_LIST, request ?? {}),

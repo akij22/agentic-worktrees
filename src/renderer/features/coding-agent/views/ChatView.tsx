@@ -145,6 +145,9 @@ export const ChatView = ({ activeRunId }: { activeRunId?: string }) => {
               worktreeId: session.worktreeId,
               updatedAt: session.updatedAt,
               isDraft: session.status === "idle" && !session.title.trim(),
+              agentKind: session.agentKind,
+              providerId: session.providerId,
+              modelId: session.modelId,
             }))}
           />
         )}
