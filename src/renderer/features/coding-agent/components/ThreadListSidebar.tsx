@@ -1,5 +1,11 @@
 import { GitBranch, LoaderCircle, Plus, Search } from "lucide-react";
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type {
   CodingAgentSessionDto,
   CodingAgentWorktreeContextDto,
@@ -55,6 +61,12 @@ const ThreadRow = ({
   const agentLabel = agentBadgeFor(session);
   const [dossierOpen, setDossierOpen] = useState(false);
   const [dossierTop, setDossierTop] = useState(12);
+
+  useEffect(() => {
+    const dismissOnWindowBlur = () => setDossierOpen(false);
+    window.addEventListener("blur", dismissOnWindowBlur);
+    return () => window.removeEventListener("blur", dismissOnWindowBlur);
+  }, []);
 
   const reveal = (target: HTMLElement) => {
     const bounds = target.getBoundingClientRect();
@@ -113,7 +125,11 @@ const ThreadRow = ({
               {session.title || "Untitled thread"}
             </span>
             <span className="shrink-0 font-mono text-[10px] leading-5 text-muted-foreground">
-              {formatListTimestamp(session.updatedAt)}
+              {formatListTimestamp(
+                entry.detail?.lastMessageAt != null
+                  ? new Date(entry.detail.lastMessageAt)
+                  : session.updatedAt,
+              )}
             </span>
           </span>
 
@@ -312,10 +328,7 @@ export const ThreadListSidebar = ({
         ) : null}
 
         {groups.map((group) => (
-          <section key={`${group.kind}-${group.label}`} className="mb-1">
-            <h2 className="px-2.5 pb-1 pt-2.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-              {group.label}
-            </h2>
+          <section key={`${group.kind}-${group.label}`}>
             {group.entries.map((entry) => (
               <ThreadRow
                 key={entry.session.id}

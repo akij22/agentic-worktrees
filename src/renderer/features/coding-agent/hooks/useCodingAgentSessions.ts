@@ -37,8 +37,9 @@ export const useCodingAgentSessions = () => {
 						return {
 							id: session.id,
 							session: snapshot.session,
-								detail: {
+							detail: {
 								lastActivity: snapshot.messages.at(-1)?.content,
+								lastMessageAt: snapshot.messages.at(-1)?.createdAt ?? null,
 								isProcessing:
 									["creating", "busy"].includes(snapshot.session.status) &&
 									!(
@@ -66,6 +67,7 @@ export const useCodingAgentSessions = () => {
 							session,
 							detail: {
 								lastActivity: undefined,
+								lastMessageAt: null,
 								isProcessing: ["creating", "busy"].includes(session.status),
 								additions: 0,
 								deletions: 0,

@@ -20,8 +20,13 @@ export type ThreadGroup =
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const isDraftSession = (session: CodingAgentSessionDto): boolean =>
-  session.status === "idle" && !session.title.trim();
+export const isDraftSession = (
+  session: CodingAgentSessionDto,
+  detail?: SessionGridDetail,
+): boolean =>
+  session.status === "idle" &&
+  !session.title.trim() &&
+  detail?.lastMessageAt == null;
 
 export const getSessionStatusPresentation = (session: CodingAgentSessionDto) => {
   if (["busy", "creating", "aborting"].includes(session.status)) {
@@ -72,13 +77,20 @@ export const buildThreadEntries = (
           context?.repository.fullName.split("/").at(-1) ??
           "Unavailable project",
         branchName: context?.worktree.branchName,
-        isDraft: isDraftSession(session),
+        isDraft: isDraftSession(session, sessionDetails.get(session.id)),
       };
     })
     .toSorted(
-      (left, right) =>
-        new Date(right.session.updatedAt).getTime() -
-        new Date(left.session.updatedAt).getTime(),
+      (left, right) => {
+        const leftMessageAt = left.detail?.lastMessageAt;
+        const rightMessageAt = right.detail?.lastMessageAt;
+        if (leftMessageAt != null && rightMessageAt == null) return -1;
+        if (leftMessageAt == null && rightMessageAt != null) return 1;
+        return (
+          (rightMessageAt ?? new Date(right.session.createdAt).getTime()) -
+          (leftMessageAt ?? new Date(left.session.createdAt).getTime())
+        );
+      },
     );
 };
 
@@ -102,7 +114,7 @@ export const groupThreadEntries = (
 
   const drafts = entries.filter((entry) => entry.isDraft);
   if (drafts.length > 0) {
-    groups.unshift({ kind: "drafts", label: "Drafts", entries: drafts });
+    groups.push({ kind: "drafts", label: "Drafts", entries: drafts });
   }
   return groups;
 };
