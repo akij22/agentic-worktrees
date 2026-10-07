@@ -515,6 +515,11 @@ export const codingAgentModelsRequestSchema = z.object({
 	runId: z.string().trim().min(1),
 });
 
+export const codingAgentWorktreeModelsRequestSchema = z.object({
+	worktreeId: z.string().trim().min(1),
+	agentKind: codingAgentKindSchema,
+});
+
 export const codingAgentSessionListRequestSchema = z
 	.object({ worktreeId: z.string().min(1).optional() })
 	.optional()
@@ -524,7 +529,12 @@ export const codingAgentSessionCreateRequestSchema = z.object({
 	agentKind: codingAgentKindSchema,
 	worktreeId: z.string().trim().min(1),
 	title: z.string().trim().min(1).max(160),
-});
+	providerId: z.string().trim().min(1).optional(),
+	modelId: z.string().trim().min(1).optional(),
+}).refine(
+	(request) => Boolean(request.providerId) === Boolean(request.modelId),
+	{ message: "Provider and model must be selected together." },
+);
 
 export const codingAgentSelectExecutableRequestSchema = z.object({
 	agentKind: codingAgentKindSchema,

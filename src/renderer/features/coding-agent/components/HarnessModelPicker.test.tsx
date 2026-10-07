@@ -2,7 +2,10 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CodingAgentInstallationStatusDto } from "../../../../shared/ipc/schemas";
+import type {
+  CodingAgentInstallationStatusDto,
+  CodingAgentModelDto,
+} from "../../../../shared/ipc/schemas";
 import { HarnessModelPicker } from "./HarnessModelPicker";
 
 const installation = (
@@ -16,10 +19,21 @@ const installation = (
   ...overrides,
 });
 
+const model = (modelId: string, providerName: string): CodingAgentModelDto => ({
+  providerId: providerName.toLowerCase(),
+  providerName,
+  modelId,
+  modelName: modelId,
+  reasoningVariants: [],
+  isDefault: modelId === "gpt-5.4",
+});
+
 afterEach(cleanup);
 
 describe("HarnessModelPicker", () => {
-  it("lists every harness as a single choice rather than separate fields", () => {
+  it("groups each harness with its available models in one picker", () => {
+    const codexModel = model("gpt-5.4", "OpenAI");
+    const openCodeModel = model("claude-sonnet", "Anthropic");
     render(
       <HarnessModelPicker
         installations={[
@@ -30,21 +44,29 @@ describe("HarnessModelPicker", () => {
             configured: true,
           }),
         ]}
+        modelsByKind={{ codex: [codexModel], opencode: [openCodeModel] }}
         selectedKind="opencode"
+        selectedModel={openCodeModel}
         onSelect={vi.fn()}
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: "Coding agent" });
-    expect(trigger.textContent).toContain("OpenCode");
+    const trigger = screen.getByRole("button", { name: "Provider and model" });
+    expect(trigger.textContent).toContain("OpenCode · claude-sonnet");
 
     fireEvent.click(trigger);
     expect(screen.getByRole("option", { name: /Codex/ })).toBeTruthy();
     expect(screen.getByRole("option", { name: /OpenCode/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("option", { name: /OpenCode/ }));
+    expect(screen.getByRole("option", { name: /claude-sonnet/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /gpt-5.4/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back to provider selection" }));
+    expect(screen.getByRole("option", { name: /Codex/ })).toBeTruthy();
   });
 
-  it("reports the picked harness", () => {
+  it("reports the picked harness and model together", () => {
     const onSelect = vi.fn();
+    const codexModel = model("gpt-5.4", "OpenAI");
     render(
       <HarnessModelPicker
         installations={[
@@ -55,17 +77,18 @@ describe("HarnessModelPicker", () => {
             configured: true,
           }),
         ]}
-        selectedKind="opencode"
+        modelsByKind={{ codex: [codexModel] }}
         onSelect={onSelect}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Coding agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Provider and model" }));
     fireEvent.click(screen.getByRole("option", { name: /Codex/ }));
-    expect(onSelect).toHaveBeenCalledWith("codex");
+    fireEvent.click(screen.getByRole("option", { name: /gpt-5.4/ }));
+    expect(onSelect).toHaveBeenCalledWith("codex", codexModel);
   });
 
-  it("marks an unconfigured harness as unavailable and refuses to pick it", () => {
+  it("does not offer an unconfigured harness", () => {
     const onSelect = vi.fn();
     render(
       <HarnessModelPicker
@@ -77,15 +100,15 @@ describe("HarnessModelPicker", () => {
             configured: false,
           }),
         ]}
+        modelsByKind={{ codex: [model("gpt-5.4", "OpenAI")] }}
         selectedKind="codex"
         onSelect={onSelect}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Coding agent" }));
-    const unconfigured = screen.getByRole("option", { name: /OpenCode/ });
-    expect(unconfigured.getAttribute("aria-disabled")).toBe("true");
-    fireEvent.click(unconfigured);
+    fireEvent.click(screen.getByRole("button", { name: "Provider and model" }));
+    expect(screen.getByRole("option", { name: /gpt-5.4/ })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /OpenCode/ })).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
   });
 
@@ -95,6 +118,7 @@ describe("HarnessModelPicker", () => {
         installations={[
           installation({ kind: "codex", name: "Codex", configured: false }),
         ]}
+        modelsByKind={{}}
         onSelect={vi.fn()}
       />,
     );
@@ -102,7 +126,7 @@ describe("HarnessModelPicker", () => {
     expect(
       (
         screen.getByRole("button", {
-          name: "Coding agent",
+          name: "Provider and model",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -118,12 +142,13 @@ describe("HarnessModelPicker", () => {
             configured: true,
           }),
         ]}
+        modelsByKind={{}}
         onSelect={vi.fn()}
       />,
     );
 
     expect(
-      screen.getByRole("button", { name: "Coding agent" }).textContent,
-    ).toContain("Select a coding agent");
+      screen.getByRole("button", { name: "Provider and model" }).textContent,
+    ).toContain("Choose provider and model");
   });
 });

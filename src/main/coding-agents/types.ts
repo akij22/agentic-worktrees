@@ -103,6 +103,7 @@ export type CodingAgentTurnInput = {
 
 export interface CodingAgentSessionOptions {
   modelId: string;
+  providerId?: string;
   capabilities?: CodingAgentCapabilityConnection;
 }
 

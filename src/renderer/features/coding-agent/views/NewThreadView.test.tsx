@@ -61,6 +61,7 @@ const installation: CodingAgentInstallationStatusDto = {
 };
 
 const createSession = vi.fn();
+const listWorktreeModels = vi.fn();
 const listWorktree = vi.fn();
 const listCapabilities = vi.fn();
 const capabilityChanged = vi.fn();
@@ -95,8 +96,29 @@ const renderLanding = (
     </MemoryRouter>,
   );
 
+const waitForModelPicker = async () => {
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Provider and model" }).textContent,
+    ).toContain("·"),
+  );
+};
+
 beforeEach(() => {
   createSession.mockReset();
+  listWorktreeModels.mockReset();
+  listWorktreeModels.mockImplementation(({ agentKind }) =>
+    Promise.resolve([
+      {
+        providerId: agentKind === "codex" ? "openai" : "anthropic",
+        providerName: agentKind === "codex" ? "OpenAI" : "Anthropic",
+        modelId: agentKind === "codex" ? "gpt-5.4" : "claude-sonnet",
+        modelName: agentKind === "codex" ? "GPT-5.4" : "Claude Sonnet",
+        reasoningVariants: [],
+        isDefault: true,
+      },
+    ]),
+  );
   locationProbe.mockReset();
   createSession.mockResolvedValue({ id: "run-new", worktreeId: "wt-1" });
   listWorktree.mockReset();
@@ -108,7 +130,7 @@ beforeEach(() => {
   Object.defineProperty(window, "api", {
     configurable: true,
     value: {
-      codingAgent: { createSession },
+      codingAgent: { createSession, listWorktreeModels },
       capabilities: {
         listWorktree,
         list: listCapabilities,
@@ -156,6 +178,7 @@ describe("NewThreadView", () => {
 
   it("creates the session on the first send and opens the thread", async () => {
     renderLanding();
+    await waitForModelPicker();
 
     fireEvent.change(
       screen.getByRole("textbox", { name: "Message to agent" }),
@@ -170,6 +193,8 @@ describe("NewThreadView", () => {
       agentKind: "opencode",
       worktreeId: "wt-1",
       title: "codex-ui",
+      providerId: "anthropic",
+      modelId: "claude-sonnet",
     });
     await waitFor(() =>
       expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"),
@@ -184,10 +209,14 @@ describe("NewThreadView", () => {
           worktreeId: "wt-1",
           updatedAt: new Date(),
           isDraft: true,
+          agentKind: "opencode",
+          providerId: "anthropic",
+          modelId: "claude-sonnet",
         },
       ],
     });
 
+    await waitForModelPicker();
     fireEvent.change(
       screen.getByRole("textbox", { name: "Message to agent" }),
       {
@@ -214,6 +243,7 @@ describe("NewThreadView", () => {
       ],
     });
 
+    await waitForModelPicker();
     fireEvent.change(
       screen.getByRole("textbox", { name: "Message to agent" }),
       {
@@ -238,6 +268,7 @@ describe("NewThreadView", () => {
   it("keeps the draft and reports the failure when creation is rejected", async () => {
     createSession.mockRejectedValue(new Error("Codex server stopped."));
     renderLanding();
+    await waitForModelPicker();
 
     fireEvent.change(
       screen.getByRole("textbox", { name: "Message to agent" }),
@@ -273,8 +304,10 @@ describe("NewThreadView", () => {
     };
     renderLanding({ installations: [installation, codex] });
 
-    fireEvent.click(screen.getByRole("button", { name: "Coding agent" }));
+    await waitForModelPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Provider and model" }));
     fireEvent.click(screen.getByRole("option", { name: /Codex/ }));
+    fireEvent.click(screen.getByRole("option", { name: /GPT-5.4/ }));
     fireEvent.change(
       screen.getByRole("textbox", { name: "Message to agent" }),
       {
@@ -286,10 +319,12 @@ describe("NewThreadView", () => {
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
     expect(createSession.mock.calls[0]?.[0]).toMatchObject({
       agentKind: "codex",
+      providerId: "openai",
+      modelId: "gpt-5.4",
     });
   });
 
-  it("keeps the browsing of the harness chip on the landing", () => {
+  it("keeps the harness and model picker on the landing", async () => {
     renderLanding({
       installations: [
         installation,
@@ -305,8 +340,12 @@ describe("NewThreadView", () => {
       ],
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Coding agent" }));
-    expect(screen.getByRole("listbox", { name: "Coding agent" })).toBeTruthy();
+    await waitForModelPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Provider and model" }));
+    expect(screen.getByRole("listbox", { name: "Provider and model" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /Codex/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("option", { name: /OpenCode/ }));
+    expect(screen.getByRole("option", { name: /Claude Sonnet/ })).toBeTruthy();
     expect(createSession).not.toHaveBeenCalled();
     expect(
       screen.getByRole("heading", { name: /What should we build in/ }),

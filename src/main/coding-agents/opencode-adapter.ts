@@ -532,7 +532,12 @@ export class OpenCodeAdapter implements CodingAgentAdapter {
   async createSession(directory: string, title: string, options?: CodingAgentSessionOptions) {
     if (options?.capabilities) this.capabilityConnections.set(options.capabilities.profileId, options.capabilities);
     const result = await this.requireClient().session.create({
-      body: { title },
+      body: {
+        title,
+        ...(options?.providerId
+          ? { model: { providerID: options.providerId, id: options.modelId } }
+          : {}),
+      },
       query: { directory },
       throwOnError: true,
     });

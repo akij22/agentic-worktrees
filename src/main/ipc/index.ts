@@ -13,6 +13,7 @@ import {
 	capabilityDistributionProgressSchema,
 	codingAgentAccountUsageRequestSchema,
 	codingAgentModelsRequestSchema,
+	codingAgentWorktreeModelsRequestSchema,
 	codingAgentPermissionResponseSchema,
 	codingAgentSessionAbortRequestSchema,
 	codingAgentSessionCompactRequestSchema,
@@ -98,6 +99,7 @@ import {
 	getAgentSessionSnapshot,
 	getAgentSessionUsage,
 	listAgentModels,
+	listAgentModelsForWorktree,
 	listAgentSessions,
 	listAgentWorktrees,
 	markAgentSessionViewed,
@@ -493,6 +495,14 @@ const handleCodingAgentModels = async (
 	return listAgentModels(request.runId);
 };
 
+const handleCodingAgentWorktreeModels = async (
+	_event: IpcMainInvokeEvent,
+	rawRequest: unknown,
+) =>
+	listAgentModelsForWorktree(
+		codingAgentWorktreeModelsRequestSchema.parse(rawRequest),
+	);
+
 const handleCodingAgentSessionList = async (
 	_event: IpcMainInvokeEvent,
 	rawRequest: unknown,
@@ -862,6 +872,10 @@ export const registerIpcHandlers = (): void => {
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_MODELS,
 		requireAuthenticated(handleCodingAgentModels),
+	);
+	ipcMain.handle(
+		IPC_CHANNELS.CODING_AGENT_WORKTREE_MODELS,
+		requireAuthenticated(handleCodingAgentWorktreeModels),
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_WORKTREES,

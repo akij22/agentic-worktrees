@@ -794,6 +794,19 @@ export const listAgentModels = async (
   return harness.adapter.listModels(context.worktree.path);
 };
 
+export const listAgentModelsForWorktree = async (input: {
+  worktreeId: string;
+  agentKind: CodingAgentKind;
+}): Promise<CodingAgentModel[]> => {
+  const context = getContext(input.worktreeId);
+  const harness = harnesses[input.agentKind];
+  const installation = getInstallation(input.agentKind);
+  if (!installation?.enabled) throw new Error(`${harness.name} is not configured.`);
+  getHarnessForInstallation(installation);
+  await ensureStarted(harness);
+  return harness.adapter.listModels(context.worktree.path);
+};
+
 export const getAgentSessionUsage = async (
   runId: string,
 ): Promise<CodingAgentSessionUsage> => {
@@ -863,6 +876,8 @@ export const createAgentSession = async (input: {
   agentKind: CodingAgentKind;
   worktreeId: string;
   title: string;
+  providerId?: string;
+  modelId?: string;
 }): Promise<AgentSessionSummary> => {
   const harness = harnesses[input.agentKind];
   const storedWorktree = getDatabase()
@@ -909,13 +924,28 @@ export const createAgentSession = async (input: {
     capabilityBridge?.stopSession(runId);
     throw error;
   }
-  const availableModels = await harness.adapter.listModels(
-    context.worktree.path,
-  );
-  const defaultModel =
-    availableModels.find((model) => model.isDefault) ?? availableModels[0];
-  if (!defaultModel) {
-    throw new Error(`No ${harness.name} models are available.`);
+  let defaultModel: CodingAgentModel | undefined;
+  try {
+    const availableModels = await harness.adapter.listModels(
+      context.worktree.path,
+    );
+    defaultModel = input.modelId && input.providerId
+      ? availableModels.find(
+          (model) =>
+            model.modelId === input.modelId &&
+            model.providerId === input.providerId,
+        )
+      : availableModels.find((model) => model.isDefault) ?? availableModels[0];
+    if (!defaultModel) {
+      if (input.modelId) {
+        throw new Error(`Selected ${harness.name} model is not available.`);
+      }
+      throw new Error(`No ${harness.name} models are available.`);
+    }
+  } catch (error) {
+    capabilityBridge?.stopSession(runId);
+    capabilityPreparedRuns.delete(runId);
+    throw error;
   }
 
   let external: { id: string };
@@ -924,6 +954,7 @@ export const createAgentSession = async (input: {
       context.worktree.path,
       input.title,
       {
+        providerId: defaultModel.providerId,
         modelId: defaultModel.modelId,
         ...(capabilityConnection ? { capabilities: capabilityConnection } : {}),
       },

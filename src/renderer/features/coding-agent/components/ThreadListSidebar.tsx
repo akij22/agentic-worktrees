@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type {
@@ -61,12 +62,30 @@ const ThreadRow = ({
   const agentLabel = agentBadgeFor(session);
   const [dossierOpen, setDossierOpen] = useState(false);
   const [dossierTop, setDossierTop] = useState(12);
+  const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const dismissOnWindowBlur = () => setDossierOpen(false);
     window.addEventListener("blur", dismissOnWindowBlur);
     return () => window.removeEventListener("blur", dismissOnWindowBlur);
   }, []);
+
+  useEffect(() => {
+    if (!dossierOpen) return;
+
+    const dismissWhenPointerLeavesRow = (event: PointerEvent) => {
+      if (
+        !(event.target instanceof Node) ||
+        !rowRef.current?.contains(event.target)
+      ) {
+        setDossierOpen(false);
+      }
+    };
+
+    window.addEventListener("pointermove", dismissWhenPointerLeavesRow);
+    return () =>
+      window.removeEventListener("pointermove", dismissWhenPointerLeavesRow);
+  }, [dossierOpen]);
 
   const reveal = (target: HTMLElement) => {
     const bounds = target.getBoundingClientRect();
@@ -78,6 +97,7 @@ const ThreadRow = ({
 
   return (
     <div
+      ref={rowRef}
       className="thread-nav-item"
       onMouseEnter={(event) => reveal(event.currentTarget)}
       onMouseLeave={dismiss}
