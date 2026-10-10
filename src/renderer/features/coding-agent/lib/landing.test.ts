@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { CodingAgentWorktreeContextDto } from "../../../../shared/ipc/schemas";
 import {
   findReusableDraft,
+  readLandingSubmission,
+  includeSubmittedMessage,
   resolveDefaultWorktreeId,
   resolveLandingPrompt,
 } from "./landing";
@@ -107,5 +109,25 @@ describe("findReusableDraft", () => {
 
   it("reuses nothing when no worktree is selected", () => {
     expect(findReusableDraft(entries, undefined)).toBeUndefined();
+  });
+});
+
+describe("landing message handoff", () => {
+  const message = { id: "pending", role: "user" as const, content: "Hello", reasoning: "", tools: [], createdAt: 1, completedAt: null };
+  const submission = { runId: "run-1", agentName: "Codex", message };
+
+  it("reads only valid submissions for the current thread", () => {
+    expect(readLandingSubmission({ landingSubmission: submission }, "run-1")).toEqual(submission);
+    expect(readLandingSubmission({ landingSubmission: submission }, "run-2")).toBeUndefined();
+    expect(readLandingSubmission(null, "run-1")).toBeUndefined();
+    expect(readLandingSubmission({ landingSubmission: { runId: "run-1" } }, "run-1")).toBeUndefined();
+  });
+
+  it("keeps the local message visible until the server copy arrives without duplicating it", () => {
+    expect(includeSubmittedMessage([], message)).toEqual([message]);
+    const confirmed = { ...message, id: "server-message" };
+    expect(includeSubmittedMessage([confirmed], message)).toEqual([confirmed]);
+    const response = { ...message, id: "response", role: "assistant" as const };
+    expect(includeSubmittedMessage([response], message)).toEqual([message, response]);
   });
 });

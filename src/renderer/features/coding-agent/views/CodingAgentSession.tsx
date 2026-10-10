@@ -1,3 +1,5 @@
+import { useLocation } from "react-router-dom";
+import { includeSubmittedMessage, readLandingSubmission } from "../lib/landing";
 import {
   type CSSProperties,
   type ReactNode,
@@ -8,6 +10,7 @@ import {
 } from "react";
 import { CodingAgentSessionHeader } from "../components/CodingAgentSessionHeader";
 import { DropdownMenu } from "../../../components/ui/dropdown-menu";
+import { Button } from "../../../components/ui/button";
 import { Skeleton } from "../../../components/ui/skeleton";
 import type {
   AvailableEditorDto,
@@ -80,6 +83,8 @@ export const CodingAgentSession = ({
   workspaceOpen?: boolean;
   onWorkspaceOpenChange?: (open: boolean) => void;
 }) => {
+  const location = useLocation();
+  const landingSubmission = readLandingSubmission(location.state, runId);
   const sessionState = useCodingAgentSession(runId);
   const [draft, setDraft] = useState("");
   const [selectedSkill, setSelectedSkill] = useState<SkillSummaryDto>();
@@ -202,14 +207,34 @@ export const CodingAgentSession = ({
     const timeout = window.setTimeout(() => setStatusPopup(undefined), 10_000);
     return () => window.clearTimeout(timeout);
   }, [statusPopup]);
-  if (sessionState.loading) return <Skeleton className="h-full w-full" />;
+  if (sessionState.loading && !landingSubmission) return <Skeleton className="h-full w-full" />;
+  if (!sessionState.snapshot && landingSubmission) {
+    return (
+      <section className="mx-auto flex h-full min-h-0 w-full max-w-[56rem] flex-col px-4 sm:px-6">
+        <SessionMessages
+          agentName={landingSubmission.agentName}
+          messages={[landingSubmission.message]}
+          busy={sessionState.loading}
+          activity={undefined}
+          permission={undefined}
+          error={sessionState.error}
+          onRespondPermission={() => undefined}
+        />
+        {!sessionState.loading ? <Button variant="outline" onClick={() => void sessionState.load()}>Retry loading chat</Button> : null}
+      </section>
+    );
+  }
   if (!sessionState.snapshot)
     return (
       <p className="text-sm text-destructive">
         {sessionState.error ?? "Session unavailable."}
       </p>
     );
-  const { session, context, messages, diff } = sessionState.snapshot;
+  const { session, context, diff } = sessionState.snapshot;
+  const messages = includeSubmittedMessage(
+    sessionState.snapshot.messages,
+    landingSubmission?.message,
+  );
   const inspectionVisible = showInspection && workspaceOpen;
   const busy = ["busy", "creating", "aborting"].includes(session.status);
   const lastMessage = messages.at(-1);

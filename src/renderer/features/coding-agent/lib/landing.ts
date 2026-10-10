@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { CodingAgentWorktreeContextDto } from "../../../../shared/ipc/schemas";
+import type { CodingAgentMessageDto, CodingAgentWorktreeContextDto } from "../../../../shared/ipc/schemas";
 
 export const resolveLandingPrompt = (
   context: CodingAgentWorktreeContextDto | undefined,
@@ -49,3 +49,38 @@ export const useResolvedWorktree = (
       contexts.find(({ worktree }) => worktree.id === selectedWorktreeId),
     [contexts, selectedWorktreeId],
   );
+
+export const readLandingSubmission = (state: unknown, runId: string): {
+  runId: string;
+  agentName: string;
+  message: CodingAgentMessageDto;
+} | undefined => {
+  if (!state || typeof state !== "object" || !("landingSubmission" in state)) return undefined;
+  const submission = state.landingSubmission;
+  if (!submission || typeof submission !== "object" ||
+      !("runId" in submission) || submission.runId !== runId ||
+      !("agentName" in submission) || typeof submission.agentName !== "string" ||
+      !("message" in submission)) return undefined;
+  const message = submission.message;
+  if (!message || typeof message !== "object" ||
+      !("id" in message) || typeof message.id !== "string" ||
+      !("role" in message) || message.role !== "user" ||
+      !("content" in message) || typeof message.content !== "string" ||
+      !("createdAt" in message) || typeof message.createdAt !== "number" ||
+      !Number.isFinite(message.createdAt)) return undefined;
+  return {
+    runId,
+    agentName: submission.agentName,
+    message: {
+      id: message.id, role: "user", content: message.content,
+      createdAt: message.createdAt, completedAt: null, reasoning: "", tools: [],
+    },
+  };
+};
+
+export const includeSubmittedMessage = (
+  messages: CodingAgentMessageDto[],
+  submitted: CodingAgentMessageDto | undefined,
+): CodingAgentMessageDto[] => submitted && !messages.some(
+  (message) => message.role === "user" && message.content === submitted.content,
+) ? [submitted, ...messages] : messages;

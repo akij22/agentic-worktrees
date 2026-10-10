@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
   CodingAgentInstallationStatusDto,
+  CodingAgentMessageDto,
   CodingAgentKindDto,
   CodingAgentModelDto,
   CodingAgentWorktreeContextDto,
@@ -10,6 +11,7 @@ import { Button } from "../../../components/ui/button";
 import { CapabilityPanel } from "../components/CapabilityPanel";
 import { useWorktreeCapabilities } from "../hooks/useWorktreeCapabilities";
 import { HarnessModelPicker } from "../components/HarnessModelPicker";
+import { SessionMessages } from "../components/SessionMessages";
 import { SessionComposer } from "../components/SessionComposer";
 import { WorktreeRow } from "../components/WorktreeRow";
 import {
@@ -77,6 +79,7 @@ export const NewThreadView = ({
   const [createState, setCreateState] = useState<CreateState>({
     status: "idle",
   });
+  const [submittedMessage, setSubmittedMessage] = useState<CodingAgentMessageDto>();
   const sendingRef = useRef(false);
   const pendingSessionRef = useRef<{ key: string; id: string } | undefined>(
     undefined,
@@ -158,6 +161,16 @@ export const NewThreadView = ({
     ) => {
       const content = draft.trim();
       if (!worktreeId || !kind || !content || sendingRef.current) return;
+      const message: CodingAgentMessageDto = {
+        id: `pending-${crypto.randomUUID()}`,
+        role: "user",
+        content,
+        reasoning: "",
+        tools: [],
+        createdAt: Date.now(),
+        completedAt: null,
+      };
+      setSubmittedMessage(message);
       sendingRef.current = true;
       setCreateState({ status: "creating" });
       const sessionKey = JSON.stringify([
@@ -193,8 +206,14 @@ export const NewThreadView = ({
         pendingSessionRef.current = undefined;
         navigate(
           `/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(session.id)}`,
+          { state: { landingSubmission: {
+            runId: session.id,
+            agentName: installations.find((installation) => installation.kind === kind)?.name ?? "coding agent",
+            message,
+          } } },
         );
       } catch (cause) {
+        setSubmittedMessage(undefined);
         setCreateState({
           status: "error",
           message: cause instanceof Error ? cause.message : String(cause),
@@ -203,7 +222,7 @@ export const NewThreadView = ({
         sendingRef.current = false;
       }
     },
-    [context, draft, navigate, sessions, worktreeId],
+    [context, draft, installations, navigate, sessions, worktreeId],
   );
 
   if (contexts.length === 0) {
@@ -247,10 +266,22 @@ export const NewThreadView = ({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 px-8 py-10">
-      <h2 className="text-center text-xl font-semibold tracking-tight">
+    <div className={`flex h-full min-h-0 flex-col items-center gap-4 px-8 py-10 ${submittedMessage ? "" : "justify-center"}`}>
+      {submittedMessage ? (
+        <div className="flex min-h-0 w-full max-w-[56rem] flex-1 flex-col">
+          <SessionMessages
+            agentName={installations.find((installation) => installation.kind === activeHarness)?.name ?? "coding agent"}
+            messages={[submittedMessage]}
+            busy={false}
+            activity={undefined}
+            permission={undefined}
+            error={undefined}
+            onRespondPermission={() => undefined}
+          />
+        </div>
+      ) : <h2 className="text-center text-xl font-semibold tracking-tight">
         {resolveLandingPrompt(context)}
-      </h2>
+      </h2>}
 
       <div className="w-full max-w-[40rem]">
         <SessionComposer
@@ -294,7 +325,7 @@ export const NewThreadView = ({
               capabilitiesPanelId="landing-capability-panel"
             />
           }
-          draft={draft}
+          draft={submittedMessage ? "" : draft}
           models={[]}
           modelKey=""
           reasoningVariant=""

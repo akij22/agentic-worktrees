@@ -67,9 +67,12 @@ const listWorktree = vi.fn();
 const listCapabilities = vi.fn();
 const capabilityChanged = vi.fn();
 const locationProbe = vi.fn();
+const locationStateProbe = vi.fn();
 
 const LocationProbe = () => {
-  locationProbe(useLocation().pathname);
+  const location = useLocation();
+  locationProbe(location.pathname);
+  locationStateProbe(location.state);
   return null;
 };
 
@@ -123,6 +126,7 @@ beforeEach(() => {
     ]),
   );
   locationProbe.mockReset();
+  locationStateProbe.mockReset();
   createSession.mockResolvedValue({ id: "run-new", worktreeId: "wt-1" });
   listWorktree.mockReset();
   listWorktree.mockResolvedValue([]);
@@ -256,8 +260,14 @@ describe("NewThreadView", () => {
     expect(sendMessage).toHaveBeenCalledWith({ runId: "run-new", content: "Make the sidebar denser" });
     expect(createSession).toHaveBeenCalledTimes(1);
     expect(locationProbe).not.toHaveBeenCalledWith("/chat/wt-1/run-new");
+    expect(screen.getByText("Make the sidebar denser").closest("article")).toBeTruthy();
     finishSend();
     await waitFor(() => expect(locationProbe).toHaveBeenCalledWith("/chat/wt-1/run-new"));
+    expect(locationStateProbe).toHaveBeenLastCalledWith({ landingSubmission: {
+      runId: "run-new",
+      agentName: "OpenCode",
+      message: expect.objectContaining({ role: "user", content: "Make the sidebar denser" }),
+    } });
   });
 
   it("preserves the message after a send failure and retries the same session", async () => {
@@ -286,6 +296,19 @@ describe("NewThreadView", () => {
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(createSession).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("displays the submitted message before session creation finishes", async () => {
+    createSession.mockReturnValue(new Promise(() => undefined));
+    renderLanding();
+    await waitForModelPicker();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
+      target: { value: "Show this immediately" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(screen.getByText("Show this immediately").closest("article")).toBeTruthy();
+    expect(screen.queryByText("Sending…")).toBeNull();
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
