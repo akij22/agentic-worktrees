@@ -1,10 +1,6 @@
-/* Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V5
- * genre: modern-minimal · macrostructure: Workbench · variation: embedded workspace
- * tone: technical · header: compact command bar
- * theme: existing midnight system · anchor hue: cobalt · enrichment: none
- * contrast: pass (40–41) · honest: pass (46) · chrome: pass (47)
- * tokens: pass (48) · responsive: pass (49) · mobile: pass (34, 49, 50–57)
- * icons: pass (30) · nav: existing AppShell · footer: n/a · slop: pass (42–45)
+/* Hallmark · theme: Vercel (user supplied) · existing Workbench
+ * genre: modern-minimal · tone: technical · anchor hue: neutral
+ * pre-emit critique: P5 H4 E4 S5 R5 V3
  */
 :root {
  --color-paper: var(--background);

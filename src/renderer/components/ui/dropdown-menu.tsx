@@ -96,7 +96,7 @@ export const DropdownMenu = <T extends string>({
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-white/[0.065] bg-surface-raised/65 px-3 text-xs font-semibold text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface-raised/65 px-3 text-xs font-semibold text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         {label}
         <ChevronDown aria-hidden="true" className="size-3.5 stroke-[1.8]" />
@@ -109,7 +109,7 @@ export const DropdownMenu = <T extends string>({
             id={menuId}
             role="menu"
             aria-label={label}
-            className="fixed z-50 max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] min-w-48 overflow-y-auto rounded-lg border border-white/[0.075] bg-popover/95 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl"
+            className="fixed z-50 max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] min-w-48 overflow-y-auto rounded-lg border border-border bg-popover/95 p-1.5 text-popover-foreground shadow-xl backdrop-blur-xl"
           >
             {items.map((item, index) => (
               <button

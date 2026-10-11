@@ -37,7 +37,7 @@ export const Dialog = ({
       />
       <div
         className={cn(
-          'relative z-10 mx-4 w-full max-w-lg rounded-xl border border-white/[0.075] bg-card/95 p-6 text-card-foreground shadow-2xl backdrop-blur-xl',
+          'relative z-10 mx-4 w-full max-w-lg rounded-xl border border-border bg-card/95 p-6 text-card-foreground shadow-2xl backdrop-blur-xl',
           className,
         )}
       >

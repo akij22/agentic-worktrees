@@ -11,13 +11,13 @@ type Size = 'default' | 'sm' | 'lg' | 'icon';
 
 const variants: Record<Variant, string> = {
   default:
-    'border border-primary/70 bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_7px_18px_-12px_rgba(138,180,248,0.95)] hover:border-primary hover:bg-primary/90',
+    'border border-primary/70 bg-primary text-primary-foreground shadow-sm hover:border-primary hover:bg-primary/90',
   secondary:
-    'border border-white/[0.055] bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
+    'border border-border bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
   destructive:
     'border border-destructive-foreground/15 bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/85',
   outline:
-    'border border-white/[0.075] bg-surface-raised/55 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] hover:border-white/[0.12] hover:bg-accent hover:text-accent-foreground',
+    'border border-border bg-surface-raised/55 text-foreground shadow-xs hover:border-border hover:bg-accent hover:text-accent-foreground',
   ghost: 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
 };
 

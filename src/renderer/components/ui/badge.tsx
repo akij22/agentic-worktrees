@@ -5,8 +5,8 @@ type Variant = 'default' | 'secondary' | 'outline' | 'destructive';
 
 const variants: Record<Variant, string> = {
   default: 'border border-primary/25 bg-primary/15 text-primary',
-  secondary: 'border border-white/[0.055] bg-secondary text-secondary-foreground',
-  outline: 'border border-white/[0.075] bg-transparent text-muted-foreground',
+  secondary: 'border border-border bg-secondary text-secondary-foreground',
+  outline: 'border border-border bg-transparent text-muted-foreground',
   destructive:
     'border border-destructive-foreground/15 bg-destructive text-destructive-foreground',
 };
