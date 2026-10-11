@@ -15,7 +15,7 @@ export const SessionThought = ({ agentName, text, streaming }: Props) => (
     className="max-w-[48rem] animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out"
   >
     <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <Brain aria-hidden="true" className="size-3.5 shrink-0 text-primary/70" />
+      <Brain aria-hidden="true" className="size-3.5 shrink-0 text-update" />
       {streaming ? (
         <span className="thought-shimmer font-semibold not-italic">
           Thinking
@@ -27,7 +27,7 @@ export const SessionThought = ({ agentName, text, streaming }: Props) => (
     <div
       className={cn(
         "border-l-2 pl-3 text-xs leading-5 text-muted-foreground/80",
-        streaming ? "border-primary/40" : "border-border",
+        streaming ? "border-update/40" : "border-border",
       )}
     >
       <div className="whitespace-pre-wrap italic">

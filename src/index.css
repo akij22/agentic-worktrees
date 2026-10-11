@@ -1,6 +1,6 @@
-/* Hallmark · theme: Vercel (user supplied) · genre: modern-minimal
- * macrostructure: existing Workbench · tone: technical · anchor hue: neutral
- * pre-emit critique: P5 H4 E4 S5 R5 V3
+/* Hallmark · theme: Vercel + cool blue, mint, amber · genre: modern-minimal
+ * macrostructure: existing Workbench · tone: technical · anchor hue: cool blue
+ * pre-emit critique: P5 H5 E4 S5 R5 V3
  */
 @import "../tokens.css";
 @import "tailwindcss";
@@ -12,38 +12,38 @@
 :root {
   color-scheme: light;
   --background: oklch(0.9900 0 0);
-  --foreground: oklch(0 0 0);
+  --foreground: oklch(0.2000 0.0120 255);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0 0 0);
-  --popover: oklch(0.9900 0 0);
-  --popover-foreground: oklch(0 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
   --primary: oklch(0 0 0);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.9400 0 0);
-  --secondary-foreground: oklch(0 0 0);
-  --muted: oklch(0.9700 0 0);
-  --muted-foreground: oklch(0.4400 0 0);
-  --accent: oklch(0.9400 0 0);
-  --accent-foreground: oklch(0 0 0);
-  --destructive: oklch(0.6300 0.1900 23.0300);
+  --secondary: oklch(0.9520 0.0120 255);
+  --secondary-foreground: oklch(0.3200 0.0300 255);
+  --muted: oklch(0.9700 0.0060 255);
+  --muted-foreground: oklch(0.4600 0.0250 255);
+  --accent: oklch(0.9380 0.0320 255);
+  --accent-foreground: oklch(0.4200 0.1400 255);
+  --destructive: oklch(0.5500 0.1900 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9200 0 0);
-  --input: oklch(0.9400 0 0);
-  --ring: oklch(0 0 0);
-  --chart-1: oklch(0.8100 0.1700 75.3500);
-  --chart-2: oklch(0.5500 0.2200 264.5300);
-  --chart-3: oklch(0.7200 0 0);
-  --chart-4: oklch(0.9200 0 0);
-  --chart-5: oklch(0.5600 0 0);
-  --sidebar: oklch(0.9900 0 0);
-  --sidebar-foreground: oklch(0 0 0);
-  --sidebar-primary: oklch(0 0 0);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.9400 0 0);
-  --sidebar-accent-foreground: oklch(0 0 0);
-  --sidebar-border: oklch(0.9400 0 0);
-  --sidebar-ring: oklch(0 0 0);
-  --sidebar-secondary: var(--card);
+  --border: oklch(0.8600 0.0160 255);
+  --input: oklch(0.6500 0.0250 255);
+  --ring: oklch(0.5500 0.1900 255);
+  --chart-1: oklch(0.5800 0.1700 255);
+  --chart-2: oklch(0.4800 0.1700 255);
+  --chart-3: oklch(0.4500 0.1000 165);
+  --chart-4: oklch(0.4800 0.1000 70);
+  --chart-5: oklch(0.5500 0.1900 25);
+  --sidebar: oklch(0.9700 0.0060 255);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--accent-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --sidebar-secondary: var(--sidebar);
   --canvas: var(--background);
   --chrome: var(--card);
   --toolbar: var(--card);
@@ -60,32 +60,34 @@
   --icon-muted: var(--muted-foreground);
   --error: var(--destructive);
   --error-foreground: var(--destructive);
-  --warning: var(--chart-1);
-  --warning-foreground: var(--foreground);
-  --update: var(--foreground);
-  --update-foreground: var(--foreground);
-  --update-surface: var(--muted);
+  --success: var(--chart-3);
+  --success-surface: color-mix(in oklab, var(--success) 10%, var(--card));
+  --warning: var(--chart-4);
+  --warning-foreground: var(--warning);
+  --update: var(--chart-2);
+  --update-foreground: var(--update);
+  --update-surface: var(--accent);
   --accent-surface: var(--accent);
   --accent-surface-foreground: var(--accent-foreground);
-  --message-surface: var(--secondary);
-  --message-foreground: var(--secondary-foreground);
+  --message-surface: var(--accent);
+  --message-foreground: var(--accent-foreground);
   --message-action: var(--primary);
   --message-action-foreground: var(--primary-foreground);
-  --message-action-hover: var(--muted-foreground);
-  --code-background: var(--muted);
+  --message-action-hover: color-mix(in oklab, var(--primary) 85%, var(--background));
+  --code-background: var(--secondary);
   --code-foreground: var(--foreground);
   --sidebar-muted-foreground: var(--muted-foreground);
   --sidebar-control-surface: var(--secondary);
   --sidebar-row-hover: var(--sidebar-accent);
   --sidebar-row-active: var(--sidebar-accent);
-  --sidebar-row-selected: var(--sidebar-accent);
+  --sidebar-row-selected: var(--sidebar-primary);
   --panel-shadow: var(--shadow-sm);
   --letter-spacing: var(--tracking-normal);
   --shadow-offset-x: var(--shadow-x);
   --shadow-offset-y: var(--shadow-y);
   --surface-highlight: color-mix(in oklab, var(--foreground) 5.5%, transparent);
-  --error-surface: color-mix(in oklab, var(--destructive) 12%, var(--card));
-  --warning-surface: color-mix(in oklab, var(--warning) 12%, var(--card));
+  --error-surface: color-mix(in oklab, var(--destructive) 8%, var(--card));
+  --warning-surface: color-mix(in oklab, var(--warning) 10%, var(--card));
   --font-sans: "Geist Variable", Geist, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "Geist Mono Variable", "Geist Mono", monospace;
@@ -106,11 +108,11 @@
   --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
-  /* sRGB equivalents of the neutral theme tokens for xterm. */
+  /* xterm requires sRGB literals rather than OKLCH custom properties. */
   --terminal-background: #f9f9f9;
-  --terminal-foreground: #000000;
-  --terminal-cursor: #000000;
-  --terminal-selection: #ebebeb;
+  --terminal-foreground: #18212c;
+  --terminal-cursor: #2563eb;
+  --terminal-selection: #dbeafe;
   --terminal-scrollbar: #999999;
   --terminal-scrollbar-hover: #525252;
 }
@@ -118,41 +120,41 @@
 .dark {
   color-scheme: dark;
   --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
-  --card: oklch(0.1400 0 0);
-  --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.1800 0 0);
-  --popover-foreground: oklch(1 0 0);
+  --foreground: oklch(0.9600 0.0060 255);
+  --card: oklch(0.2050 0.0080 255);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.2450 0.0120 255);
+  --popover-foreground: var(--foreground);
   --primary: oklch(1 0 0);
   --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.2500 0 0);
-  --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.2300 0 0);
-  --muted-foreground: oklch(0.7200 0 0);
-  --accent: oklch(0.3200 0 0);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.6900 0.2000 23.9100);
+  --secondary: oklch(0.2650 0.0140 255);
+  --secondary-foreground: oklch(0.9200 0.0150 255);
+  --muted: oklch(0.2400 0.0100 255);
+  --muted-foreground: oklch(0.7400 0.0200 255);
+  --accent: oklch(0.2850 0.0550 255);
+  --accent-foreground: oklch(0.8200 0.0900 250);
+  --destructive: oklch(0.7200 0.1700 25);
   --destructive-foreground: oklch(0 0 0);
-  --border: oklch(0.2600 0 0);
-  --input: oklch(0.3200 0 0);
-  --ring: oklch(0.7200 0 0);
-  --chart-1: oklch(0.8100 0.1700 75.3500);
-  --chart-2: oklch(0.5800 0.2100 260.8400);
-  --chart-3: oklch(0.5600 0 0);
-  --chart-4: oklch(0.4400 0 0);
-  --chart-5: oklch(0.9200 0 0);
-  --sidebar: oklch(0.1800 0 0);
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(1 0 0);
-  --sidebar-primary-foreground: oklch(0 0 0);
-  --sidebar-accent: oklch(0.3200 0 0);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.3200 0 0);
-  --sidebar-ring: oklch(0.7200 0 0);
+  --border: oklch(0.3550 0.0180 255);
+  --input: oklch(0.5200 0.0250 255);
+  --ring: oklch(0.7500 0.1400 250);
+  --chart-1: oklch(0.7000 0.1500 255);
+  --chart-2: oklch(0.7800 0.1200 250);
+  --chart-3: oklch(0.8000 0.1400 165);
+  --chart-4: oklch(0.8300 0.1400 80);
+  --chart-5: oklch(0.7200 0.1700 25);
+  --sidebar: oklch(0.1700 0.0080 255);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--accent-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
   --terminal-background: #000000;
-  --terminal-foreground: #ffffff;
-  --terminal-cursor: #ffffff;
-  --terminal-selection: #333333;
+  --terminal-foreground: #f0f3f7;
+  --terminal-cursor: #93c5fd;
+  --terminal-selection: #1e3a5f;
   --terminal-scrollbar: #525252;
   --terminal-scrollbar-hover: #a4a4a4;
 }
@@ -208,6 +210,8 @@
   --color-error: var(--error);
   --color-error-foreground: var(--error-foreground);
   --color-error-surface: var(--error-surface);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-surface: var(--warning-surface);
@@ -292,7 +296,7 @@
   }
 
   ::selection {
-    background: color-mix(in oklab, var(--primary) 28%, transparent);
+    background: color-mix(in oklab, var(--update) 28%, transparent);
     color: var(--foreground);
   }
 

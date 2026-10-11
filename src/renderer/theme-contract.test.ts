@@ -8,7 +8,7 @@ const stylesheet = readFileSync(
 const light = stylesheet.split(':root {')[1].split('\n}')[0];
 const dark = stylesheet.split('.dark {')[1].split('\n}')[0];
 
-describe('Vercel theme contract', () => {
+describe('Vercel color theme contract', () => {
   it('provides separate light and dark palettes with matching primary contrast', () => {
     expect(light).toContain('color-scheme: light;');
     expect(light).toContain('--background: oklch(0.9900 0 0);');
@@ -22,8 +22,8 @@ describe('Vercel theme contract', () => {
 
   it('maps app surfaces to the palette so they follow theme changes', () => {
     expect(light).toContain('--toolbar: var(--card);');
-    expect(light).toContain('--message-surface: var(--secondary);');
-    expect(light).toContain('--sidebar-row-selected: var(--sidebar-accent);');
+    expect(light).toContain('--message-surface: var(--accent);');
+    expect(light).toContain('--sidebar-row-selected: var(--sidebar-primary);');
     expect(light).toContain('--panel-shadow: var(--shadow-sm);');
     expect(stylesheet).toContain('border: 1px solid var(--border);');
   });

@@ -47,7 +47,7 @@ const StatusIcon = ({
     return (
       <Check
         aria-label="Completed"
-        className="size-3.5 shrink-0 text-emerald-500"
+        className="size-3.5 shrink-0 text-success"
       />
     );
   }
@@ -62,7 +62,7 @@ const StatusIcon = ({
   return (
     <Loader2
       aria-label={status === "pending" ? "Pending" : "Running"}
-      className="size-3.5 shrink-0 animate-spin text-primary"
+      className="size-3.5 shrink-0 animate-spin text-update"
     />
   );
 };
@@ -92,8 +92,8 @@ const ToolRow = ({ tool }: { tool: CodingAgentToolCallDto }) => {
             tool.status === "error"
               ? "border-destructive/20 bg-destructive/10 text-destructive"
               : tool.status === "completed"
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                : "border-primary/20 bg-primary/10 text-primary",
+                ? "border-success/20 bg-success-surface text-success"
+                : "border-update/20 bg-update-surface text-update",
           )}
         >
           <ToolIcon tool={tool.tool} />
@@ -107,13 +107,13 @@ const ToolRow = ({ tool }: { tool: CodingAgentToolCallDto }) => {
               <ChevronRight
                 aria-hidden="true"
                 className={cn(
-                  "size-3 shrink-0 text-muted-foreground/60 transition-transform duration-200",
+                  "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
                   expanded && "rotate-90",
                 )}
               />
             ) : null}
           </span>
-          <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground/65">
+          <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             <span>{isCapability ? "Capability" : tool.tool}</span>
             <span aria-hidden="true" className="text-border">
               ·
@@ -139,14 +139,14 @@ export const ToolCallGroup = ({ tools }: Props) => (
   >
     <header className="flex items-center justify-between border-b border-border/50 px-3.5 py-2.5">
       <div className="flex items-center gap-2">
-        <span className="flex size-5 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <span className="flex size-5 items-center justify-center rounded-md bg-update-surface text-update">
           <Plug aria-hidden="true" className="size-3" />
         </span>
         <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           Tool activity
         </span>
       </div>
-      <span className="font-mono text-[10px] text-muted-foreground/60">
+      <span className="font-mono text-[10px] text-muted-foreground">
         {tools.length} {tools.length === 1 ? "call" : "calls"}
       </span>
     </header>

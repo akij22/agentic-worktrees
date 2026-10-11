@@ -1,5 +1,5 @@
-/* Hallmark · theme: Vercel (user supplied) · existing Workbench
- * genre: modern-minimal · tone: technical · anchor hue: neutral
+/* Hallmark · theme: Vercel + cool blue, mint, amber · existing Workbench
+ * genre: modern-minimal · tone: technical · anchor hue: cool blue
  * pre-emit critique: P5 H4 E4 S5 R5 V3
  */
 :root {
@@ -12,11 +12,11 @@
  --color-muted: var(--text-muted);
  --color-rule: var(--border);
  --color-rule-strong: var(--input);
- --color-accent: var(--primary);
- --color-accent-ink: var(--primary-foreground);
+ --color-accent: var(--accent);
+ --color-accent-ink: var(--accent-foreground);
  --color-focus: var(--ring);
  --color-error: var(--error);
- --color-success: var(--chart-3);
+ --color-success: var(--success);
  --color-warning: var(--warning);
 
  --font-display: var(--font-sans);

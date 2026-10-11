@@ -30,15 +30,15 @@ export const isDraftSession = (
 
 export const getSessionStatusPresentation = (session: CodingAgentSessionDto) => {
   if (["busy", "creating", "aborting"].includes(session.status)) {
-    return { label: "Working", className: "bg-primary" };
+    return { label: "Working", className: "bg-update" };
   }
   if (session.status === "waiting_permission") {
-    return { label: "Needs attention", className: "bg-amber-400" };
+    return { label: "Needs attention", className: "bg-warning" };
   }
   if (session.status === "error") {
     return { label: "Error", className: "bg-destructive" };
   }
-  return { label: "Ready", className: "bg-emerald-400" };
+  return { label: "Ready", className: "bg-success" };
 };
 
 const startOfDay = (value: Date): number => {
