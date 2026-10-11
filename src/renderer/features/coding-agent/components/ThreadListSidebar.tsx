@@ -115,13 +115,13 @@ const ThreadRow = ({
         className={cn(
           "relative mb-1 flex w-full gap-2.5 overflow-hidden rounded-lg px-2.5 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
           active
-            ? "bg-sidebar-row-selected text-foreground shadow-[inset_2px_0_0_var(--primary),inset_0_1px_0_rgba(255,255,255,0.045)]"
+            ? "bg-sidebar-row-selected text-foreground shadow-[inset_2px_0_0_var(--update),inset_0_1px_0_rgba(255,255,255,0.045)]"
             : "text-sidebar-foreground hover:bg-sidebar-row-hover/70",
         )}
       >
         {active ? (
           <span
-            className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-primary"
+            className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-update"
             aria-hidden="true"
           />
         ) : null}
@@ -264,7 +264,7 @@ export const ThreadListSidebar = ({
       </div>
 
       <div className="shrink-0 px-3 pt-3">
-        <div className="flex h-8 items-center gap-2 rounded-lg border border-sidebar-border bg-background/60 px-2.5 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-sidebar-ring/40">
+        <div className="flex h-8 items-center gap-2 rounded-lg border border-sidebar-border bg-background/60 px-2.5 focus-within:border-ring focus-within:ring-2 focus-within:ring-sidebar-ring/40">
           <Search
             aria-hidden="true"
             className="size-3.5 shrink-0 text-muted-foreground"
@@ -289,7 +289,7 @@ export const ThreadListSidebar = ({
             className={cn(
               "h-6 shrink-0 rounded-md border px-2 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
               repositoryFilter === undefined
-                ? "border-primary/35 bg-sidebar-row-selected text-foreground"
+                ? "border-update/35 bg-sidebar-row-selected text-foreground"
                 : "border-sidebar-border text-muted-foreground hover:bg-sidebar-row-hover",
             )}
           >
@@ -308,7 +308,7 @@ export const ThreadListSidebar = ({
               className={cn(
                 "flex h-6 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/60",
                 repositoryFilter === filter.id
-                  ? "border-primary/35 bg-sidebar-row-selected text-foreground"
+                  ? "border-update/35 bg-sidebar-row-selected text-foreground"
                   : "border-sidebar-border text-muted-foreground hover:bg-sidebar-row-hover",
               )}
             >

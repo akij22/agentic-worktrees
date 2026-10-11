@@ -435,12 +435,12 @@ export const SessionComposer = ({
                   : "Context usage unavailable"
               }
             >
-              <Layers3 className="size-3.5 text-primary/80" aria-hidden="true" />
+              <Layers3 className="size-3.5 text-update" aria-hidden="true" />
               <div className="flex gap-0.5" aria-hidden="true">
                 {Array.from({ length: 8 }, (_, index) => (
                   <span
                     key={index}
-                    className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-primary") : "bg-muted"}`}
+                    className={`h-3 w-1 rounded-[2px] transition-colors ${usage && index < Math.ceil(usage.contextPercentage / 12.5) ? (usage.contextPercentage >= 85 ? "bg-warning" : "bg-update") : "bg-muted"}`}
                   />
                 ))}
               </div>
@@ -493,7 +493,7 @@ export const SessionComposer = ({
             title={branchName}
           >
             <GitBranch
-              className="size-3.5 shrink-0 text-primary/80"
+              className="size-3.5 shrink-0 text-update"
               aria-hidden="true"
             />
             <span className="shrink-0 uppercase tracking-[0.12em] text-[9px] font-semibold text-muted-foreground/70">

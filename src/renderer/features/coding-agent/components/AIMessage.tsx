@@ -75,7 +75,7 @@ export const AIMessage = ({
             p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
             a: ({ children, href }) => (
               <a
-                className="text-primary underline underline-offset-4 hover:text-primary/80"
+                className="text-update underline underline-offset-4 hover:text-update/80"
                 href={href}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -97,7 +97,7 @@ export const AIMessage = ({
               </ol>
             ),
             blockquote: ({ children }) => (
-              <blockquote className="mb-3 border-l-2 border-primary/60 pl-3 text-muted-foreground italic last:mb-0">
+              <blockquote className="mb-3 border-l-2 border-update/60 pl-3 text-muted-foreground italic last:mb-0">
                 {children}
               </blockquote>
             ),
