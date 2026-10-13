@@ -34,7 +34,7 @@ export const ChatView = ({ activeRunId }: { activeRunId?: string }) => {
     THREAD_SIDEBAR_DEFAULT_WIDTH,
   );
   const [isResizingThreadSidebar, setIsResizingThreadSidebar] = useState(false);
-  const { status, contexts, sessions, sessionDetails, loading, error } =
+  const { status, contexts, sessions, sessionDetails, loading, error, reload } =
     useCodingAgentSessions();
   const configuredInstallations =
     status?.installations.filter((installation) => installation.configured) ??
@@ -88,6 +88,12 @@ export const ChatView = ({ activeRunId }: { activeRunId?: string }) => {
         hasConfiguredHarness={configuredInstallations.length > 0}
         onNewSession={() => navigate("/chat")}
         onOpenSession={openSession}
+        onDeleteSession={async (session) => {
+          const result = await window.api.codingAgent.deleteSession({ runId: session.id });
+          if (!result.success) throw new Error(result.error.message);
+          if (activeRunId === session.id) navigate("/chat");
+          await reload();
+        }}
       />
 
       <div

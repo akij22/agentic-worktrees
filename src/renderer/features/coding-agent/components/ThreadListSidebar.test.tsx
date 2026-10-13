@@ -6,8 +6,9 @@ import {
   render,
   screen,
   within,
+  waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type {
   CodingAgentSessionDto,
   CodingAgentWorktreeContextDto,
@@ -80,6 +81,7 @@ const baseProps = {
   hasConfiguredHarness: true,
   onNewSession: vi.fn(),
   onOpenSession: vi.fn(),
+  onDeleteSession: vi.fn(async () => undefined),
   sessionDetails: new Map(),
 };
 
@@ -437,5 +439,76 @@ describe("ThreadListSidebar", () => {
     expect(within(row).getByText("feature/mvp").className).toContain(
       "font-mono",
     );
+  });
+});
+
+
+const showNativeMenu = vi.fn();
+beforeEach(() => {
+  showNativeMenu.mockReset().mockResolvedValue({ success: true, action: "delete" });
+  Object.defineProperty(window, "api", { configurable: true, value: { codingAgent: { showSessionContextMenu: showNativeMenu } } });
+});
+
+describe("chat context menu", () => {
+  const renderChat = (onDeleteSession = vi.fn(async () => undefined)) => {
+    render(<ThreadListSidebar {...baseProps} onDeleteSession={onDeleteSession}
+      contexts={[context("repo-a", "repo", "wt-1", "main")]}
+      sessions={[session({ id: "one", worktreeId: "wt-1", updatedAt: new Date() })]} />);
+    return screen.getByRole("button", { name: /A thread/ });
+  };
+
+  it("requires confirmation before deleting the right-clicked chat", async () => {
+    const remove = vi.fn(async () => undefined);
+    fireEvent.contextMenu(renderChat(remove), { clientX: 100, clientY: 120 });
+    expect(screen.queryByRole("menu")).toBeNull();
+    const dialog = await screen.findByRole("alertdialog");
+    expect(remove).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete chat" }));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(expect.objectContaining({ id: "one" })));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
+
+  it("cancels without deleting", async () => {
+    const remove = vi.fn(async () => undefined);
+    fireEvent.contextMenu(renderChat(remove));
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open and shows deletion errors", async () => {
+    const remove = vi.fn(async () => { throw new Error("Stop the active response first."); });
+    fireEvent.contextMenu(renderChat(remove));
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete chat" }));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Stop the active response first.");
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+  });
+});
+
+
+describe("chat menu keyboard access", () => {
+  it("opens with Shift+F10 and dismisses with Escape", async () => {
+    render(<ThreadListSidebar {...baseProps} contexts={[]}
+      sessions={[session({ id: "one", worktreeId: "wt-1", updatedAt: new Date() })]} />);
+    const row = screen.getByRole("button", { name: /A thread/ });
+    showNativeMenu.mockResolvedValue({ success: true, action: "dismissed" });
+    row.focus();
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    await waitFor(() => expect(showNativeMenu).toHaveBeenCalledWith({ runId: "one", x: 16, y: 16 }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(baseProps.onDeleteSession).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("native menu failures", () => {
+  it("surfaces native menu startup errors without opening confirmation", async () => {
+    showNativeMenu.mockResolvedValue({ success: false, error: { code: "MENU_FAILED", message: "Could not open menu." } });
+    render(<ThreadListSidebar {...baseProps} contexts={[]} sessions={[session({ id: "one", worktreeId: "wt-1", updatedAt: new Date() })]} />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: /A thread/ }));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Could not open the chat menu. Please try again.");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 });

@@ -94,6 +94,7 @@ import {
 	autoDiscoverAgent,
 	configureAgent,
 	createAgentSession,
+	deleteAgentSession,
 	getAgentInstallationStatus,
 	getAgentAccountUsage,
 	getAgentSessionSnapshot,
@@ -115,6 +116,9 @@ import { createSkillHandlers } from "./skill-handlers";
 import type { CapabilityDistributionService } from "../capabilities/capability-distribution-service";
 import { createMarketplaceHandlers } from "./marketplace-handlers";
 import { MarketplaceEventSubscription } from "./marketplace-event-subscription";
+
+import { createChatContextMenuHandler } from "./coding-agent-context-menu";
+import { createCodingAgentDeleteHandler } from "./coding-agent-delete-handler";
 
 let marketplaceDistribution: CapabilityDistributionService | null = null;
 const marketplaceEvents = new MarketplaceEventSubscription();
@@ -916,6 +920,14 @@ export const registerIpcHandlers = (): void => {
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT,
 		requireAuthenticated(handleCodingAgentSessionCompact),
+	);
+	ipcMain.handle(
+		IPC_CHANNELS.CODING_AGENT_CONTEXT_MENU,
+		requireAuthenticated(createChatContextMenuHandler((runId) => listAgentSessions().some((session) => session.id === runId))),
+	);
+	ipcMain.handle(
+		IPC_CHANNELS.CODING_AGENT_SESSION_DELETE,
+		requireAuthenticated(createCodingAgentDeleteHandler(deleteAgentSession)),
 	);
 	ipcMain.handle(
 		IPC_CHANNELS.CODING_AGENT_SESSION_ABORT,

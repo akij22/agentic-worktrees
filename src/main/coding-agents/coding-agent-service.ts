@@ -21,7 +21,7 @@ import { CoalescingTaskScheduler } from "./coalescing-task-scheduler";
 import { calculateDiffStats } from "./diff-stats";
 import { findCodexInSystem, parseCodexVersion } from "./codex-utils";
 import { OpenCodeAdapter } from "./opencode-adapter";
-import { CodingAgentSessionMissingError } from "./types";
+import { ActiveChatDeletionError, CodingAgentSessionMissingError } from "./types";
 import {
   revalidatePrimaryWorkspace,
   synchronizePrimaryWorkspaces,
@@ -895,12 +895,31 @@ export const createAgentSession = async (input: {
   }
   getHarnessForInstallation(installation);
   const runId = nanoid();
-  capabilityBridge?.inheritWorktreeCapabilities(input.worktreeId, runId);
-  const capabilityConnection =
-    capabilityBridge && sessionNeedsCapabilityConnection(runId)
-      ? await capabilityBridge.prepareSession(runId, input.agentKind)
-      : undefined;
+  const createdAt = new Date();
+  // Capability assignments reference runs, so persist their parent first.
+  // Without session metadata this provisional run is not listed as a chat.
+  getDatabase()
+    .insert(runs)
+    .values({
+      id: runId,
+      repositoryId: context.repository.id,
+      worktreeId: context.worktree.id,
+      title: input.title,
+      prompt: "",
+      status: "creating",
+      command: null,
+      outputStatus: "idle",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    .run();
+
   try {
+    capabilityBridge?.inheritWorktreeCapabilities(input.worktreeId, runId);
+    const capabilityConnection =
+      capabilityBridge && sessionNeedsCapabilityConnection(runId)
+        ? await capabilityBridge.prepareSession(runId, input.agentKind)
+        : undefined;
     await ensureStarted(harness);
     if (
       capabilityConnection &&
@@ -920,37 +939,26 @@ export const createAgentSession = async (input: {
     }
     if (capabilityConnection) capabilityPreparedRuns.add(runId);
     else capabilityPreparedRuns.delete(runId);
-  } catch (error) {
-    capabilityBridge?.stopSession(runId);
-    throw error;
-  }
-  let defaultModel: CodingAgentModel | undefined;
-  try {
+
     const availableModels = await harness.adapter.listModels(
       context.worktree.path,
     );
-    defaultModel = input.modelId && input.providerId
-      ? availableModels.find(
-          (model) =>
-            model.modelId === input.modelId &&
-            model.providerId === input.providerId,
-        )
-      : availableModels.find((model) => model.isDefault) ?? availableModels[0];
+    const defaultModel =
+      input.modelId && input.providerId
+        ? availableModels.find(
+            (model) =>
+              model.modelId === input.modelId &&
+              model.providerId === input.providerId,
+          )
+        : (availableModels.find((model) => model.isDefault) ??
+          availableModels[0]);
     if (!defaultModel) {
       if (input.modelId) {
         throw new Error(`Selected ${harness.name} model is not available.`);
       }
       throw new Error(`No ${harness.name} models are available.`);
     }
-  } catch (error) {
-    capabilityBridge?.stopSession(runId);
-    capabilityPreparedRuns.delete(runId);
-    throw error;
-  }
-
-  let external: { id: string };
-  try {
-    external = await harness.adapter.createSession(
+    const external = await harness.adapter.createSession(
       context.worktree.path,
       input.title,
       {
@@ -959,44 +967,47 @@ export const createAgentSession = async (input: {
         ...(capabilityConnection ? { capabilities: capabilityConnection } : {}),
       },
     );
+    const now = new Date();
+    getDatabase().transaction((tx) => {
+      tx.update(runs)
+        .set({ status: "idle", updatedAt: now })
+        .where(eq(runs.id, runId))
+        .run();
+      tx.insert(codingAgentSessions)
+        .values({
+          runId,
+          installationId: installation.id,
+          externalSessionId: external.id,
+          providerId: defaultModel.providerId,
+          modelId: defaultModel.modelId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run();
+      tx.update(worktrees)
+        .set({ activeRunId: runId, updatedAt: now })
+        .where(eq(worktrees.id, context.worktree.id))
+        .run();
+    });
+    return toSummary(getSessionRecord(runId));
   } catch (error) {
-    capabilityBridge?.stopSession(runId);
-    capabilityPreparedRuns.delete(runId);
+    try {
+      capabilityBridge?.stopSession(runId);
+    } finally {
+      capabilityPreparedRuns.delete(runId);
+      reasoningByRun.delete(runId);
+      toolsByRun.delete(runId);
+      // Foreign keys cascade to any inherited assignments and partial metadata.
+      getDatabase().transaction((tx) => {
+        tx.update(worktrees)
+          .set({ activeRunId: null })
+          .where(eq(worktrees.activeRunId, runId))
+          .run();
+        tx.delete(runs).where(eq(runs.id, runId)).run();
+      });
+    }
     throw error;
   }
-  const now = new Date();
-  getDatabase().transaction((tx) => {
-    tx.insert(runs)
-      .values({
-        id: runId,
-        repositoryId: context.repository.id,
-        worktreeId: context.worktree.id,
-        title: input.title,
-        prompt: "",
-        status: "idle",
-        command: null,
-        outputStatus: "idle",
-        createdAt: now,
-        updatedAt: now,
-      })
-      .run();
-    tx.insert(codingAgentSessions)
-      .values({
-        runId,
-        installationId: installation.id,
-        externalSessionId: external.id,
-        providerId: defaultModel.providerId,
-        modelId: defaultModel.modelId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .run();
-    tx.update(worktrees)
-      .set({ activeRunId: runId, updatedAt: now })
-      .where(eq(worktrees.id, context.worktree.id))
-      .run();
-  });
-  return toSummary(getSessionRecord(runId));
 };
 
 export const getCodingAgentCapabilitySession = (runId: string) => {
@@ -1401,6 +1412,8 @@ export const sendAgentMessage = async (
       );
     }
   }
+  // The chat may have been deleted while startup or model lookup was pending.
+  getSessionRecord(runId);
   if (!row.run.prompt) {
     getDatabase()
       .update(runs)
@@ -1445,6 +1458,8 @@ export const compactAgentSession = async (runId: string): Promise<void> => {
   const context = getContext(row.run.worktreeId);
   const harness = getHarnessForInstallation(row.installation);
   await ensureStarted(harness);
+  // Revalidate after startup before using the captured provider session.
+  getSessionRecord(runId);
   setRunStatus(runId, "busy", null);
   const activeCapabilityProfileId =
     harness.installationId === "opencode"
@@ -1612,3 +1627,27 @@ export const stopCodingAgents = async (): Promise<void> => {
 };
 
 export type { CodingAgentPermission };
+
+/** Delete local conversation records after any in-flight provider reads finish. */
+export const deleteAgentSession = (runId: string): Promise<void> =>
+  withSessionReadLock(runId, async () => {
+    const row = getSessionRecord(runId);
+    if (
+      !["idle", "error", "unavailable", "completed", "cancelled"].includes(row.run.status)
+    ) {
+      throw new ActiveChatDeletionError();
+    }
+    capabilityBridge?.stopSession(runId);
+    getDatabase().transaction((tx) => {
+      tx.update(worktrees)
+        .set({ activeRunId: null })
+        .where(eq(worktrees.activeRunId, runId))
+        .run();
+      // Foreign keys cascade to messages, outputs, diffs, and session metadata.
+      tx.delete(runs).where(eq(runs.id, runId)).run();
+    });
+    capabilityPreparedRuns.delete(runId);
+    reasoningByRun.delete(runId);
+    toolsByRun.delete(runId);
+    emit({ runId, type: "session.deleted", payload: null });
+  });

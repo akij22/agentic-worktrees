@@ -141,7 +141,7 @@ export const useCodingAgentSessions = () => {
 		const unsubscribe = window.api.codingAgent.onEvent((event) => {
 			if (
 				event.runId !== null &&
-				["messages.updated", "session.diff", "session.idle", "session.error", "session.status"].includes(event.type)
+				["messages.updated", "session.diff", "session.idle", "session.error", "session.status", "session.deleted"].includes(event.type)
 			) {
 				pendingRunIds.add(event.runId);
 				void queue.request();

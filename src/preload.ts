@@ -7,6 +7,8 @@ import {
 	capabilitySessionStateSchema,
 	worktreeCapabilityStateSchema,
 	capabilitySummarySchema,
+	codingAgentContextMenuResultSchema,
+	codingAgentSessionDeleteResultSchema,
 	codingAgentModelSchema,
 	codingAgentSessionSnapshotSchema,
 	githubAuthStatusSchema,
@@ -305,6 +307,12 @@ const api: Api = {
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_SEND, request),
 		compactSession: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_COMPACT, request),
+		showSessionContextMenu: async (request) =>
+			codingAgentContextMenuResultSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_CONTEXT_MENU, request)),
+		deleteSession: async (request) =>
+			codingAgentSessionDeleteResultSchema.parse(
+				await ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_DELETE, request),
+			),
 		abortSession: (request) =>
 			ipcRenderer.invoke(IPC_CHANNELS.CODING_AGENT_SESSION_ABORT, request),
 		respondPermission: (request) =>
