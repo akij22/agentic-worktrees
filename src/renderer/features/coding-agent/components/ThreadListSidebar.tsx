@@ -28,6 +28,7 @@ import {
   clampThreadDossierTop,
   ThreadSessionDossier,
 } from "./ThreadSessionDossier";
+import { ThreadContextMenu } from "./ThreadContextMenu";
 import "./ThreadListSidebar.css";
 
 type Props = {
@@ -43,6 +44,7 @@ type Props = {
   hasConfiguredHarness: boolean;
   onNewSession: () => void;
   onOpenSession: (session: CodingAgentSessionDto) => void;
+  onDeleteSession: (session: CodingAgentSessionDto) => Promise<void>;
 };
 
 const agentBadgeFor = (session: CodingAgentSessionDto): string =>
@@ -97,6 +99,7 @@ const ThreadRow = ({
 
   return (
     <div
+      onContextMenu={dismiss}
       ref={rowRef}
       className="thread-nav-item"
       onMouseEnter={(event) => reveal(event.currentTarget)}
@@ -202,6 +205,7 @@ export const ThreadListSidebar = ({
   hasConfiguredHarness,
   onNewSession,
   onOpenSession,
+  onDeleteSession,
 }: Props) => {
   const [query, setQuery] = useState("");
   const [repositoryFilter, setRepositoryFilter] = useState<string>();
@@ -350,12 +354,17 @@ export const ThreadListSidebar = ({
         {groups.map((group) => (
           <section key={`${group.kind}-${group.label}`}>
             {group.entries.map((entry) => (
-              <ThreadRow
+              <ThreadContextMenu
                 key={entry.session.id}
-                entry={entry}
-                active={entry.session.id === activeRunId}
-                onOpenSession={onOpenSession}
-              />
+                session={entry.session}
+                onDelete={onDeleteSession}
+              >
+                <ThreadRow
+                  entry={entry}
+                  active={entry.session.id === activeRunId}
+                  onOpenSession={onOpenSession}
+                />
+              </ThreadContextMenu>
             ))}
           </section>
         ))}

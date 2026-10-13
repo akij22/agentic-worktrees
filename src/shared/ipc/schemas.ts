@@ -979,3 +979,34 @@ export const marketplaceRetryMigrationsRequestSchema = z.object({}).strict();
 export type CapabilityConfigureRequest = z.infer<typeof capabilityConfigureRequestSchema>;
 export type CapabilityActivateRequest = z.infer<typeof capabilityActivateRequestSchema>;
 export type CapabilityDeactivateRequest = z.infer<typeof capabilityDeactivateRequestSchema>;
+
+
+export const codingAgentSessionDeleteRequestSchema = z.object({
+  runId: z.string().trim().min(1),
+}).strict();
+
+export const codingAgentSessionDeleteResultSchema = z.discriminatedUnion("success", [
+  z.object({ success: z.literal(true) }).strict(),
+  z.object({
+    success: z.literal(false),
+    error: z.object({
+      code: z.enum(["INVALID_REQUEST", "SESSION_ACTIVE", "DELETE_FAILED"]),
+      message: z.string(),
+    }).strict(),
+  }).strict(),
+]);
+export type CodingAgentSessionDeleteRequest = z.infer<typeof codingAgentSessionDeleteRequestSchema>;
+export type CodingAgentSessionDeleteResult = z.infer<typeof codingAgentSessionDeleteResultSchema>;
+
+
+export const codingAgentContextMenuRequestSchema = z.object({
+  runId: z.string().trim().min(1),
+  x: z.number().int().min(0).max(100000),
+  y: z.number().int().min(0).max(100000),
+}).strict();
+export const codingAgentContextMenuResultSchema = z.discriminatedUnion("success", [
+  z.object({ success: z.literal(true), action: z.enum(["delete", "dismissed"]) }).strict(),
+  z.object({ success: z.literal(false), error: z.object({ code: z.enum(["INVALID_REQUEST", "MENU_FAILED"]), message: z.string() }).strict() }).strict(),
+]);
+export type CodingAgentContextMenuRequest = z.infer<typeof codingAgentContextMenuRequestSchema>;
+export type CodingAgentContextMenuResult = z.infer<typeof codingAgentContextMenuResultSchema>;

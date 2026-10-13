@@ -209,3 +209,10 @@ export interface CodingAgentAdapter {
   ): Promise<void>;
   subscribe(listener: (event: CodingAgentEvent) => void): () => void;
 }
+
+export class ActiveChatDeletionError extends Error {
+  constructor() {
+    super("Stop the active response before deleting this chat.");
+    this.name = "ActiveChatDeletionError";
+  }
+}

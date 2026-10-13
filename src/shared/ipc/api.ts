@@ -9,6 +9,10 @@ import type {
 	CapabilitySessionStateDto,
 	CapabilitySummaryDto,
 	WorktreeCapabilityStateDto,
+	CodingAgentContextMenuRequest,
+	CodingAgentContextMenuResult,
+	CodingAgentSessionDeleteRequest,
+	CodingAgentSessionDeleteResult,
 	CodingAgentAccountUsageDto,
 	CodingAgentKindDto,
 	CodingAgentModelDto,
@@ -269,6 +273,8 @@ export interface Api {
 			| { runId: string; skillInvocation: { skillId: string; version: string; arguments?: string }; reasoningVariant?: string }
 		) => Promise<void>;
 		compactSession: (request: { runId: string }) => Promise<void>;
+		showSessionContextMenu: (request: CodingAgentContextMenuRequest) => Promise<CodingAgentContextMenuResult>;
+		deleteSession: (request: CodingAgentSessionDeleteRequest) => Promise<CodingAgentSessionDeleteResult>;
 		abortSession: (request: { runId: string }) => Promise<void>;
 		respondPermission: (request: {
 			runId: string;

@@ -10,6 +10,7 @@ import {
   codingAgentInstallations,
   codingAgentSessionDiffs,
   codingAgentSessions,
+  sessionCapabilities,
   repositories,
   runMessages,
   runOutputEvents,
@@ -162,6 +163,7 @@ import {
   configureCodingAgentCapabilityBridge,
   configureCodingAgentSkillCatalog,
   createAgentSession,
+  deleteAgentSession,
   getAgentInstallationStatus,
   getAgentSessionSnapshot,
   getAgentSessionUsage,
@@ -670,7 +672,7 @@ describe("coding-agent service routing", () => {
     const stopSession = vi.fn((runId: string) => {
       connections.delete(runId);
     });
-    const inheritWorktreeCapabilities = vi.fn((_worktreeId: string, _runId: string) => {});
+    const inheritWorktreeCapabilities = vi.fn((_worktreeId: string, _runId: string) => undefined);
     configureCodingAgentCapabilityBridge({
       prepareSession,
       inheritWorktreeCapabilities,
@@ -1122,5 +1124,199 @@ describe("coding-agent skill bridge", () => {
         explicitSkill: expect.objectContaining({ id: "review" }),
       }),
     );
+  });
+});
+
+
+describe("chat deletion", () => {
+  it("removes only the selected chat and its saved history, preserving the workspace", async () => {
+    seedSession("delete-me", "codex", "codex-thread");
+    seedSession("keep-me", "opencode", "opencode-session");
+    seedSessionDiff("delete-me");
+    mocks.database!.insert(runMessages).values({
+      id: "message-1", runId: "delete-me", role: "user", messageType: "text",
+      content: "Saved conversation", sequence: 0, createdAt: new Date(),
+    }).run();
+    mocks.database!.update(worktrees).set({ activeRunId: "delete-me" }).run();
+
+    await deleteAgentSession("delete-me");
+
+    expect(listAgentSessions().map(({ id }) => id)).toEqual(["keep-me"]);
+    expect(mocks.database!.select().from(runs).all().map(({ id }) => id)).toEqual(["keep-me"]);
+    expect(mocks.database!.select().from(runMessages).all()).toEqual([]);
+    expect(mocks.database!.select().from(codingAgentSessionDiffs).all()).toEqual([]);
+    expect(mocks.database!.select().from(worktrees).get()).toMatchObject({ id: "worktree-1", activeRunId: null });
+    expect(mocks.database!.select().from(repositories).all()).toHaveLength(1);
+  });
+
+  it.each(["busy", "creating", "aborting", "waiting_permission"])("preserves an active %s chat", async (status) => {
+    seedSession("active", "codex", "codex-thread", status);
+    await expect(deleteAgentSession("active")).rejects.toThrow(/Stop/);
+    expect(listAgentSessions().map(({ id }) => id)).toEqual(["active"]);
+  });
+});
+
+
+describe("deletion while a turn is preparing", () => {
+  it("does not submit a response after the chat is deleted during model lookup", async () => {
+    seedSession("racing-chat", "codex", "codex-thread");
+    let release!: (models: CodingAgentModel[]) => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    mocks.codex.adapter.listModels.mockImplementationOnce(() => {
+      entered();
+      return new Promise((resolve) => { release = resolve; });
+    });
+    const turn = sendAgentMessage("racing-chat", "Continue", "high");
+    const failure = expect(turn).rejects.toThrow();
+    await started;
+    await deleteAgentSession("racing-chat");
+    release([{ providerId: "openai", providerName: "OpenAI", modelId: "gpt-5.4",
+      modelName: "GPT", reasoningVariants: ["high"], isDefault: true }]);
+    await failure;
+    expect(mocks.codex.adapter.sendPrompt).not.toHaveBeenCalled();
+    expect(listAgentSessions()).toEqual([]);
+  });
+});
+
+
+describe("deletion during compaction startup", () => {
+  it("does not compact a chat deleted while its provider starts", async () => {
+    seedSession("racing-chat", "codex", "codex-thread");
+    mocks.codex.status.running = false;
+    let release!: (version: string) => void;
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    mocks.codex.adapter.start.mockImplementationOnce(() => {
+      entered();
+      return new Promise((resolve) => { release = resolve; });
+    });
+    const operation = compactAgentSession("racing-chat");
+    const failure = expect(operation).rejects.toThrow();
+    await started;
+    await deleteAgentSession("racing-chat");
+    release("1.0.0");
+    await failure;
+    expect(mocks.codex.adapter.compact).not.toHaveBeenCalled();
+    expect(listAgentSessions()).toEqual([]);
+  });
+});
+
+
+describe("chat creation with inherited capabilities", () => {
+  const database = () => {
+    if (!mocks.database) throw new Error("Test database is not initialized.");
+    return mocks.database;
+  };
+  const installBridge = (failure?: "inherit" | "prepare") => {
+    const stopSession = vi.fn();
+    configureCodingAgentCapabilityBridge({
+      inheritWorktreeCapabilities: (_worktreeId, runId) => {
+        database()
+          .insert(sessionCapabilities)
+          .values({
+            id: `cap:${runId}`,
+            runId,
+            capabilityId: "test-capability",
+            version: "1.0.0",
+            status: "pending_activation",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .run();
+        if (failure === "inherit")
+          throw new Error("Capability inheritance failed");
+      },
+      listSessionCapabilities: (runId) =>
+        database()
+          .select()
+          .from(sessionCapabilities)
+          .where(eq(sessionCapabilities.runId, runId))
+          .all()
+          .map((record) => ({
+            id: record.capabilityId,
+            name: "Test",
+            version: record.version,
+            state: record.status,
+          })),
+      prepareSession: async () => {
+        if (failure === "prepare")
+          throw new Error("Capability preparation failed");
+        return {
+          serverName: "test",
+          profileId: "test",
+          url: "http://127.0.0.1:1234/mcp",
+          authorizationHeader: "Bearer test",
+        };
+      },
+      listConnections: () => [],
+      stopSession,
+      isReloading: () => false,
+    });
+    return stopSession;
+  };
+  it("creates a chat with inherited capabilities while enforcing foreign keys", async () => {
+    installBridge();
+    const chat = await createAgentSession({
+      agentKind: "codex",
+      worktreeId: "worktree-1",
+      title: "New chat",
+    });
+    expect(chat.status).toBe("idle");
+    expect(database().select().from(sessionCapabilities).all()).toEqual([
+      expect.objectContaining({
+        runId: chat.id,
+        capabilityId: "test-capability",
+      }),
+    ]);
+    expect(database().select().from(worktrees).get()?.activeRunId).toBe(
+      chat.id,
+    );
+    await deleteAgentSession(chat.id);
+    const replacement = await createAgentSession({
+      agentKind: "codex",
+      worktreeId: "worktree-1",
+      title: "Replacement chat",
+    });
+    expect(listAgentSessions().map(({ id }) => id)).toEqual([replacement.id]);
+    expect(database().select().from(sessionCapabilities).all()).toEqual([
+      expect.objectContaining({
+        runId: replacement.id,
+        capabilityId: "test-capability",
+      }),
+    ]);
+  });
+  it.each(["inherit", "prepare"] as const)(
+    "cleans up when capability %s fails",
+    async (phase) => {
+      installBridge(phase);
+      await expect(
+        createAgentSession({
+          agentKind: "codex",
+          worktreeId: "worktree-1",
+          title: "New chat",
+        }),
+      ).rejects.toThrow(/Capability/);
+      expect(database().select().from(runs).all()).toEqual([]);
+      expect(database().select().from(sessionCapabilities).all()).toEqual([]);
+      expect(mocks.codex.adapter.createSession).not.toHaveBeenCalled();
+    },
+  );
+  it("removes provisional chat records and inherited capabilities if provider creation fails", async () => {
+    const stop = installBridge();
+    mocks.codex.adapter.createSession.mockRejectedValueOnce(
+      new Error("Provider startup failed"),
+    );
+    await expect(
+      createAgentSession({
+        agentKind: "codex",
+        worktreeId: "worktree-1",
+        title: "New chat",
+      }),
+    ).rejects.toThrow("Provider startup failed");
+    expect(database().select().from(runs).all()).toEqual([]);
+    expect(database().select().from(sessionCapabilities).all()).toEqual([]);
+    expect(database().select().from(worktrees).get()?.activeRunId).toBeNull();
+    expect(stop).toHaveBeenCalled();
   });
 });
