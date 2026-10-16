@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ChatView } from "../features/coding-agent/views/ChatView";
 import { Marketplace } from "../pages/Marketplace";
 import { AppShell } from "./AppShell";
-import { findPageLabel } from "./AppNavigation";
+import { AppNavigationFooter, findPageLabel } from "./AppNavigation";
 
 vi.mock("../features/coding-agent/hooks/useCodingAgentSessions", () => ({
   useCodingAgentSessions: () => ({
@@ -38,7 +38,7 @@ const renderShell = (path = "/chat") => render(
         <Route path="/chat" element={<ChatView />} />
         <Route path="/chat/worktree/run" element={<ChatView activeRunId="run" />} />
         <Route path="/marketplace" element={<Marketplace />} />
-        <Route path="/settings" element={<div>Settings content</div>} />
+        <Route path="/settings" element={<><div>Settings content</div><AppNavigationFooter /></>} />
         <Route path="/worktrees" element={<div>Worktrees content</div>} />
         <Route path="/intelligence" element={<div>Intelligence content</div>} />
       </Route>
@@ -119,10 +119,11 @@ describe("AppShell page layout", () => {
     expect(routeFrame?.classList.contains("p-6")).toBe(false);
   });
 
-  it("keeps settings padded", () => {
+  it("lets settings own its sidebar and heading", () => {
     renderShell("/settings");
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Application sidebar" })).toBeNull();
     const contentFrame = screen.getByText("Settings content").parentElement?.parentElement;
-    expect(contentFrame?.classList.contains("p-6")).toBe(true);
+    expect(contentFrame?.classList.contains("p-6")).toBe(false);
   });
 });

@@ -1,36 +1,13 @@
-"use client";
-
-import {
-  AlertCircle,
-  Check,
-  Link as LinkIcon,
-  Loader2,
-  RefreshCw,
-  Unlink,
-  X,
-} from "lucide-react";
+import { AlertCircle, Check, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
+} from "./alert-dialog";
+import { Badge } from "./badge";
+import { Button } from "./button";
 
 export interface Integration {
   id: string;
@@ -39,6 +16,9 @@ export interface Integration {
   icon?: React.ComponentType<{ className?: string }>;
   iconBare?: boolean;
   status: "connected" | "disconnected" | "error" | "expired";
+  detail?: string;
+  error?: string;
+  statusLabel?: string;
   lastSynced?: Date;
   scopes?: string[];
   needsReconnection?: boolean;
@@ -50,74 +30,14 @@ export interface Integration {
 
 export interface SettingsIntegrationsProps {
   integrations?: Integration[];
+  title?: string;
+  description?: string;
+  loading?: boolean;
+  emptyMessage?: string;
   onConnect?: (integrationId: string) => Promise<void>;
   onDisconnect?: (integrationId: string) => Promise<void>;
   onReauthorize?: (integrationId: string) => Promise<void>;
   className?: string;
-}
-
-const defaultIntegrations: Integration[] = [
-  {
-    id: "github",
-    name: "GitHub",
-    description: "Connect your GitHub account to sync repositories",
-    status: "connected",
-    lastSynced: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    scopes: ["repo", "read:user"],
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    description: "Send notifications to your Slack workspace",
-    status: "disconnected",
-    scopes: ["chat:write", "channels:read"],
-  },
-  {
-    id: "google",
-    name: "Google Drive",
-    description: "Access and sync files from Google Drive",
-    status: "expired",
-    lastSynced: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    needsReconnection: true,
-    scopes: ["drive.readonly"],
-  },
-  {
-    id: "stripe",
-    name: "Stripe",
-    description: "Manage payments and subscriptions",
-    status: "error",
-    lastSynced: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    scopes: ["read"],
-  },
-];
-
-function getStatusConfig(status: Integration["status"]) {
-  switch (status) {
-    case "connected":
-      return {
-        label: "Connected",
-        variant: "default" as const,
-        icon: Check,
-      };
-    case "disconnected":
-      return {
-        label: "Disconnected",
-        variant: "secondary" as const,
-        icon: Unlink,
-      };
-    case "error":
-      return {
-        label: "Error",
-        variant: "destructive" as const,
-        icon: AlertCircle,
-      };
-    case "expired":
-      return {
-        label: "Expired",
-        variant: "outline" as const,
-        icon: X,
-      };
-  }
 }
 
 function formatLastSynced(date?: Date): string {
@@ -135,235 +55,116 @@ function formatLastSynced(date?: Date): string {
 }
 
 export default function SettingsIntegrations({
-  integrations = defaultIntegrations,
+  integrations = [],
+  title = "Integrations",
+  description = "Connect and manage third-party integrations.",
+  loading = false,
+  emptyMessage = "No integrations are available.",
   onConnect,
   onDisconnect,
   onReauthorize,
   className,
 }: SettingsIntegrationsProps) {
-  const [connecting, setConnecting] = useState<string | null>(null);
-  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null);
 
-  const handleConnect = async (integrationId: string) => {
-    setConnecting(integrationId);
+  const runAction = async (id: string, action?: (id: string) => Promise<void>) => {
+    setPending(id);
+    setActionError(null);
     try {
-      await onConnect?.(integrationId);
+      await action?.(id);
+    } catch (cause) {
+      setActionError({ id, message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
-      setConnecting(null);
-    }
-  };
-
-  const handleDisconnect = async (integrationId: string) => {
-    setDisconnecting(integrationId);
-    try {
-      await onDisconnect?.(integrationId);
-    } finally {
-      setDisconnecting(null);
-    }
-  };
-
-  const handleReauthorize = async (integrationId: string) => {
-    setConnecting(integrationId);
-    try {
-      await onReauthorize?.(integrationId);
-    } finally {
-      setConnecting(null);
+      setPending(null);
     }
   };
 
   return (
-    <Card className={cn("w-full shadow-xs", className)}>
-      <CardHeader>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <CardTitle className="wrap-break-word">Integrations</CardTitle>
-            <CardDescription className="wrap-break-word">
-              Connect and manage third-party integrations
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col gap-4">
+    <div className={cn("settings-group", className)} aria-busy={loading}>
+      <header className="settings-group-heading">
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </header>
+      {loading ? (
+        <div role="status" className="settings-loading">Loading coding agents…</div>
+      ) : integrations.length === 0 ? (
+        <p className="settings-empty">{emptyMessage}</p>
+      ) : (
+        <ul className="settings-rows">
           {integrations.map((integration) => {
-            const statusConfig = getStatusConfig(integration.status);
-            const StatusIcon = statusConfig.icon;
-            const isConnecting = connecting === integration.id;
-            const isDisconnecting = disconnecting === integration.id;
+            const isPending = pending === integration.id;
             const isConnected = integration.status === "connected";
-            const needsReconnect =
-              integration.status === "expired" || integration.needsReconnection;
-            const hasConfigurationAction = Boolean(integration.configurationAction);
-            const isConfigurationActionPending = isConnected
-              ? isDisconnecting
-              : isConnecting;
+            const needsReconnect = integration.status === "expired" || integration.needsReconnection;
+            const error = actionError?.id === integration.id ? actionError.message : integration.error;
+            const statusLabel = integration.statusLabel ?? {
+              connected: "Connected", disconnected: "Not connected", error: "Needs attention", expired: "Expired",
+            }[integration.status];
+            const actionClass = "settings-row-action";
+            const pendingLabel = <><Loader2 aria-hidden="true" className="settings-spinner size-3.5" />Updating…</>;
 
             return (
-              <div
-                className="surface-panel flex flex-col gap-4 p-4 sm:flex-row sm:items-start"
-                key={integration.id}
-              >
-                <div className="flex min-w-0 flex-1 flex-col gap-3">
-                  <div className="flex items-start gap-3">
-                    {integration.icon ? (
-                      integration.iconBare ? (
-                        <integration.icon className="size-10 shrink-0 object-contain" />
-                      ) : (
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                          <integration.icon className="size-5 text-muted-foreground" />
-                        </div>
-                      )
-                    ) : null}
-                    <div className="flex min-w-0 flex-1 flex-col gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-medium text-sm">
-                          {integration.name}
-                        </h4>
-                        <Badge
-                          className="flex items-center gap-1 text-xs"
-                          variant={statusConfig.variant}
-                        >
-                          <StatusIcon className="size-3" />
-                          <span>{statusConfig.label}</span>
-                        </Badge>
-                      </div>
-                      <p className="text-muted-foreground text-xs">
-                        {integration.description}
-                      </p>
+              <li className="settings-row" key={integration.id}>
+                <div className="settings-row-identity">
+                  {integration.icon ? (
+                    <div className={cn("settings-logo", !integration.iconBare && "settings-logo-filled")}>
+                      <integration.icon className="size-7 object-contain" />
                     </div>
+                  ) : null}
+                  <div className="settings-row-copy">
+                    <h4>{integration.name}</h4>
+                    <p>{integration.description}</p>
                   </div>
-
-                  {integration.lastSynced && (
-                    <p className="text-muted-foreground text-xs">
-                      Last synced: {formatLastSynced(integration.lastSynced)}
-                    </p>
-                  )}
-
-                  {integration.scopes && integration.scopes.length > 0 && (
-                    <div className="flex flex-col gap-1">
-                      <p className="font-medium text-muted-foreground text-xs">
-                        Permissions:
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {integration.scopes.map((scope) => (
-                          <Badge
-                            className="text-xs"
-                            key={scope}
-                            variant="outline"
-                          >
-                            {scope}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
-
-                <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-                  {hasConfigurationAction ? (
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={isConfigurationActionPending}
-                      onClick={() =>
-                        isConnected
-                          ? handleDisconnect(integration.id)
-                          : handleConnect(integration.id)
-                      }
-                      type="button"
-                      variant="outline"
-                    >
-                      {isConfigurationActionPending ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Updating…
-                        </>
-                      ) : (
-                        <>
-                          <LinkIcon className="size-4" />
-                          {isConnected
-                            ? integration.configurationAction?.connectedLabel
-                            : integration.configurationAction?.disconnectedLabel}
-                        </>
-                      )}
-                    </Button>
-                  ) : isConnected ? (
-                    <AlertDialog>
-                      <AlertDialogTrigger render={<Button className="w-full sm:w-auto" disabled={isDisconnecting} type="button" variant="outline" />}>{isDisconnecting ? (
-                                                            <>
-                                                              <Loader2 className="size-4 animate-spin" />
-                                                              Disconnecting…
-                                                            </>
-                                                          ) : (
-                                                            <>
-                                                              <Unlink className="size-4" />
-                                                              Disconnect
-                                                            </>
-                                                          )}</AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Disconnect {integration.name}?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will revoke access and stop syncing data from{" "}
-                            {integration.name}. You can reconnect anytime.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDisconnect(integration.id)}
-                          >
-                            Disconnect
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  ) : needsReconnect ? (
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={isConnecting}
-                      onClick={() => handleReauthorize(integration.id)}
-                      type="button"
-                    >
-                      {isConnecting ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Reconnecting…
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="size-4" />
-                          Reconnect
-                        </>
-                      )}
-                    </Button>
-                  ) : (
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={isConnecting}
-                      onClick={() => handleConnect(integration.id)}
-                      type="button"
-                    >
-                      {isConnecting ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Connecting…
-                        </>
-                      ) : (
-                        <>
-                          <LinkIcon className="size-4" />
-                          Connect
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </div>
+                <span className="settings-status" data-status={integration.status}>
+                  {isConnected ? <Check aria-hidden="true" className="size-3" /> :
+                    integration.status === "error" || needsReconnect ? <AlertCircle aria-hidden="true" className="size-3" /> : null}
+                  {statusLabel}
+                </span>
+                {integration.configurationAction ? (
+                  <Button
+                    className={actionClass} variant="outline" size="sm"
+                    aria-label={`${isConnected ? integration.configurationAction.connectedLabel : integration.configurationAction.disconnectedLabel} for ${integration.name}`}
+                    aria-busy={isPending} disabled={pending !== null}
+                    onClick={() => void runAction(integration.id, isConnected ? onDisconnect : onConnect)}
+                  >
+                    {isPending ? pendingLabel : isConnected ? integration.configurationAction.connectedLabel : integration.configurationAction.disconnectedLabel}
+                  </Button>
+                ) : isConnected ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger render={<Button className={actionClass} variant="outline" size="sm" disabled={pending !== null} aria-busy={isPending} />}>
+                      {isPending ? pendingLabel : "Disconnect"}
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Disconnect {integration.name}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Disconnect your {integration.name} account from this app. You can reconnect anytime.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => void runAction(integration.id, onDisconnect)}>Disconnect</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button className={actionClass} variant="outline" size="sm" disabled={pending !== null} aria-busy={isPending}
+                    onClick={() => void runAction(integration.id, needsReconnect ? onReauthorize : onConnect)}>
+                    {isPending ? pendingLabel : needsReconnect ? <><RefreshCw aria-hidden="true" className="size-3.5" />Reconnect</> : "Connect"}
+                  </Button>
+                )}
+                {integration.detail ? <code className="settings-executable" title={integration.detail}>{integration.detail}</code> : null}
+                {integration.lastSynced ? <p className="settings-row-metadata">Last synced: {formatLastSynced(integration.lastSynced)}</p> : null}
+                {integration.scopes?.length ? (
+                  <div className="settings-row-metadata">Permissions: {integration.scopes.map((scope) => <Badge key={scope} variant="outline">{scope}</Badge>)}</div>
+                ) : null}
+                {error ? <p role="alert" className="settings-row-error"><AlertCircle aria-hidden="true" className="size-3.5 shrink-0" />{error}</p> : null}
+              </li>
             );
           })}
-        </div>
-      </CardContent>
-    </Card>
+        </ul>
+      )}
+    </div>
   );
 }

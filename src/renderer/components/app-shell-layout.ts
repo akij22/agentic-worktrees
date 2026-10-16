@@ -3,6 +3,7 @@ export const isFullBleedWorkspace = (pathname: string): boolean =>
   pathname === '/worktrees' ||
   pathname === '/intelligence' ||
   pathname === '/marketplace' ||
+  pathname === '/settings' ||
   pathname === '/chat' ||
   pathname.startsWith('/chat/');
 
