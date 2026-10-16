@@ -51,4 +51,10 @@
  --rule-thin: 1px;
  --radius-control: var(--radius-md);
  --radius-panel: var(--radius-xl);
+
+ --color-settings-sidebar: var(--sidebar);
+ --color-settings-hover: var(--surface-raised);
+ --settings-sidebar-width: 15rem;
+ --settings-content-width: 48rem;
+ --settings-control-height: 2.75rem;
 }

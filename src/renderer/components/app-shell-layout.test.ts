@@ -12,8 +12,8 @@ describe('App shell layout', () => {
     expect(isFullBleedWorkspace('/intelligence')).toBe(true);
   });
 
-  it('keeps settings padded and marketplace full-height', () => {
-    expect(isFullBleedWorkspace('/settings')).toBe(false);
+  it('lets settings and marketplace own their full-height layouts', () => {
+    expect(isFullBleedWorkspace('/settings')).toBe(true);
     expect(isFullBleedWorkspace('/marketplace')).toBe(true);
   });
 

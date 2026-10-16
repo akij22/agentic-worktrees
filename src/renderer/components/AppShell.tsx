@@ -8,11 +8,11 @@ export const AppShell = () => {
   const isFullBleed = isFullBleedWorkspace(location.pathname);
   const isChat = location.pathname === "/" || location.pathname === "/chat" || location.pathname.startsWith("/chat/");
 
-  const pageOwnsSidebar = isChat || location.pathname === "/marketplace";
+  const pageOwnsSidebar = isChat || location.pathname === "/marketplace" || location.pathname === "/settings";
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* Threads and Marketplace own their populated sidebars. */}
+      {/* Workspace pages own their populated sidebars. */}
       {!pageOwnsSidebar ? (
         <aside
           aria-label="Application sidebar"
