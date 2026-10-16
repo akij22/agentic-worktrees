@@ -1,8 +1,7 @@
 import { ChevronDown, Folder, GitBranch, Wrench } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { CodingAgentWorktreeContextDto } from "../../../../shared/ipc/schemas";
-import { PickerMenu } from "./PickerMenu";
-import { getWorkspaceLabel } from "../lib/workspace-labels";
+import { WorkspaceSelector } from "./WorkspaceSelector";
 
 type Props = {
   contexts: CodingAgentWorktreeContextDto[];
@@ -60,19 +59,8 @@ export const WorktreeRow = ({
   capabilitiesExpanded = false,
   capabilitiesPanelId = "worktree-capability-panel",
 }: Props) => {
-  const [open, setOpen] = useState(false);
   const groups = useMemo(() => buildGroups(contexts), [contexts]);
-  const options = useMemo(
-    () =>
-      groups.flatMap((group) =>
-        group.contexts.map((context) => ({
-          id: context.worktree.id,
-          label: getWorkspaceLabel(context),
-          hint: group.name,
-        })),
-      ),
-    [groups],
-  );
+  const sortedContexts = useMemo(() => groups.flatMap((group) => group.contexts), [groups]);
   const selectedContext = contexts.find(
     ({ worktree }) => worktree.id === selectedWorktreeId,
   );
@@ -83,24 +71,10 @@ export const WorktreeRow = ({
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
       <div className="flex min-w-0 max-w-full items-center gap-1.5">
         <Folder aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-        <PickerMenu
-          ariaLabel="Current checkout"
-          open={open}
-          onOpenChange={setOpen}
-          options={options}
-          value={selectedWorktreeId ?? ""}
+        <WorkspaceSelector
+          contexts={sortedContexts}
+          value={selectedWorktreeId}
           onChange={onSelectWorktree}
-          display={
-            selectedContext
-              ? selectedContext.worktree.kind === "primary"
-              ? "Main checkout"
-              : selectedContext.worktree.name
-              : "Select a workspace…"
-          }
-          searchable
-          searchPlaceholder="Search workspaces…"
-          emptyLabel="No matching workspaces"
-          triggerClassName="h-8 max-w-[15rem] gap-2 border-transparent bg-transparent px-1 text-xs font-medium shadow-none"
         />
       </div>
 

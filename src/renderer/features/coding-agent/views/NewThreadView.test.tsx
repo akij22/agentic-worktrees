@@ -152,6 +152,50 @@ afterEach(() => {
 });
 
 describe("NewThreadView", () => {
+  it("opens a modal project selector and changes workspace without losing the draft", async () => {
+    const other = { ...context, worktree: { ...context.worktree, id: "wt-2", name: "review", branchName: "feat/review" } };
+    renderLanding({ contexts: [context, other] });
+    await waitForModelPicker();
+    const input = screen.getByRole("textbox", { name: "Message to agent" });
+    fireEvent.change(input, { target: { value: "Keep my draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Current checkout" }));
+    const dialog = await screen.findByRole("dialog", { name: "Select a project" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    const search = within(dialog).getByRole("combobox");
+    await waitFor(() => expect(document.activeElement).toBe(search));
+    fireEvent.change(search, { target: { value: "feat/review" } });
+    expect(within(dialog).getAllByRole("option")).toHaveLength(1);
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("button", { name: "Current checkout" }).textContent).toContain("review");
+    expect((input as HTMLTextAreaElement).value).toBe("Keep my draft");
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("supports keyboard navigation, empty search and dismissing without changing workspace", async () => {
+    const other = { ...context, worktree: { ...context.worktree, id: "wt-2", name: "review", branchName: "feat/review" } };
+    renderLanding({ contexts: [context, other] });
+    await waitForModelPicker();
+    const trigger = screen.getByRole("button", { name: "Current checkout" });
+    fireEvent.click(trigger);
+    const search = await screen.findByRole("combobox");
+    await waitFor(() => expect(document.activeElement).toBe(search));
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(search.getAttribute("aria-activedescendant")).toContain("wt-2");
+    fireEvent.change(search, { target: { value: "missing-workspace" } });
+    expect(screen.getByRole("status").textContent).toContain("No matching workspaces");
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.keyDown(search, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(trigger.textContent).toContain("codex-ui");
+    fireEvent.click(trigger);
+    expect((await screen.findByRole("combobox") as HTMLInputElement).value).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Close project selector" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("groups workspace, branch and capabilities beneath the composer", () => {
     renderLanding();
     const toolbar = screen.getByRole("group", { name: "Workspace context" });
