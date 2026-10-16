@@ -3,6 +3,7 @@
  * pre-emit critique: P5 H4 E4 S5 R5 V3
  */
 :root {
+ --workspace-selector-scrim: oklch(0 0 0 / 0.6);
  --color-paper: var(--background);
  --color-paper-2: var(--card);
  --color-paper-3: var(--surface-raised);
