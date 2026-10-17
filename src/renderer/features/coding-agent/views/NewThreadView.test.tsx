@@ -183,6 +183,58 @@ describe("NewThreadView", () => {
     );
   });
 
+  it("selects reasoning effort before starting and sends it with the first message", async () => {
+    listWorktreeModels.mockResolvedValue([{
+      providerId: "anthropic",
+      providerName: "Anthropic",
+      modelId: "claude-sonnet",
+      modelName: "Claude Sonnet",
+      reasoningVariants: ["low", "high"],
+      isDefault: true,
+    }]);
+    renderLanding();
+    await waitForModelPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Reasoning level" }));
+    fireEvent.click(screen.getByRole("option", { name: "High" }));
+    expect(screen.getByRole("button", { name: "Reasoning level" }).textContent).toContain("High");
+    expect(createSession).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
+      target: { value: "Think this through" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      runId: "run-new",
+      content: "Think this through",
+      reasoningVariant: "high",
+    }));
+  });
+
+  it("resets reasoning to default when changing models", async () => {
+    listWorktreeModels.mockResolvedValue([
+      { providerId: "anthropic", providerName: "Anthropic", modelId: "first", modelName: "First model", reasoningVariants: ["high"], isDefault: true },
+      { providerId: "anthropic", providerName: "Anthropic", modelId: "second", modelName: "Second model", reasoningVariants: ["high"], isDefault: false },
+    ]);
+    renderLanding();
+    await waitForModelPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Reasoning level" }));
+    fireEvent.click(screen.getByRole("option", { name: "High" }));
+    fireEvent.click(screen.getByRole("button", { name: "Provider and model" }));
+    fireEvent.click(screen.getByRole("option", { name: /OpenCode/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Second model/ }));
+    expect(screen.getByRole("button", { name: "Reasoning level" }).textContent).toContain("Default");
+    fireEvent.change(screen.getByRole("textbox", { name: "Message to agent" }), {
+      target: { value: "Use defaults" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({ runId: "run-new", content: "Use defaults" }));
+  });
+
+  it("hides reasoning selection for models without reasoning variants", async () => {
+    renderLanding();
+    await waitForModelPicker();
+    expect(screen.queryByRole("button", { name: "Reasoning level" })).toBeNull();
+  });
+
   it("creates the session on the first send and opens the thread", async () => {
     renderLanding();
     await waitForModelPicker();
