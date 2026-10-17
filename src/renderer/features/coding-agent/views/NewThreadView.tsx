@@ -70,6 +70,7 @@ export const NewThreadView = ({
   }, [contexts, initialWorktreeId, sessions, worktreeId]);
   const [agentKind, setAgentKind] = useState<CodingAgentKindDto | undefined>();
   const [selectedModel, setSelectedModel] = useState<CodingAgentModelDto>();
+  const [reasoningVariant, setReasoningVariant] = useState("");
   const [modelsByKind, setModelsByKind] = useState<
     Partial<Record<CodingAgentKindDto, CodingAgentModelDto[]>>
   >({});
@@ -103,8 +104,14 @@ export const NewThreadView = ({
       modelsByKind[activeHarness]?.[0]
     : undefined);
 
+  const reasoningVariants = activeModel?.reasoningVariants ?? [];
+  const activeReasoningVariant = reasoningVariants.includes(reasoningVariant)
+    ? reasoningVariant
+    : "";
+
   useEffect(() => {
     let cancelled = false;
+    setReasoningVariant("");
     if (!worktreeId || configured.length === 0) {
       setModelsByKind({});
       setSelectedModel(undefined);
@@ -202,7 +209,13 @@ export const NewThreadView = ({
           }));
         // Keep the created session available if submission fails and is retried.
         pendingSessionRef.current = { key: sessionKey, id: session.id };
-        await window.api.codingAgent.sendMessage({ runId: session.id, content });
+        await window.api.codingAgent.sendMessage({
+          runId: session.id,
+          content,
+          ...(activeReasoningVariant
+            ? { reasoningVariant: activeReasoningVariant }
+            : {}),
+        });
         pendingSessionRef.current = undefined;
         navigate(
           `/chat/${encodeURIComponent(worktreeId)}/${encodeURIComponent(session.id)}`,
@@ -222,7 +235,7 @@ export const NewThreadView = ({
         sendingRef.current = false;
       }
     },
-    [context, draft, installations, navigate, sessions, worktreeId],
+    [activeReasoningVariant, context, draft, installations, navigate, sessions, worktreeId],
   );
 
   if (contexts.length === 0) {
@@ -305,6 +318,7 @@ export const NewThreadView = ({
                 loadingModels={loadingModels}
                 errorMessage={modelLoadError}
                 onSelect={(kind, model) => {
+                  setReasoningVariant("");
                   setAgentKind(kind);
                   setSelectedModel(model);
                 }}
@@ -317,6 +331,7 @@ export const NewThreadView = ({
               selectedWorktreeId={worktreeId}
               activeCapabilityCount={activeCapabilityCount}
               onSelectWorktree={(next) => {
+                setReasoningVariant("");
                 setWorktreeId(next);
                 setCapabilitiesOpen(false);
               }}
@@ -328,15 +343,15 @@ export const NewThreadView = ({
           draft={submittedMessage ? "" : draft}
           models={[]}
           modelKey=""
-          reasoningVariant=""
-          reasoningVariants={[]}
+          reasoningVariant={activeReasoningVariant}
+          reasoningVariants={reasoningVariants}
           loadingModels={false}
           changingModel={false}
           busy={createState.status === "creating"}
           locked={createState.status === "creating" || !worktreeId || !activeModel}
           onDraftChange={setDraft}
           onModelChange={() => undefined}
-          onReasoningChange={() => undefined}
+          onReasoningChange={setReasoningVariant}
           onSend={() => {
             if (activeHarness && activeModel)
               void createAndOpen(activeHarness, activeModel);
