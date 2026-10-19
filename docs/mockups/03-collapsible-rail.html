@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Concept 3 — Collapsible icon rail</title>
+    <link rel="stylesheet" href="mockup.css" />
+    <style>
+      .flyout {
+        width: 0;
+        overflow: hidden;
+        border-right: 0 solid var(--border);
+        background: var(--bg-panel);
+        transition: width 0.18s ease, border-width 0.18s ease;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .flyout.open {
+        width: 232px;
+        border-right-width: 1px;
+      }
+
+      .flyout-inner {
+        width: 232px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: 100%;
+      }
+
+      .session-strip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 18px 0;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-elevated);
+        color: var(--text-muted);
+        font-size: 12px;
+      }
+
+      .session-strip strong {
+        color: var(--text);
+        font-weight: 550;
+      }
+
+      .toggle-hint {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--text-dim);
+      }
+
+      .mode-banner {
+        display: none;
+        margin: 10px 18px 0;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-border);
+        color: var(--text-muted);
+        font-size: 12px;
+      }
+
+      body.session-focus .mode-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      body.session-focus .detail {
+        display: none;
+      }
+
+      body.session-focus .session-canvas {
+        display: flex !important;
+      }
+
+      .session-canvas {
+        display: none;
+        flex: 1;
+        flex-direction: column;
+        margin: 10px 18px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-elevated);
+        min-height: 0;
+      }
+
+      .session-canvas-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .session-canvas-body {
+        flex: 1;
+        padding: 16px;
+        overflow: auto;
+        color: var(--text-muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .chat-bubble {
+        max-width: 72%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+      }
+
+      .chat-bubble.user {
+        margin-left: auto;
+        background: var(--accent-soft);
+        border-color: var(--accent-border);
+        color: var(--text);
+      }
+
+      .composer {
+        display: flex;
+        gap: 8px;
+        padding: 10px 12px;
+        border-top: 1px solid var(--border);
+      }
+
+      .composer input {
+        flex: 1;
+        height: 34px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--text);
+        padding: 0 10px;
+        font: inherit;
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <nav class="page-nav">
+        <a href="index.html">← All concepts</a>
+        <a href="03-collapsible-rail.html" class="active">3 · Collapsible rail</a>
+        <a href="04-nested-tree.html">4 · Nested tree</a>
+        <a href="05-header-switcher.html">5 · Header switcher</a>
+      </nav>
+
+      <div class="page-intro">
+        <div class="tag">Concept 3 · Hybrid</div>
+        <h1>Collapsible icon rail</h1>
+        <p>
+          Persistent repository workspace that can collapse. An activity rail
+          stays visible; the repository list is a flyout. Toggle
+          <strong>repo list</strong> or simulate a wide coding session to see how
+          horizontal space is reclaimed. This directly addresses the open decision
+          in PR #17.
+        </p>
+      </div>
+
+      <div class="app-window" id="app">
+        <div class="titlebar">
+          <div class="titlebar-left">
+            <div class="brand-mark">AW</div>
+            Agentic Worktrees
+          </div>
+          <div class="window-controls"><span></span><span></span><span></span></div>
+        </div>
+
+        <div class="app-body">
+          <!-- Compact activity rail -->
+          <aside class="rail" aria-label="Activity rail">
+            <button class="rail-btn active" id="btn-repos" title="Repositories" type="button" aria-pressed="true">
+              <span class="indicator"></span>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+            </button>
+            <button class="rail-btn" title="Worktrees" type="button">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M6 3v12M6 15l4 4 4-4M14 7h4v4" /><circle cx="6" cy="6" r="2" /></svg>
+            </button>
+            <button class="rail-btn" title="Sessions" type="button">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+            </button>
+            <div class="rail-spacer"></div>
+            <button class="rail-btn" title="Settings" type="button">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3.7a7 7 0 0 0-1.7-1L14.5 3h-5l-.4 2.7a7 7 0 0 0-1.7 1L5 5.9 3 9.4l2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-.7a7 7 0 0 0 1.7 1L9.5 21h5l.4-2.7a7 7 0 0 0 1.7-1l2.3.7 2-3.5-2-1.5c.1-.3.1-.7.1-1z" /></svg>
+            </button>
+          </aside>
+
+          <!-- Expandable repository flyout -->
+          <aside class="flyout open" id="repo-flyout" aria-label="Repository list">
+            <div class="flyout-inner">
+              <div class="sidebar-section">
+                <div class="sidebar-section-title">
+                  Repositories
+                  <button class="btn-ghost" type="button" title="Add repository" style="padding: 2px">
+                    <svg class="icon-sm icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+                  </button>
+                </div>
+                <div class="search-field">
+                  <svg class="icon-sm icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                  <input placeholder="Search repositories" readonly />
+                  <span class="kbd">⌘K</span>
+                </div>
+              </div>
+              <div style="flex: 1; overflow: auto; padding: 0 6px 8px">
+                <div class="repo-item active">
+                  <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M8 20h8" /></svg>
+                  <div class="repo-meta">
+                    <strong>agentic-worktrees</strong>
+                    <span>~/dev/agentic-worktrees</span>
+                  </div>
+                  <span class="dot dot-orange" title="Active session"></span>
+                </div>
+                <div class="repo-item">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M4 20h16V8l-4-4H4z" /><path d="M4 10h16" /></svg>
+                  <div class="repo-meta">
+                    <strong>infra-tooling</strong>
+                    <span>~/dev/infra-tooling</span>
+                  </div>
+                  <span class="dot dot-green"></span>
+                </div>
+                <div class="repo-item">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M4 20h16V8l-4-4H4z" /><path d="M4 10h16" /></svg>
+                  <div class="repo-meta">
+                    <strong>web-dashboard</strong>
+                    <span>~/dev/web-dashboard</span>
+                  </div>
+                  <span class="dot dot-green"></span>
+                </div>
+                <div class="repo-item">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M4 20h16V8l-4-4H4z" /><path d="M4 10h16" /></svg>
+                  <div class="repo-meta">
+                    <strong>api-gateway</strong>
+                    <span>~/dev/api-gateway</span>
+                  </div>
+                  <span class="dot dot-green"></span>
+                </div>
+                <div class="repo-item">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M4 20h16V8l-4-4H4z" /><path d="M4 10h16" /></svg>
+                  <div class="repo-meta">
+                    <strong>cli-tools</strong>
+                    <span>~/dev/cli-tools</span>
+                  </div>
+                  <span class="dot dot-green"></span>
+                </div>
+              </div>
+              <div class="sidebar-footer">
+                <button type="button">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+                  Add repository
+                  <span class="kbd" style="margin-left: auto">⌘O</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Main workspace -->
+          <section class="main">
+            <div class="main-header">
+              <div class="repo-title">
+                <svg class="icon" viewBox="0 0 24 24" style="margin-top: 3px"><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M8 20h8" /></svg>
+                <div>
+                  <h1>agentic-worktrees</h1>
+                  <div class="subtitle">
+                    <span class="path">~/dev/agentic-worktrees</span>
+                    <span class="badge badge-success">
+                      <svg class="icon-sm icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+                      Clean
+                    </span>
+                    <span class="badge">
+                      <svg class="icon-sm icon" viewBox="0 0 24 24"><path d="M6 3v12l4 4 4-4V3" /><path d="M14 7h4v4" /></svg>
+                      main
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="header-actions">
+                <button class="btn btn-secondary" type="button" id="btn-toggle-flyout">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h12" /></svg>
+                  Toggle repo list
+                </button>
+                <button class="btn btn-secondary" type="button" id="btn-session-focus">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" /></svg>
+                  Session focus
+                </button>
+                <button class="btn btn-secondary" type="button">Open in editor</button>
+                <button class="btn btn-primary" type="button">+ New worktree</button>
+              </div>
+            </div>
+
+            <div class="session-strip">
+              <span class="dot dot-orange"></span>
+              Active session on
+              <strong>feat/repository-workspace</strong>
+              · Running · 4 changed files
+              <span class="toggle-hint">Tip: collapse the list when chatting</span>
+            </div>
+
+            <div class="mode-banner">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+              Session focus mode: repository flyout closed, detail panel hidden — full width for the conversation.
+              <button class="btn btn-ghost" type="button" id="btn-exit-focus" style="margin-left: auto">Exit focus</button>
+            </div>
+
+            <div class="tabs" style="margin: 10px 18px 0">
+              <button class="tab active" type="button">Worktrees</button>
+              <button class="tab" type="button">Sessions</button>
+            </div>
+
+            <div class="main-content">
+              <div class="list-pane" id="manage-pane">
+                <div class="table-head">
+                  <span>Worktree / Branch</span>
+                  <span>Base branch</span>
+                  <span>Status</span>
+                  <span>Session</span>
+                  <span></span>
+                </div>
+                <div class="table-row selected">
+                  <div class="cell-main">
+                    <strong>feat/repository-workspace</strong>
+                    <span class="path">.worktrees/feat-repository-workspace</span>
+                  </div>
+                  <span class="muted">main</span>
+                  <span class="status-clean">✓ Clean</span>
+                  <div class="cell-main">
+                    <strong style="color: var(--success); font-size: 12px">● Running</strong>
+                    <span>4 changed files</span>
+                  </div>
+                  <button class="btn-ghost" type="button">⋯</button>
+                </div>
+                <div class="table-row">
+                  <div class="cell-main">
+                    <strong>fix/oauth-expiry</strong>
+                    <span class="path">.worktrees/fix-oauth-expiry</span>
+                  </div>
+                  <span class="muted">main</span>
+                  <span class="status-clean">✓ Clean</span>
+                  <span class="muted">Ready</span>
+                  <button class="btn-ghost" type="button">⋯</button>
+                </div>
+                <div class="table-row">
+                  <div class="cell-main">
+                    <strong>main</strong>
+                    <span class="path">.</span>
+                  </div>
+                  <span class="muted">main</span>
+                  <span class="status-clean">✓ Clean</span>
+                  <span class="muted">—</span>
+                  <button class="btn-ghost" type="button">⋯</button>
+                </div>
+                <div class="footer-hint">
+                  <svg class="icon-sm icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+                  Rail stays; list is optional. Same master-detail as Concept 1 when expanded.
+                </div>
+              </div>
+
+              <aside class="panel detail" id="detail-panel">
+                <div class="panel-header">
+                  <strong style="font-size: 13px">feat/repository-workspace</strong>
+                  <button class="btn-ghost" type="button">✕</button>
+                </div>
+                <div class="panel-body">
+                  <div class="panel-section">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                      <span class="badge badge-success">● Running</span>
+                      <button class="btn btn-secondary" type="button" style="height: 26px">Open session</button>
+                    </div>
+                  </div>
+                  <div class="panel-section">
+                    <h4>Latest message <span style="float: right; font-weight: 400; text-transform: none; letter-spacing: 0">2m ago</span></h4>
+                    <div class="msg-card">
+                      Refactored repository workspace setup to persist context across worktrees.
+                      Added path resolution and validation for linked worktrees.
+                    </div>
+                  </div>
+                  <div class="panel-section">
+                    <h4>Changed files <span style="float: right; font-weight: 400; text-transform: none">4</span></h4>
+                    <div class="file-list">
+                      <div class="file-row">src/workspace/manager.ts <span class="add">+</span></div>
+                      <div class="file-row">src/workspace/paths.ts <span class="add">+</span></div>
+                      <div class="file-row">tests/workspace/manager.test.ts <span class="add">+</span></div>
+                      <div class="file-row">docs/WORKTREES.md <span class="add">+</span></div>
+                    </div>
+                  </div>
+                  <div class="panel-section">
+                    <div class="meta-row"><span>Session model</span><span>claude-3.5-sonnet</span></div>
+                    <div class="meta-row"><span>Started</span><span>12m ago</span></div>
+                    <div class="meta-row"><span>Base branch</span><span>main</span></div>
+                  </div>
+                  <button class="btn btn-danger-outline" type="button">■ Stop session</button>
+                </div>
+              </aside>
+
+              <div class="session-canvas" id="session-canvas">
+                <div class="session-canvas-header">
+                  <div>
+                    <strong>feat/repository-workspace</strong>
+                    <span class="muted"> · agentic-worktrees</span>
+                  </div>
+                  <span class="badge badge-success">● Running</span>
+                </div>
+                <div class="session-canvas-body">
+                  <div class="chat-bubble user">Refactor the workspace service so repository context survives worktree switches.</div>
+                  <div class="chat-bubble">
+                    Refactored repository workspace setup to persist context across worktrees.
+                    Added path resolution and validation for linked worktrees. Four files updated;
+                    ready for review.
+                  </div>
+                </div>
+                <div class="composer">
+                  <input placeholder="Message the coding agent…" readonly />
+                  <button class="btn btn-primary" type="button">Send</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="tradeoffs">
+        <article>
+          <h3>Strengths</h3>
+          <ul>
+            <li>Keeps Concept 1’s fast multi-repo switching when expanded</li>
+            <li>Reclaims width for sessions without inventing a second nav model</li>
+            <li>Rail gives a stable home for Repos / Sessions / Settings</li>
+            <li>Maps cleanly to “session focus” without leaving the repository</li>
+          </ul>
+        </article>
+        <article>
+          <h3>Trade-offs</h3>
+          <ul>
+            <li>One more interaction (expand/collapse) than always-open Concept 1</li>
+            <li>Flyout + detail panel can still feel busy if both stay open</li>
+            <li>Needs clear defaults: open on launch, collapse when opening a session?</li>
+            <li>Icon-only rail requires tooltips for discoverability</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+
+    <script>
+      const flyout = document.getElementById("repo-flyout");
+      const btnFlyout = document.getElementById("btn-toggle-flyout");
+      const btnRepos = document.getElementById("btn-repos");
+      const btnFocus = document.getElementById("btn-session-focus");
+      const btnExit = document.getElementById("btn-exit-focus");
+
+      function setFlyout(open) {
+        flyout.classList.toggle("open", open);
+        btnRepos.classList.toggle("active", open);
+        btnRepos.setAttribute("aria-pressed", open ? "true" : "false");
+      }
+
+      function setFocus(on) {
+        document.body.classList.toggle("session-focus", on);
+        if (on) setFlyout(false);
+      }
+
+      btnFlyout.addEventListener("click", () => {
+        if (document.body.classList.contains("session-focus")) setFocus(false);
+        setFlyout(!flyout.classList.contains("open"));
+      });
+      btnRepos.addEventListener("click", () => {
+        if (document.body.classList.contains("session-focus")) setFocus(false);
+        setFlyout(!flyout.classList.contains("open"));
+      });
+      btnFocus.addEventListener("click", () => setFocus(true));
+      btnExit.addEventListener("click", () => {
+        setFocus(false);
+        setFlyout(true);
+      });
+    </script>
+  </body>
+</html>
